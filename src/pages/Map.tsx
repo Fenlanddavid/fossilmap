@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db } from "../db";
+import { db, Specimen } from "../db";
 import { v4 as uuid } from "uuid";
 import { MapFilterBar } from "../components/MapFilterBar";
 import { LocalityPanel } from "../components/LocalityPanel";
@@ -70,6 +70,17 @@ export default function MapPage({ projectId }: { projectId: string }) {
     }
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [localities]);
+
+  const maxSpecimensAtAnyLocality = useMemo(() => {
+    let max = 0;
+    const counts = new Map<string, number>();
+    for (const s of specimens ?? []) {
+      const c = (counts.get(s.localityId) ?? 0) + 1;
+      counts.set(s.localityId, c);
+      if (c > max) max = c;
+    }
+    return max;
+  }, [specimens]);
 
   const specimenPassesDateFilter = useMemo(() => {
     const now = new Date();
@@ -370,7 +381,7 @@ export default function MapPage({ projectId }: { projectId: string }) {
     }
   }, [selected, highlightedLocalityId, featureCollection]);
 
-  async function zoomToMyLocation() {
+  function zoomToMyLocation() {
     if (!("geolocation" in navigator)) return;
     navigator.geolocation.getCurrentPosition(
       (pos) => mapRef.current?.easeTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 13 }),
@@ -379,7 +390,7 @@ export default function MapPage({ projectId }: { projectId: string }) {
     );
   }
 
-  async function addLocalityHere() {
+  function addLocalityHere() {
     if (!("geolocation" in navigator)) return;
     navigator.geolocation.getCurrentPosition(
       (pos) => setAddingLocalityAt({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
@@ -388,7 +399,9 @@ export default function MapPage({ projectId }: { projectId: string }) {
     );
   }
 
-  async function createLocalityAt(lat: number, lon: number, name: string) {
+  async function createLocalityAt(name: string) {
+    if (!addingLocalityAt) return;
+    const { lat, lon } = addingLocalityAt;
     const now = new Date().toISOString();
     await db.localities.add({
       id: uuid(),
@@ -410,6 +423,15 @@ export default function MapPage({ projectId }: { projectId: string }) {
       createdAt: now,
       updatedAt: now,
     } as any);
+    setAddingLocalityAt(null);
+  }
+
+  function clearFilters() {
+    setFilterSSSIOnly(false);
+    setFilterFormation("");
+    setFilterTaxon("");
+    setMinSpecimens(0);
+    setDateMode("all");
   }
 
   return (
@@ -427,12 +449,15 @@ export default function MapPage({ projectId }: { projectId: string }) {
         setFilterTaxon={setFilterTaxon}
         minSpecimens={minSpecimens}
         setMinSpecimens={setMinSpecimens}
+        maxSpecimensAtAnyLocality={maxSpecimensAtAnyLocality}
         dateMode={dateMode}
         setDateMode={setDateMode}
         customFrom={customFrom}
         setCustomFrom={setCustomFrom}
         customTo={customTo}
         setCustomTo={setCustomTo}
+        onClear={clearFilters}
+        needsKey={false}
         mapStyleMode={mapStyleMode}
         setMapStyleMode={setMapStyleMode}
       />
@@ -442,14 +467,13 @@ export default function MapPage({ projectId }: { projectId: string }) {
         
         {/* Selection overlay */}
         {selected && (
-          <div className="absolute bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:w-96 z-10 animate-in slide-in-from-bottom-4 duration-300">
+          <div className="absolute bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:w-96 z-10">
             <LocalityPanel 
-              localityId={selected.id}
-              name={selected.name}
-              specimenCount={selected.specimenCount}
-              formation={selected.formation}
-              lithology={selected.lithology}
-              sssi={selected.sssi}
+              selected={selected}
+              selectedSpecimens={selectedSpecimens as Specimen[]}
+              firstPhotoBySpecimenId={firstPhotoBySpecimenId}
+              onOpenSpecimen={(sid) => setOpenSpecimenId(sid)}
+              onEdit={() => nav(`/field-trip/${selected.id}`)}
               onClose={() => {
                 setSelected(null);
                 setHighlightedLocalityId(null);
@@ -457,10 +481,6 @@ export default function MapPage({ projectId }: { projectId: string }) {
                 if (mapRef.current?.getLayer("unclustered-highlight")) mapRef.current.setFilter("unclustered-highlight", filter);
                 if (mapRef.current?.getLayer("unclustered-highlight-ring")) mapRef.current.setFilter("unclustered-highlight-ring", filter);
               }}
-              onAddSpecimen={() => nav(`/specimen?localityId=${selected.id}`)}
-              onViewDetails={() => nav(`/field-trip/${selected.id}`)}
-              onOpenSpecimen={(sid) => setOpenSpecimenId(sid)}
-              thumbnails={firstPhotoBySpecimenId ?? new Map()}
             />
           </div>
         )}
@@ -474,8 +494,8 @@ export default function MapPage({ projectId }: { projectId: string }) {
         <LocalityQuickAddModal 
           lat={addingLocalityAt.lat}
           lon={addingLocalityAt.lon}
-          onClose={() => setAddingLocalityAt(null)}
-          onSave={createLocalityAt}
+          onCancel={() => setAddingLocalityAt(null)}
+          onCreate={createLocalityAt}
         />
       )}
     </div>
