@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, Media, Specimen } from "../db";
 import { v4 as uuid } from "uuid";
@@ -19,12 +20,13 @@ function makeSpecimenCode(): string {
 }
 
 export default function SpecimenPage(props: { projectId: string; localityId: string | null }) {
+  const navigate = useNavigate();
   const localities = useLiveQuery(
     async () => db.localities.where("projectId").equals(props.projectId).reverse().sortBy("createdAt"),
     [props.projectId]
   );
 
-  const [localityId, setLocalityId] = useState<string | "">(props.localityId ?? "");
+  const [locationName, setLocationName] = useState("");
   const [specimenCode, setSpecimenCode] = useState(makeSpecimenCode());
   const [taxon, setTaxon] = useState("");
   const [confidence, setConfidence] = useState<Specimen["taxonConfidence"]>("med");
@@ -42,9 +44,11 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
 
   useEffect(() => {
     if (props.localityId) {
-      setLocalityId(props.localityId);
-    } else if (localities && localities.length > 0 && !localityId) {
-      setLocalityId(localities[0].id);
+      db.localities.get(props.localityId).then(l => {
+        if (l) setLocationName(l.name);
+      });
+    } else if (localities && localities.length > 0 && !locationName) {
+      setLocationName(localities[0].name || "");
     }
   }, [props.localityId, localities]);
 
@@ -70,14 +74,52 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
     setError(null);
     setSaving(true);
     try {
-      if (!localityId) throw new Error("Pick a field trip first.");
+      if (!locationName.trim()) throw new Error("Enter a location name first.");
+      
+      const trimmedName = locationName.trim();
+      let targetLocalityId = "";
+      
+      // Find or create locality
+      const existing = await db.localities
+        .where("projectId")
+        .equals(props.projectId)
+        .filter(l => l.name === trimmedName)
+        .first();
+
+      if (existing) {
+        targetLocalityId = existing.id;
+      } else {
+        targetLocalityId = uuid();
+        const now = new Date().toISOString();
+        await db.localities.add({
+          id: targetLocalityId,
+          projectId: props.projectId,
+          name: trimmedName,
+          lat: null,
+          lon: null,
+          gpsAccuracyM: null,
+          observedAt: now,
+          collector: "",
+          exposureType: "other",
+          sssi: false,
+          permissionGranted: false,
+          formation: "",
+          member: "",
+          bed: "",
+          lithologyPrimary: "other",
+          notes: "Automatically created via Casual Find",
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+
       const id = uuid();
       const now = new Date().toISOString();
 
       const s: Specimen = {
         id,
         projectId: props.projectId,
-        localityId,
+        localityId: targetLocalityId,
         specimenCode: specimenCode.trim() || makeSpecimenCode(),
         taxon: taxon.trim(),
         taxonConfidence: confidence,
@@ -166,14 +208,22 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
     <div className="grid gap-6 max-w-4xl mx-auto pb-10">
       <div className="flex justify-between items-center px-1">
         <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Casual Find</h2>
-        {savedId && (
+        <div className="flex gap-3">
             <button 
-                onClick={resetForm}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-bold shadow-md transition-all"
+                onClick={() => navigate("/finds")}
+                className="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-100 px-4 py-2 rounded-xl font-bold shadow-sm transition-all"
             >
-                + Record Another Find
+                View All Finds
             </button>
-        )}
+            {savedId && (
+                <button 
+                    onClick={resetForm}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-bold shadow-md transition-all"
+                >
+                    + Record Another Find
+                </button>
+            )}
+        </div>
       </div>
 
       {error && <div className="border-2 border-red-200 bg-red-50 text-red-800 p-4 rounded-xl shadow-sm">{error}</div>}
@@ -181,19 +231,13 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
       <div className="grid lg:grid-cols-2 gap-6">
           <div className={`bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-sm grid gap-5 h-fit transition-opacity ${savedId ? 'opacity-50 pointer-events-none' : ''}`}>
             <label className="block">
-            <div className="mb-1.5 text-sm font-bold text-gray-700 dark:text-gray-300">Select Field Trip</div>
-            <select 
-                value={localityId} 
-                onChange={(e) => setLocalityId(e.target.value)}
+            <div className="mb-1.5 text-sm font-bold text-gray-700 dark:text-gray-300">Location Name</div>
+            <input 
+                value={locationName} 
+                onChange={(e) => setLocationName(e.target.value)}
+                placeholder="Enter location or field trip name"
                 className="w-full bg-white dark:bg-gray-900 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none transition-shadow font-bold"
-            >
-                <option value="">— Select Trip —</option>
-                {localities?.map((l) => (
-                <option key={l.id} value={l.id}>
-                    {l.name || "(Unnamed)"}
-                </option>
-                ))}
-            </select>
+            />
             </label>
 
             <div className="grid grid-cols-2 gap-4">
@@ -266,7 +310,7 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
 
             <button 
                 onClick={saveSpecimen} 
-                disabled={saving || !localityId} 
+                disabled={saving || !locationName.trim()} 
                 className={`mt-2 w-full px-6 py-4 rounded-xl font-bold text-lg shadow-md transition-all transform active:scale-95 disabled:opacity-50 disabled:transform-none ${savedId ? "bg-green-600 text-white" : "bg-blue-600 hover:bg-blue-700 text-white"}`}
             >
             {saving ? "Saving..." : savedId ? "Find Saved ✓" : "Save Find"}

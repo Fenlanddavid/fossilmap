@@ -9,6 +9,7 @@ import Home from "./pages/Home";
 import LocalityPage from "./pages/Locality";
 import SpecimenPage from "./pages/Specimen";
 import MapPage from "./pages/Map";
+import AllFinds from "./pages/AllFinds";
 
 export function Logo() {
   return (
@@ -131,6 +132,7 @@ function Shell() {
             <Route path="/field-trip" element={<LocalityPage projectId={projectId} onSaved={(id) => nav(`/specimen?localityId=${encodeURIComponent(id)}`)} />} />
             <Route path="/field-trip/:id" element={<LocalityPage projectId={projectId} onSaved={() => {}} />} />
             <Route path="/specimen" element={<SpecimenRouter projectId={projectId} />} />
+            <Route path="/finds" element={<AllFinds projectId={projectId} />} />
             <Route path="/map" element={<MapPage projectId={projectId} />} />
             <Route path="/locality" element={<LinkToFieldTrip />} />
             <Route path="/locality/:id" element={<LinkToFieldTrip />} />
@@ -160,6 +162,7 @@ function HomeRouter({ projectId }: { projectId: string }) {
         const q = localityId ? `?localityId=${encodeURIComponent(localityId)}` : "";
         nav(`/specimen${q}`);
       }}
+      goAllFinds={() => nav("/finds")}
       goMap={() => nav("/map")}
     />
   );

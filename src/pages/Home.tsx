@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../db";
 
@@ -7,11 +7,24 @@ export default function Home(props: {
   goLocality: () => void;
   goLocalityEdit: (id: string) => void;
   goSpecimen: (localityId?: string) => void;
+  goAllFinds: () => void;
   goMap: () => void;
 }) {
+  const [searchQuery, setSearchQuery] = useState("");
+  
   const localities = useLiveQuery(
-    async () => db.localities.where("projectId").equals(props.projectId).reverse().sortBy("createdAt"),
-    [props.projectId]
+    async () => {
+      let collection = db.localities.where("projectId").equals(props.projectId);
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        return collection
+          .filter(l => l.name.toLowerCase().includes(query) || (l.formation?.toLowerCase().includes(query) ?? false))
+          .reverse()
+          .sortBy("createdAt");
+      }
+      return collection.reverse().sortBy("createdAt");
+    },
+    [props.projectId, searchQuery]
   );
 
   const specimens = useLiveQuery(
@@ -34,20 +47,32 @@ export default function Home(props: {
       </div>
 
       <section>
-        <div className="flex items-baseline justify-between mb-4">
-            <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">Recent Field Trips</h2>
-            <div className="text-sm text-gray-500 font-mono">{localities?.length ?? 0} total</div>
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-4">
+            <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">Field Trips</h2>
+            <div className="flex items-center gap-3 flex-1 max-w-md">
+                <div className="relative flex-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 opacity-40">🔍</span>
+                    <input 
+                        type="text"
+                        placeholder="Search trips by name or formation..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                </div>
+                <div className="text-sm text-gray-500 font-mono hidden sm:block whitespace-nowrap">{localities?.length ?? 0} total</div>
+            </div>
         </div>
         
         {(!localities || localities.length === 0) && (
             <div className="text-gray-500 italic bg-gray-50 dark:bg-gray-800/50 p-10 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700 text-center">
-                No field trips recorded yet. Start by adding a new trip!
+                {searchQuery ? "No trips found matching your search." : "No field trips recorded yet. Start by adding a new trip!"}
             </div>
         )}
         
         {localities && localities.length > 0 && (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {localities.slice(0, 9).map((l) => (
+            {localities.slice(0, 12).map((l) => (
               <div key={l.id} className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all flex flex-col h-full group">
                 <div className="flex justify-between gap-3 mb-2">
                   <button 
@@ -65,6 +90,7 @@ export default function Home(props: {
                      </span>
                      <span className="text-xs opacity-60">{new Date(l.createdAt).toLocaleDateString()}</span>
                   </div>
+                  {l.formation && <div className="text-xs font-medium opacity-80 mt-1 truncate">{l.formation}</div>}
                   {l.sssi && <span className="text-amber-700 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded text-xs font-bold inline-block mt-1">⚠️ SSSI</span>}
                 </div>
                 
@@ -85,7 +111,7 @@ export default function Home(props: {
       <section>
         <div className="flex items-baseline justify-between mb-4">
             <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">Recent Finds</h2>
-            <div className="text-sm text-gray-500 font-mono">{specimens?.length ?? 0} total</div>
+            <button onClick={props.goAllFinds} className="text-sm text-blue-600 font-bold hover:underline">View All Finds →</button>
         </div>
 
         {(!specimens || specimens.length === 0) && <div className="text-gray-500 italic bg-gray-50 dark:bg-gray-800/50 p-10 rounded-2xl border border-dashed border-gray-200 dark:border-gray-700 text-center">No finds recorded yet.</div>}
