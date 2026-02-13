@@ -252,7 +252,7 @@ export default function MapPage({ projectId }: { projectId: string }) {
         id: "unclustered-highlight",
         type: "circle",
         source: "localities",
-        filter: ["all", ["!", ["has", "point_count"]], ["==", ["get", "id"], "___NONE___"]],
+        filter: ["all", ["!", ["has", "point_count"]], ["==", ["get", "id"], "___NONE___"]] as any,
         paint: {
           "circle-radius": 18,
           "circle-stroke-width": 3,
@@ -265,7 +265,7 @@ export default function MapPage({ projectId }: { projectId: string }) {
           id: "unclustered-highlight-ring",
           type: "circle",
           source: "localities",
-          filter: ["all", ["!", ["has", "point_count"]], ["==", ["get", "id"], "___NONE___"]],
+          filter: ["all", ["!", ["has", "point_count"]], ["==", ["get", "id"], "___NONE___"]] as any,
           paint: {
             "circle-radius": 22,
             "circle-stroke-width": 2,
@@ -323,7 +323,7 @@ export default function MapPage({ projectId }: { projectId: string }) {
         const targetZoom = Math.max(currentZoom, 13);
         map.easeTo({ center: coords, zoom: targetZoom, duration: 450 });
         
-        const filter = ["all", ["!", ["has", "point_count"]], ["==", ["get", "id"], id]];
+        const filter = ["all", ["!", ["has", "point_count"]], ["==", ["get", "id"], id]] as any;
         if (map.getLayer("unclustered-highlight")) map.setFilter("unclustered-highlight", filter);
         if (map.getLayer("unclustered-highlight-ring")) map.setFilter("unclustered-highlight-ring", filter);
       });
@@ -359,11 +359,11 @@ export default function MapPage({ projectId }: { projectId: string }) {
       if (!stillThere) {
         setSelected(null);
         setHighlightedLocalityId(null);
-        const filter = ["all", ["!", ["has", "point_count"]], ["==", ["get", "id"], "___NONE___"]];
+        const filter = ["all", ["!", ["has", "point_count"]], ["==", ["get", "id"], "___NONE___"]] as any;
         if (map.getLayer("unclustered-highlight")) map.setFilter("unclustered-highlight", filter);
         if (map.getLayer("unclustered-highlight-ring")) map.setFilter("unclustered-highlight-ring", filter);
       } else if (highlightedLocalityId) {
-         const filter = ["all", ["!", ["has", "point_count"]], ["==", ["get", "id"], highlightedLocalityId]];
+         const filter = ["all", ["!", ["has", "point_count"]], ["==", ["get", "id"], highlightedLocalityId]] as any;
          if (map.getLayer("unclustered-highlight")) map.setFilter("unclustered-highlight", filter);
          if (map.getLayer("unclustered-highlight-ring")) map.setFilter("unclustered-highlight-ring", filter);
       }
@@ -427,57 +427,57 @@ export default function MapPage({ projectId }: { projectId: string }) {
         setFilterTaxon={setFilterTaxon}
         minSpecimens={minSpecimens}
         setMinSpecimens={setMinSpecimens}
-        maxSpecimensAtAnyLocality={Math.max(...Array.from(specimenCountByLocality.values()), 0)}
         dateMode={dateMode}
         setDateMode={setDateMode}
         customFrom={customFrom}
         setCustomFrom={setCustomFrom}
         customTo={customTo}
         setCustomTo={setCustomTo}
-        onClear={() => {
-          setFilterSSSIOnly(false);
-          setFilterFormation("");
-          setFilterTaxon("");
-          setMinSpecimens(0);
-          setDateMode("all");
-          setCustomFrom("");
-          setCustomTo("");
-        }}
-        needsKey={false}
         mapStyleMode={mapStyleMode}
         setMapStyleMode={setMapStyleMode}
       />
 
-      <div className="relative flex-1 min-h-0 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 shadow-inner">
-        <div ref={mapDivRef} className="absolute inset-0 bg-gray-100 dark:bg-gray-900" />
+      <div className="flex-1 relative border-2 border-gray-100 dark:border-gray-800 rounded-3xl overflow-hidden shadow-inner bg-gray-50 dark:bg-black">
+        <div ref={mapDivRef} className="absolute inset-0" />
         
+        {/* Selection overlay */}
         {selected && (
-          <div className="absolute bottom-4 left-4 right-4 md:right-auto md:w-96 z-10">
+          <div className="absolute bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:w-96 z-10 animate-in slide-in-from-bottom-4 duration-300">
             <LocalityPanel 
-                selected={selected} 
-                selectedSpecimens={selectedSpecimens} 
-                firstPhotoBySpecimenId={firstPhotoBySpecimenId}
-                onOpenSpecimen={setOpenSpecimenId}
-                onEdit={() => nav(`/field-trip/${selected.id}`)}
-                onClose={() => setSelected(null)}
+              localityId={selected.id}
+              name={selected.name}
+              specimenCount={selected.specimenCount}
+              formation={selected.formation}
+              lithology={selected.lithology}
+              sssi={selected.sssi}
+              onClose={() => {
+                setSelected(null);
+                setHighlightedLocalityId(null);
+                const filter = ["all", ["!", ["has", "point_count"]], ["==", ["get", "id"], "___NONE___"]] as any;
+                if (mapRef.current?.getLayer("unclustered-highlight")) mapRef.current.setFilter("unclustered-highlight", filter);
+                if (mapRef.current?.getLayer("unclustered-highlight-ring")) mapRef.current.setFilter("unclustered-highlight-ring", filter);
+              }}
+              onAddSpecimen={() => nav(`/specimen?localityId=${selected.id}`)}
+              onViewDetails={() => nav(`/field-trip/${selected.id}`)}
+              onOpenSpecimen={(sid) => setOpenSpecimenId(sid)}
+              thumbnails={firstPhotoBySpecimenId ?? new Map()}
             />
           </div>
         )}
       </div>
 
-      {addingLocalityAt && (
-        <LocalityQuickAddModal
-          lat={addingLocalityAt.lat}
-          lon={addingLocalityAt.lon}
-          onCancel={() => setAddingLocalityAt(null)}
-          onCreate={async (name) => {
-            await createLocalityAt(addingLocalityAt.lat, addingLocalityAt.lon, name);
-            setAddingLocalityAt(null);
-          }}
-        />
+      {openSpecimenId && (
+        <SpecimenModal specimenId={openSpecimenId} onClose={() => setOpenSpecimenId(null)} />
       )}
 
-      {openSpecimenId && <SpecimenModal specimenId={openSpecimenId} onClose={() => setOpenSpecimenId(null)} />}
+      {addingLocalityAt && (
+        <LocalityQuickAddModal 
+          lat={addingLocalityAt.lat}
+          lon={addingLocalityAt.lon}
+          onClose={() => setAddingLocalityAt(null)}
+          onSave={createLocalityAt}
+        />
+      )}
     </div>
   );
 }
