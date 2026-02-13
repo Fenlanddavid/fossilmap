@@ -35,7 +35,7 @@ export default function MapPage({ projectId }: { projectId: string }) {
   const [filterSSSIOnly, setFilterSSSIOnly] = useState(false);
   const [filterFormation, setFilterFormation] = useState<string>("");
   const [filterTaxon, setFilterTaxon] = useState("");
-  const [minSpecimens, setMinSpecimens] = useState(0);
+  const [minSpecimens, setMinSpecimens] = useState(1);
 
   // Date range
   const [dateMode, setDateMode] = useState<DateFilterMode>("all");
@@ -430,7 +430,7 @@ export default function MapPage({ projectId }: { projectId: string }) {
     setFilterSSSIOnly(false);
     setFilterFormation("");
     setFilterTaxon("");
-    setMinSpecimens(0);
+    setMinSpecimens(1);
     setDateMode("all");
   }
 

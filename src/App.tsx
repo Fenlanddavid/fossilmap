@@ -10,7 +10,7 @@ import LocalityPage from "./pages/Locality";
 import SpecimenPage from "./pages/Specimen";
 import MapPage from "./pages/Map";
 
-function Logo() {
+export function Logo() {
   return (
     <svg width="32" height="32" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
       {/* recognizable Long-neck Dinosaur silhouette */}
@@ -173,7 +173,7 @@ function SpecimenRouter({ projectId }: { projectId: string }) {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <Shell />
     </BrowserRouter>
   );

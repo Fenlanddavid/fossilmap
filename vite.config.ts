@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
-  base: './',
+  base: '/fossilmap/',
   plugins: [
     react(),
     VitePWA({
@@ -16,11 +16,17 @@ export default defineConfig({
         theme_color: '#3b82f6',
         background_color: '#ffffff',
         display: 'standalone',
-        start_url: './',
+        start_url: '/fossilmap/',
         icons: [
           {
             src: 'logo.svg',
             sizes: 'any',
+            type: 'image/svg+xml',
+            purpose: 'any maskable'
+          },
+          {
+            src: 'logo.svg',
+            sizes: '512x512',
             type: 'image/svg+xml',
             purpose: 'any maskable'
           }

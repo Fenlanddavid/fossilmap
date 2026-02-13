@@ -93,7 +93,7 @@ export function MapFilterBar(props: {
             <span className="text-xs font-medium opacity-70 ml-1">Min specimens: <strong>{props.minSpecimens}</strong></span>
             <input
                 type="range"
-                min={0}
+                min={1}
                 max={Math.max(10, props.maxSpecimensAtAnyLocality)}
                 step={1}
                 value={props.minSpecimens}
