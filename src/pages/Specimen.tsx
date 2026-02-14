@@ -4,7 +4,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db, Media, Specimen } from "../db";
 import { v4 as uuid } from "uuid";
 import { fileToBlob } from "../services/photos";
-import { ScaleBar } from "../components/ScaleBar";
+import { ScaledImage } from "../components/ScaledImage";
 
 const taxonConfidence: Specimen["taxonConfidence"][] = ["high", "med", "low"];
 const elements: Specimen["element"][] = ["shell", "bone", "tooth", "plant", "trace fossil", "microfossil", "unknown", "other"];
@@ -175,31 +175,28 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
   }
 
   function PhotoThumb(props: { mediaId: string; filename: string }) {
-     const [url, setUrl] = useState<string | null>(null);
-     const [pxPerMm, setPxPerMm] = useState<number | undefined>();
+     const [media, setMedia] = useState<Media | null>(null);
      
      useEffect(() => {
         let active = true;
         db.media.get(props.mediaId).then(m => {
             if (active && m) {
-                setUrl(URL.createObjectURL(m.blob));
-                setPxPerMm(m.pxPerMm);
+                setMedia(m);
             }
         });
-        return () => { active = false; if(url) URL.revokeObjectURL(url); };
+        return () => { active = false; };
      }, [props.mediaId]);
 
-     if (!url) return <div className="w-full h-32 bg-gray-100 dark:bg-gray-700 animate-pulse rounded-lg" />;
+     if (!media) return <div className="w-full h-32 bg-gray-100 dark:bg-gray-700 animate-pulse rounded-lg" />;
      
      return (
         <div className="relative group border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden aspect-square">
-           <img src={url} alt={props.filename} className="w-full h-full object-cover" />
-           {pxPerMm && (
-             <div className="absolute bottom-6 right-2">
-               <ScaleBar pxPerMm={pxPerMm * 0.2} />
-             </div>
-           )}
-           <div className="bg-white/90 dark:bg-gray-900/90 p-1 text-[10px] truncate absolute bottom-0 inset-x-0">{props.filename}</div>
+           <ScaledImage 
+              media={media} 
+              imgClassName="object-cover" 
+              className="w-full h-full" 
+           />
+           <div className="bg-white/90 dark:bg-gray-900/90 p-1 text-[10px] truncate absolute bottom-0 inset-x-0 z-10">{props.filename}</div>
         </div>
      );
   }
@@ -207,7 +204,9 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
   return (
     <div className="grid gap-6 max-w-4xl mx-auto pb-10">
       <div className="flex justify-between items-center px-1">
-        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Casual Find</h2>
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+          {props.localityId ? "Add Find" : "Casual Find"}
+        </h2>
         <div className="flex gap-3">
             <button 
                 onClick={() => navigate("/finds")}

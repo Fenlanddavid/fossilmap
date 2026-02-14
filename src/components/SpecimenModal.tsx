@@ -5,7 +5,7 @@ import { Modal } from "./Modal";
 import { v4 as uuid } from "uuid";
 import { fileToBlob } from "../services/photos";
 import { ScaleCalibrationModal } from "./ScaleCalibrationModal";
-import { ScaleBar } from "./ScaleBar";
+import { ScaledImage } from "./ScaledImage";
 
 export function SpecimenModal(props: { specimenId: string; onClose: () => void }) {
   const specimen = useLiveQuery(async () => db.specimens.get(props.specimenId), [props.specimenId]);
@@ -139,22 +139,20 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {imageUrls.map((x) => (
                   <div key={x.id} className="relative group border-2 border-gray-100 dark:border-gray-700 rounded-xl overflow-hidden aspect-square shadow-sm cursor-pointer" onClick={() => setCalibratingMedia({ media: x.media, url: x.url })}>
-                    <img src={x.url} alt={x.filename} className="w-full h-full object-cover" />
-                    
-                    {x.media.pxPerMm && (
-                      <div className="absolute bottom-6 right-2">
-                        <ScaleBar pxPerMm={x.media.pxPerMm * 0.2} /> {/* Scale down for thumbnail */}
-                      </div>
-                    )}
+                    <ScaledImage 
+                      media={x.media} 
+                      imgClassName="object-cover" 
+                      className="w-full h-full" 
+                    />
 
                     <button 
                       onClick={(e) => { e.stopPropagation(); removePhoto(x.id); }} 
                       disabled={busy}
-                      className="absolute top-1 right-1 bg-red-600 text-white w-7 h-7 rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-all shadow-lg hover:scale-110 active:scale-95"
+                      className="absolute top-1 right-1 bg-red-600 text-white w-7 h-7 rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-all shadow-lg hover:scale-110 active:scale-95 z-10"
                     >✕</button>
-                    <div className="bg-white/90 dark:bg-gray-900/90 p-1 text-[9px] truncate absolute bottom-0 inset-x-0 font-mono text-center">{x.filename}</div>
+                    <div className="bg-white/90 dark:bg-gray-900/90 p-1 text-[9px] truncate absolute bottom-0 inset-x-0 font-mono text-center z-10">{x.filename}</div>
                     
-                    <div className="absolute inset-0 bg-blue-600/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <div className="absolute inset-0 bg-blue-600/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-10">
                         <span className="bg-white dark:bg-gray-800 text-[10px] font-bold px-2 py-1 rounded-full shadow-sm">Set Scale</span>
                     </div>
                   </div>

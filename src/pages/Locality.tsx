@@ -65,28 +65,18 @@ export default function LocalityPage(props: {
   }, [id, finds]);
 
   // Fetch thumbnails and scale info for the finds
-  const findThumbInfo = useMemo(() => {
-    const info = new Map<string, { url: string; pxPerMm?: number }>();
+  const findThumbMedia = useMemo(() => {
+    const info = new Map<string, Media>();
     if (!allMedia || !finds) return info;
     
     const sortedMedia = [...allMedia].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     for (const row of sortedMedia) {
       if (!info.has(row.specimenId)) {
-        info.set(row.specimenId, {
-          url: URL.createObjectURL(row.blob),
-          pxPerMm: row.pxPerMm
-        });
+        info.set(row.specimenId, row);
       }
     }
     return info;
   }, [allMedia, finds]);
-
-  useEffect(() => {
-    return () => {
-      if (!findThumbInfo) return;
-      for (const val of findThumbInfo.values()) URL.revokeObjectURL(val.url);
-    };
-  }, [findThumbInfo]);
 
   useEffect(() => {
     if (id) {
@@ -396,8 +386,7 @@ export default function LocalityPage(props: {
                                 <SpecimenRow 
                                     key={s.id} 
                                     specimen={s} 
-                                    thumbUrl={findThumbInfo?.get(s.id)?.url ?? null} 
-                                    pxPerMm={findThumbInfo?.get(s.id)?.pxPerMm}
+                                    thumbMedia={findThumbMedia?.get(s.id) ?? null} 
                                     onOpen={() => setOpenFindId(s.id)} 
                                 />
                             ))

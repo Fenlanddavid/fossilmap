@@ -157,7 +157,7 @@ function HomeRouter({ projectId }: { projectId: string }) {
     <Home
       projectId={projectId}
       goLocality={() => nav("/field-trip")}
-      goLocalityEdit={(id) => nav(`/field-trip/${id}`)}
+      goLocalityEdit={(id: string) => nav(`/field-trip/${id}`)}
       goSpecimen={(localityId?: string) => {
         const q = localityId ? `?localityId=${encodeURIComponent(localityId)}` : "";
         nav(`/specimen${q}`);

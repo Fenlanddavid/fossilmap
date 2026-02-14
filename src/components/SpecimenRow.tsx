@@ -1,11 +1,10 @@
 import React from "react";
-import { Specimen } from "../db";
-import { ScaleBar } from "./ScaleBar";
+import { Specimen, Media } from "../db";
+import { ScaledImage } from "./ScaledImage";
 
 export function SpecimenRow(props: { 
   specimen: Specimen; 
-  thumbUrl: string | null; 
-  pxPerMm?: number;
+  thumbMedia?: Media | null;
   onOpen: () => void 
 }) {
   const s = props.specimen;
@@ -15,16 +14,15 @@ export function SpecimenRow(props: {
       className="w-full text-left flex gap-3 items-center border border-gray-200 dark:border-gray-700 rounded-xl p-2.5 bg-transparent hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group"
     >
       <div className="relative">
-        {props.thumbUrl ? (
-          <img src={props.thumbUrl} alt="thumb" className="w-14 h-14 object-cover rounded-lg bg-gray-100 dark:bg-gray-700" />
+        {props.thumbMedia ? (
+          <ScaledImage 
+            media={props.thumbMedia} 
+            className="w-14 h-14 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700" 
+            imgClassName="object-cover"
+          />
         ) : (
           <div className="w-14 h-14 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 grid place-items-center opacity-70 text-xs bg-gray-50 dark:bg-gray-800">
             no photo
-          </div>
-        )}
-        {props.pxPerMm && (
-          <div className="absolute bottom-1 right-1 pointer-events-none scale-50 origin-bottom-right">
-            <ScaleBar pxPerMm={props.pxPerMm * 0.2} />
           </div>
         )}
       </div>

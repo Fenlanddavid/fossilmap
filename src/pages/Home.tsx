@@ -1,6 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db } from "../db";
+import { db, Media } from "../db";
+import { ScaledImage } from "../components/ScaledImage";
+import { SpecimenModal } from "../components/SpecimenModal";
 
 export default function Home(props: {
   projectId: string;
@@ -11,6 +13,7 @@ export default function Home(props: {
   goMap: () => void;
 }) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [openSpecimenId, setOpenSpecimenId] = useState<string | null>(null);
   
   const localities = useLiveQuery(
     async () => {
@@ -31,6 +34,19 @@ export default function Home(props: {
     async () => db.specimens.where("projectId").equals(props.projectId).reverse().sortBy("createdAt"),
     [props.projectId]
   );
+
+  const specimenIds = useMemo(() => specimens?.slice(0, 12).map(s => s.id) ?? [], [specimens]);
+
+  const firstMediaMap = useLiveQuery(async () => {
+    if (specimenIds.length === 0) return new Map<string, Media>();
+    const media = await db.media.where("specimenId").anyOf(specimenIds).toArray();
+    const m = new Map<string, Media>();
+    media.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    for (const row of media) {
+        if (!m.has(row.specimenId)) m.set(row.specimenId, row);
+    }
+    return m;
+  }, [specimenIds]);
 
   return (
     <div className="grid gap-8 max-w-5xl mx-auto">
@@ -118,26 +134,46 @@ export default function Home(props: {
         
         {specimens && specimens.length > 0 && (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {specimens.slice(0, 12).map((s) => (
-              <div key={s.id} className="border border-gray-200 dark:border-gray-700 rounded-xl p-3 bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all">
-                <div className="flex justify-between gap-3 mb-1 items-center">
-                  <strong className="text-gray-900 dark:text-white font-mono text-[10px] bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded uppercase tracking-tighter">{s.specimenCode}</strong>
-                  <span className="opacity-50 text-[10px] shrink-0 font-medium">
-                    {new Date(s.createdAt).toLocaleDateString()}
-                  </span>
-                </div>
-                <div className="mt-2">
-                  <div className="font-bold text-gray-800 dark:text-gray-200 truncate leading-tight" title={s.taxon}>{s.taxon || "(Taxon TBD)"}</div>
-                  <div className="opacity-60 text-xs mt-1 flex gap-2 items-center">
-                    <span className="bg-gray-50 dark:bg-gray-900 px-1 rounded border border-gray-100 dark:border-gray-800">{s.taxonConfidence}</span>
-                    {s.element !== "unknown" && <span className="capitalize">{s.element}</span>}
+            {specimens.slice(0, 12).map((s) => {
+              const media = firstMediaMap?.get(s.id);
+              return (
+                <div key={s.id} className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all flex flex-col h-full group cursor-pointer" onClick={() => setOpenSpecimenId(s.id)}>
+                  <div className="aspect-square bg-gray-100 dark:bg-gray-900 relative">
+                    {media ? (
+                      <ScaledImage 
+                        media={media} 
+                        className="w-full h-full" 
+                        imgClassName="object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center opacity-30 italic text-[10px]">
+                        No photo
+                      </div>
+                    )}
+                    <div className="absolute top-2 left-2">
+                        <strong className="text-white font-mono text-[9px] bg-black/50 backdrop-blur-sm px-1.5 py-0.5 rounded uppercase tracking-tighter">{s.specimenCode}</strong>
+                    </div>
+                  </div>
+                  <div className="p-3">
+                    <div className="font-bold text-gray-800 dark:text-gray-200 truncate leading-tight group-hover:text-blue-600 transition-colors" title={s.taxon}>{s.taxon || "(Taxon TBD)"}</div>
+                    <div className="opacity-60 text-[10px] mt-1 flex justify-between items-center">
+                      <div className="flex gap-2">
+                        <span className="bg-gray-50 dark:bg-gray-900 px-1 rounded border border-gray-100 dark:border-gray-800 uppercase font-bold">{s.taxonConfidence}</span>
+                        {s.element !== "unknown" && <span className="capitalize">{s.element}</span>}
+                      </div>
+                      <span className="opacity-60">{new Date(s.createdAt).toLocaleDateString()}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
+
+      {openSpecimenId && (
+        <SpecimenModal specimenId={openSpecimenId} onClose={() => setOpenSpecimenId(null)} />
+      )}
     </div>
   );
 }

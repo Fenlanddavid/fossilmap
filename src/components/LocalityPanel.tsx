@@ -1,5 +1,5 @@
 import React from "react";
-import { Specimen } from "../db";
+import { Specimen, Media } from "../db";
 import { SpecimenRow } from "./SpecimenRow";
 
 type SelectedLocality = {
@@ -16,7 +16,7 @@ type SelectedLocality = {
 export function LocalityPanel(props: {
   selected: SelectedLocality;
   selectedSpecimens: Specimen[] | undefined;
-  firstPhotoBySpecimenId: Map<string, string> | undefined;
+  firstPhotoBySpecimenId: Map<string, Media> | undefined;
   onOpenSpecimen: (id: string) => void;
   onEdit: () => void;
   onClose: () => void;
@@ -71,7 +71,7 @@ export function LocalityPanel(props: {
               <SpecimenRow
                 key={s.id}
                 specimen={s}
-                thumbUrl={props.firstPhotoBySpecimenId?.get(s.id) ?? null}
+                thumbMedia={props.firstPhotoBySpecimenId?.get(s.id) ?? null}
                 onOpen={() => props.onOpenSpecimen(s.id)}
               />
             ))}

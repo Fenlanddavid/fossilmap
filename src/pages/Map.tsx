@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db, Specimen } from "../db";
+import { db, Specimen, Media } from "../db";
 import { v4 as uuid } from "uuid";
 import { MapFilterBar } from "../components/MapFilterBar";
 import { LocalityPanel } from "../components/LocalityPanel";
@@ -159,25 +159,18 @@ export default function MapPage({ projectId }: { projectId: string }) {
   }, [selected?.id, dateMode, customFrom, customTo]);
 
   const firstPhotoBySpecimenId = useLiveQuery(async () => {
-    if (!selectedSpecimens || selectedSpecimens.length === 0) return new Map<string, string>();
+    if (!selectedSpecimens || selectedSpecimens.length === 0) return new Map<string, Media>();
     const ids = selectedSpecimens.map((s) => s.id);
     const mediaRows = await db.media.where("specimenId").anyOf(ids).toArray();
     mediaRows.sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""));
-    const m = new Map<string, string>();
+    const m = new Map<string, Media>();
     for (const row of mediaRows) {
       if (!m.has(row.specimenId)) {
-        m.set(row.specimenId, URL.createObjectURL(row.blob));
+        m.set(row.specimenId, row);
       }
     }
     return m;
   }, [selectedSpecimens?.map((s) => s.id).join("|")]);
-
-  useEffect(() => {
-    return () => {
-      if (!firstPhotoBySpecimenId) return;
-      for (const url of firstPhotoBySpecimenId.values()) URL.revokeObjectURL(url);
-    };
-  }, [firstPhotoBySpecimenId]);
 
   // Map Initialization
   useEffect(() => {

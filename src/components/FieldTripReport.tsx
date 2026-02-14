@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { Locality, Specimen, Media } from "../db";
-import { ScaleBar } from "./ScaleBar";
+import { ScaledImage } from "./ScaledImage";
 
 export function FieldTripReport(props: {
   locality: Locality;
@@ -78,19 +78,14 @@ export function FieldTripReport(props: {
                 </div>
                 
                 <div className="grid grid-cols-2 gap-2">
-                  {mediaMap.get(find.id)?.map(m => {
-                    const url = URL.createObjectURL(m.blob);
-                    return (
-                      <div key={m.id} className="relative rounded-lg overflow-hidden border border-gray-200 bg-gray-50 aspect-square flex items-center justify-center">
-                        <img src={url} className="w-full h-full object-cover" />
-                        {m.pxPerMm && (
-                          <div className="absolute bottom-2 right-2">
-                            <ScaleBar pxPerMm={m.pxPerMm * 0.5} /> {/* Arbitrary scale for report layout */}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                  {mediaMap.get(find.id)?.map(m => (
+                    <ScaledImage 
+                      key={m.id} 
+                      media={m} 
+                      className="rounded-lg border border-gray-200 bg-gray-50 aspect-square" 
+                      imgClassName="object-cover"
+                    />
+                  ))}
                 </div>
               </div>
             </div>
