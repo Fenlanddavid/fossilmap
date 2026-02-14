@@ -120,7 +120,14 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
 
           <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
             <div className="flex justify-between items-center mb-3">
-              <h4 className="m-0 font-bold text-sm">Photos</h4>
+              <div className="grid gap-0.5">
+                <h4 className="m-0 font-bold text-sm">Photos</h4>
+                {imageUrls.length > 0 && (
+                  <p className="text-[10px] text-blue-600 dark:text-blue-400 font-bold animate-pulse">
+                    Tip: Tap photo to set scale
+                  </p>
+                )}
+              </div>
               <div className="flex gap-2">
                   <label className="bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer hover:bg-emerald-700 transition-colors shadow-sm">
                   📸 Take Photo
@@ -152,8 +159,10 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
                     >✕</button>
                     <div className="bg-white/90 dark:bg-gray-900/90 p-1 text-[9px] truncate absolute bottom-0 inset-x-0 font-mono text-center z-10">{x.filename}</div>
                     
-                    <div className="absolute inset-0 bg-blue-600/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-10">
-                        <span className="bg-white dark:bg-gray-800 text-[10px] font-bold px-2 py-1 rounded-full shadow-sm">Set Scale</span>
+                    <div className={`absolute inset-0 bg-blue-600/20 transition-opacity flex items-center justify-center z-10 ${x.media.pxPerMm ? 'opacity-0 group-hover:opacity-100' : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100'}`}>
+                        <span className={`bg-white dark:bg-gray-800 text-[10px] font-bold px-2 py-1 rounded-full shadow-sm ${!x.media.pxPerMm ? 'ring-2 ring-blue-500 animate-bounce' : ''}`}>
+                          {x.media.pxPerMm ? 'Rescale' : 'Set Scale'}
+                        </span>
                     </div>
                   </div>
                 ))}
