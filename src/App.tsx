@@ -10,6 +10,7 @@ import LocalityPage from "./pages/Locality";
 import SpecimenPage from "./pages/Specimen";
 import MapPage from "./pages/Map";
 import AllFinds from "./pages/AllFinds";
+import Settings from "./pages/Settings";
 
 export function Logo() {
   return (
@@ -38,13 +39,25 @@ export function Logo() {
 
 function Shell() {
   const [projectId, setProjectId] = useState<string | null>(null);
+  const [dismissedBackup, setDismissedBackup] = useState(false);
   const nav = useNavigate();
 
   useEffect(() => {
     ensureDefaultProject().then(setProjectId);
+    
+    // Request persistent storage
+    if (navigator.storage && navigator.storage.persist) {
+      navigator.storage.persist().then(granted => {
+        if (granted) console.log("Storage persistence granted.");
+      });
+    }
   }, []);
 
   const project = useLiveQuery(async () => (projectId ? db.projects.get(projectId) : null), [projectId]);
+  const settings = useLiveQuery(() => db.settings.toArray());
+  const lastBackup = settings?.find(s => s.key === "lastBackup")?.value;
+
+  const showBackupReminder = !dismissedBackup && (!lastBackup || (Date.now() - new Date(lastBackup).getTime() > 30 * 24 * 60 * 60 * 1000));
 
   async function handleExport() {
     try {
@@ -56,6 +69,10 @@ function Shell() {
       a.download = `fossilmap-backup-${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
+      
+      // Record backup time
+      await db.settings.put({ key: "lastBackup", value: new Date().toISOString() });
+      setDismissedBackup(true);
     } catch (e) {
       alert("Export failed: " + e);
     }
@@ -95,7 +112,7 @@ function Shell() {
 
   return (
     <div className="max-w-6xl mx-auto p-4 font-sans text-gray-900 dark:text-gray-100 min-h-screen">
-      <header className="flex items-center gap-4 mb-6 flex-wrap border-b border-gray-200 dark:border-gray-700 pb-4">
+      <header className="flex items-center gap-4 mb-4 flex-wrap border-b border-gray-200 dark:border-gray-700 pb-4">
         <Link to="/" className="no-underline flex items-center gap-3">
           <Logo />
           <h1 className="m-0 text-2xl font-black tracking-tight bg-gradient-to-r from-blue-600 to-teal-500 bg-clip-text text-transparent">FossilMap</h1>
@@ -106,6 +123,7 @@ function Shell() {
           <NavLink to="/map" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>Map</NavLink>
           <NavLink to="/field-trip" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>New Field Trip</NavLink>
           <NavLink to="/specimen" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>Casual Find</NavLink>
+          <NavLink to="/settings" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>Settings</NavLink>
         </nav>
 
         <div className="ml-auto flex items-center gap-4">
@@ -126,6 +144,42 @@ function Shell() {
         </div>
       </header>
 
+      {showBackupReminder && (
+        <div className="bg-amber-100 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 py-2 px-4 rounded-xl mb-4 flex flex-col sm:flex-row items-center justify-between gap-x-4 gap-y-2 text-sm shadow-sm">
+          <div className="flex items-center gap-3">
+            <span className="text-xl">🛡️</span>
+            <div className="flex flex-col leading-tight">
+              <span className="font-bold text-amber-900 dark:text-amber-100">Backup Recommended</span>
+              <span className="text-amber-800 dark:text-amber-200 text-xs mt-0.5">
+                It's been a while since your last backup. Since FossilMap is local-only, a backup protects your finds if your device is lost or broken.
+              </span>
+            </div>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <button 
+                onClick={() => setDismissedBackup(true)}
+                className="text-amber-800 dark:text-amber-200 font-bold py-1 px-3 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-800/50 transition-colors text-xs"
+            >
+                Later
+            </button>
+            <button 
+                onClick={handleExport}
+                className="bg-amber-600 hover:bg-amber-700 text-white font-bold py-1.5 px-4 rounded-lg transition-colors whitespace-nowrap shadow-sm text-xs"
+            >
+                Backup Now
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 p-4 rounded-xl mb-6 flex items-start gap-4 text-xs">
+        <span className="text-xl">🔒</span>
+        <div className="text-gray-700 dark:text-gray-200 leading-relaxed">
+            <span className="font-bold block mb-0.5">Your data is private.</span>
+            All find spots, GPS coordinates, and field trip details are stored locally on this device. Nothing is ever uploaded or shared.
+        </div>
+      </div>
+
       <main>
         <Routes>
             <Route path="/" element={<HomeRouter projectId={projectId} />} />
@@ -134,6 +188,7 @@ function Shell() {
             <Route path="/specimen" element={<SpecimenRouter projectId={projectId} />} />
             <Route path="/finds" element={<AllFinds projectId={projectId} />} />
             <Route path="/map" element={<MapPage projectId={projectId} />} />
+            <Route path="/settings" element={<Settings />} />
             <Route path="/locality" element={<LinkToFieldTrip />} />
             <Route path="/locality/:id" element={<LinkToFieldTrip />} />
         </Routes>

@@ -91,6 +91,8 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
       } else {
         targetLocalityId = uuid();
         const now = new Date().toISOString();
+        const defaultCollector = await db.settings.get("defaultCollector").then(s => s?.value || "");
+
         await db.localities.add({
           id: targetLocalityId,
           projectId: props.projectId,
@@ -99,7 +101,7 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
           lon: null,
           gpsAccuracyM: null,
           observedAt: now,
-          collector: "",
+          collector: defaultCollector,
           exposureType: "other",
           sssi: false,
           permissionGranted: false,

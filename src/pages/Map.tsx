@@ -396,6 +396,9 @@ export default function MapPage({ projectId }: { projectId: string }) {
     if (!addingLocalityAt) return;
     const { lat, lon } = addingLocalityAt;
     const now = new Date().toISOString();
+    
+    const defaultCollector = await db.settings.get("defaultCollector").then(s => s?.value || "");
+
     await db.localities.add({
       id: uuid(),
       projectId,
@@ -404,7 +407,7 @@ export default function MapPage({ projectId }: { projectId: string }) {
       lon,
       gpsAccuracyM: null,
       observedAt: now,
-      collector: "",
+      collector: defaultCollector,
       exposureType: "other",
       sssi: false,
       permissionGranted: false,

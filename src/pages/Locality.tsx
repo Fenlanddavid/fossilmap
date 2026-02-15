@@ -51,6 +51,17 @@ export default function LocalityPage(props: {
   
   const [openFindId, setOpenFindId] = useState<string | null>(null);
 
+  const defaultCollector = useLiveQuery(async () => {
+    const s = await db.settings.get("defaultCollector");
+    return s?.value;
+  }, []);
+
+  useEffect(() => {
+    if (!isEdit && defaultCollector) {
+      setCollector(defaultCollector);
+    }
+  }, [isEdit, defaultCollector]);
+
   // Fetch finds for this trip
   const finds = useLiveQuery(async () => {
     if (!id) return [];

@@ -122,11 +122,17 @@ export type Media = {
   createdAt: string;
 };
 
+export type Setting = {
+  key: string;
+  value: any;
+};
+
 export class FossilMapDB extends Dexie {
   projects!: Table<Project, string>;
   localities!: Table<Locality, string>;
   specimens!: Table<Specimen, string>;
   media!: Table<Media, string>;
+  settings!: Table<Setting, string>;
 
   constructor() {
     super("fossilmap_uk");
@@ -148,6 +154,11 @@ export class FossilMapDB extends Dexie {
     // Version 3: Add 'createdAt' index to localities so sortBy works properly
     this.version(3).stores({
       localities: "id, projectId, name, observedAt, sssi, permissionGranted, formation, createdAt",
+    });
+
+    // Version 4: Add settings table
+    this.version(4).stores({
+      settings: "key",
     });
   }
 }
