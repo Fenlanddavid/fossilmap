@@ -112,6 +112,7 @@ export type Media = {
   specimenId: string;
 
   type: "photo";
+  photoType?: "in-situ" | "laboratory" | "other";
   filename: string;
   mime: string;
   blob: Blob;
@@ -159,6 +160,11 @@ export class FossilMapDB extends Dexie {
     // Version 4: Add settings table
     this.version(4).stores({
       settings: "key",
+    });
+
+    // Version 5: Media photoType
+    this.version(5).stores({
+      media: "id, projectId, specimenId, createdAt",
     });
   }
 }

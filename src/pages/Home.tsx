@@ -3,6 +3,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db, Media } from "../db";
 import { ScaledImage } from "../components/ScaledImage";
 import { SpecimenModal } from "../components/SpecimenModal";
+import { TideWidget } from "../components/TideWidget";
 
 export default function Home(props: {
   projectId: string;
@@ -62,114 +63,122 @@ export default function Home(props: {
         </button>
       </div>
 
-      <section>
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-4">
-            <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">Field Trips</h2>
-            <div className="flex items-center gap-3 flex-1 max-w-md">
-                <div className="relative flex-1">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 opacity-40">🔍</span>
-                    <input 
-                        type="text"
-                        placeholder="Search trips by name or formation..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
+      <div className="grid gap-8">
+          <section>
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-4">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">Field Trips</h2>
+                <div className="flex items-center gap-3 flex-1 max-w-md">
+                    <div className="relative flex-1">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 opacity-40">🔍</span>
+                        <input 
+                            type="text"
+                            placeholder="Search trips by name or formation..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                        />
+                    </div>
+                    <div className="text-sm text-gray-500 font-mono hidden sm:block whitespace-nowrap">{localities?.length ?? 0} total</div>
                 </div>
-                <div className="text-sm text-gray-500 font-mono hidden sm:block whitespace-nowrap">{localities?.length ?? 0} total</div>
             </div>
-        </div>
-        
-        {(!localities || localities.length === 0) && (
-            <div className="text-gray-500 italic bg-gray-50 dark:bg-gray-800/50 p-10 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700 text-center">
-                {searchQuery ? "No trips found matching your search." : "No field trips recorded yet. Start by adding a new trip!"}
-            </div>
-        )}
-        
-        {localities && localities.length > 0 && (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {localities.slice(0, 12).map((l) => (
-              <div key={l.id} className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all flex flex-col h-full group">
-                <div className="flex justify-between gap-3 mb-2">
-                  <button 
-                    onClick={() => props.goLocalityEdit(l.id)}
-                    className="text-gray-900 dark:text-white truncate text-lg font-bold group-hover:text-blue-600 dark:group-hover:text-blue-400 text-left transition-colors"
-                  >
-                    {l.name || "(Unnamed trip)"}
-                  </button>
+            
+            {(!localities || localities.length === 0) && (
+                <div className="text-gray-500 italic bg-gray-50 dark:bg-gray-800/50 p-10 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700 text-center">
+                    {searchQuery ? "No trips found matching your search." : "No field trips recorded yet. Start by adding a new trip!"}
                 </div>
-                
-                <div className="text-sm opacity-70 mb-4 flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                     <span className="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-gray-600 dark:text-gray-300">
-                        {l.lat && l.lon ? `${l.lat.toFixed(4)}, ${l.lon.toFixed(4)}` : "No GPS"}
-                     </span>
-                     <span className="text-xs opacity-60">{new Date(l.createdAt).toLocaleDateString()}</span>
+            )}
+            
+            {localities && localities.length > 0 && (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {localities.slice(0, 12).map((l) => (
+                  <div key={l.id} className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all flex flex-col h-full group">
+                    <div className="flex justify-between gap-3 mb-2">
+                      <button 
+                        onClick={() => props.goLocalityEdit(l.id)}
+                        className="text-gray-900 dark:text-white truncate text-lg font-bold group-hover:text-blue-600 dark:group-hover:text-blue-400 text-left transition-colors"
+                      >
+                        {l.name || "(Unnamed trip)"}
+                      </button>
+                    </div>
+                    
+                    <div className="text-sm opacity-70 mb-4 flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                         <span className="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-gray-600 dark:text-gray-300">
+                            {l.lat && l.lon ? `${l.lat.toFixed(4)}, ${l.lon.toFixed(4)}` : "No GPS"}
+                         </span>
+                         <span className="text-xs opacity-60">{new Date(l.createdAt).toLocaleDateString()}</span>
+                      </div>
+                      {l.formation && <div className="text-xs font-medium opacity-80 mt-1 truncate">{l.formation}</div>}
+                      {l.sssi && <span className="text-amber-700 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded text-xs font-bold inline-block mt-1">⚠️ SSSI</span>}
+                    </div>
+                    
+                    <div className="pt-3 mt-auto border-t border-gray-100 dark:border-gray-700 flex gap-4 items-center">
+                      <button onClick={() => props.goSpecimen(l.id)} className="text-xs text-blue-600 hover:text-blue-800 font-bold hover:underline flex items-center gap-1">
+                        Add find <span>→</span>
+                      </button>
+                      <button onClick={() => props.goLocalityEdit(l.id)} className="text-xs text-gray-500 hover:text-gray-700 font-medium ml-auto px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
+                        Edit Trip
+                      </button>
+                    </div>
                   </div>
-                  {l.formation && <div className="text-xs font-medium opacity-80 mt-1 truncate">{l.formation}</div>}
-                  {l.sssi && <span className="text-amber-700 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded text-xs font-bold inline-block mt-1">⚠️ SSSI</span>}
-                </div>
-                
-                <div className="pt-3 mt-auto border-t border-gray-100 dark:border-gray-700 flex gap-4 items-center">
-                  <button onClick={() => props.goSpecimen(l.id)} className="text-xs text-blue-600 hover:text-blue-800 font-bold hover:underline flex items-center gap-1">
-                    Add find <span>→</span>
-                  </button>
-                  <button onClick={() => props.goLocalityEdit(l.id)} className="text-xs text-gray-500 hover:text-gray-700 font-medium ml-auto px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
-                    Edit Trip
-                  </button>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
-      </section>
+            )}
+          </section>
 
-      <section>
-        <div className="flex items-baseline justify-between mb-4">
-            <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">Recent Finds</h2>
-            <button onClick={props.goAllFinds} className="text-sm text-blue-600 font-bold hover:underline">View All Finds →</button>
-        </div>
+          <section>
+            <div className="flex items-baseline justify-between mb-4">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">Recent Finds</h2>
+                <button onClick={props.goAllFinds} className="text-sm text-blue-600 font-bold hover:underline">View All Finds →</button>
+            </div>
 
-        {(!specimens || specimens.length === 0) && <div className="text-gray-500 italic bg-gray-50 dark:bg-gray-800/50 p-10 rounded-2xl border border-dashed border-gray-200 dark:border-gray-700 text-center">No finds recorded yet.</div>}
-        
-        {specimens && specimens.length > 0 && (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {specimens.slice(0, 12).map((s) => {
-              const media = firstMediaMap?.get(s.id);
-              return (
-                <div key={s.id} className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all flex flex-col h-full group cursor-pointer" onClick={() => setOpenSpecimenId(s.id)}>
-                  <div className="aspect-square bg-gray-100 dark:bg-gray-900 relative">
-                    {media ? (
-                      <ScaledImage 
-                        media={media} 
-                        className="w-full h-full" 
-                        imgClassName="object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center opacity-30 italic text-[10px]">
-                        No photo
+            {(!specimens || specimens.length === 0) && <div className="text-gray-500 italic bg-gray-50 dark:bg-gray-800/50 p-10 rounded-2xl border border-dashed border-gray-200 dark:border-gray-700 text-center">No finds recorded yet.</div>}
+            
+            {specimens && specimens.length > 0 && (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {specimens.slice(0, 12).map((s) => {
+                  const media = firstMediaMap?.get(s.id);
+                  return (
+                    <div key={s.id} className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all flex flex-col h-full group cursor-pointer" onClick={() => setOpenSpecimenId(s.id)}>
+                      <div className="aspect-square bg-gray-100 dark:bg-gray-900 relative">
+                        {media ? (
+                          <ScaledImage 
+                            media={media} 
+                            className="w-full h-full" 
+                            imgClassName="object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center opacity-30 italic text-[10px]">
+                            No photo
+                          </div>
+                        )}
+                        <div className="absolute top-2 left-2">
+                            <strong className="text-white font-mono text-[9px] bg-black/50 backdrop-blur-sm px-1.5 py-0.5 rounded uppercase tracking-tighter">{s.specimenCode}</strong>
+                        </div>
                       </div>
-                    )}
-                    <div className="absolute top-2 left-2">
-                        <strong className="text-white font-mono text-[9px] bg-black/50 backdrop-blur-sm px-1.5 py-0.5 rounded uppercase tracking-tighter">{s.specimenCode}</strong>
-                    </div>
-                  </div>
-                  <div className="p-3">
-                    <div className="font-bold text-gray-800 dark:text-gray-200 truncate leading-tight group-hover:text-blue-600 transition-colors" title={s.taxon}>{s.taxon || "(Taxon TBD)"}</div>
-                    <div className="opacity-60 text-[10px] mt-1 flex justify-between items-center">
-                      <div className="flex gap-2">
-                        <span className="bg-gray-50 dark:bg-gray-900 px-1 rounded border border-gray-100 dark:border-gray-800 uppercase font-bold">{s.taxonConfidence}</span>
-                        {s.element !== "unknown" && <span className="capitalize">{s.element}</span>}
+                      <div className="p-3">
+                        <div className="font-bold text-gray-800 dark:text-gray-200 truncate leading-tight group-hover:text-blue-600 transition-colors" title={s.taxon}>{s.taxon || "(Taxon TBD)"}</div>
+                        <div className="opacity-60 text-[10px] mt-1 flex justify-between items-center">
+                          <div className="flex gap-2">
+                            <span className="bg-gray-50 dark:bg-gray-900 px-1 rounded border border-gray-100 dark:border-gray-800 uppercase font-bold">{s.taxonConfidence}</span>
+                            {s.element !== "unknown" && <span className="capitalize">{s.element}</span>}
+                          </div>
+                          <span className="opacity-60">{new Date(s.createdAt).toLocaleDateString()}</span>
+                        </div>
                       </div>
-                      <span className="opacity-60">{new Date(s.createdAt).toLocaleDateString()}</span>
                     </div>
-                  </div>
-                </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          <div className="border-t border-gray-100 dark:border-gray-800 pt-8 mt-4 text-center">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              <span className="font-bold">🛡️ Data Protection:</span> All data is stored locally on this device. No finds or GPS locations are ever uploaded or shared.
+            </p>
           </div>
-        )}
-      </section>
+      </div>
 
       {openSpecimenId && (
         <SpecimenModal specimenId={openSpecimenId} onClose={() => setOpenSpecimenId(null)} />

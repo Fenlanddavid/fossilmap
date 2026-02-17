@@ -11,6 +11,7 @@ import SpecimenPage from "./pages/Specimen";
 import MapPage from "./pages/Map";
 import AllFinds from "./pages/AllFinds";
 import Settings from "./pages/Settings";
+import TidePage from "./pages/TidePage";
 
 export function Logo() {
   return (
@@ -121,6 +122,7 @@ function Shell() {
         <nav className="flex gap-4 ml-2 flex-wrap items-center text-sm font-medium text-gray-600 dark:text-gray-300">
           <NavLink to="/" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>Home</NavLink>
           <NavLink to="/map" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>Map</NavLink>
+          <NavLink to="/tides" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>Tides</NavLink>
           <NavLink to="/field-trip" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>New Field Trip</NavLink>
           <NavLink to="/specimen" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>Casual Find</NavLink>
           <NavLink to="/settings" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>Settings</NavLink>
@@ -188,6 +190,7 @@ function Shell() {
             <Route path="/specimen" element={<SpecimenRouter projectId={projectId} />} />
             <Route path="/finds" element={<AllFinds projectId={projectId} />} />
             <Route path="/map" element={<MapPage projectId={projectId} />} />
+            <Route path="/tides" element={<TidePage />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/locality" element={<LinkToFieldTrip />} />
             <Route path="/locality/:id" element={<LinkToFieldTrip />} />
