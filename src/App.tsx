@@ -174,14 +174,6 @@ function Shell() {
         </div>
       )}
 
-      <div className="bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 p-4 rounded-xl mb-6 flex items-start gap-4 text-xs">
-        <span className="text-xl">🔒</span>
-        <div className="text-gray-700 dark:text-gray-200 leading-relaxed">
-            <span className="font-bold block mb-0.5">Your data is private.</span>
-            All find spots, GPS coordinates, and field trip details are stored locally on this device. Nothing is ever uploaded or shared.
-        </div>
-      </div>
-
       <main>
         <Routes>
             <Route path="/" element={<HomeRouter projectId={projectId} />} />
