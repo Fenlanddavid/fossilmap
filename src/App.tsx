@@ -119,7 +119,7 @@ function Shell() {
           <h1 className="m-0 text-2xl font-black tracking-tight bg-gradient-to-r from-blue-600 to-teal-500 bg-clip-text text-transparent">FossilMap</h1>
         </Link>
 
-        <nav className="flex gap-4 ml-2 flex-wrap items-center text-sm font-medium text-gray-600 dark:text-gray-300">
+        <nav className="flex gap-4 ml-2 items-center text-sm font-medium text-gray-600 dark:text-gray-300 overflow-x-auto whitespace-nowrap scrollbar-hide">
           <NavLink to="/" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>Home</NavLink>
           <NavLink to="/map" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>Map</NavLink>
           <NavLink to="/tides" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>Tides</NavLink>

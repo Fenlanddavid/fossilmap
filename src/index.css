@@ -15,6 +15,16 @@ button { cursor: pointer; }
 label > div { margin-bottom: 6px; opacity: 0.85; }
 h2 { margin: 0 0 6px 0; }
 
+@layer utilities {
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
 @media print {
   body * {
     visibility: hidden;
