@@ -128,37 +128,43 @@ function Shell() {
   if (!projectId || !project) return <div className="p-4 text-center">Loading FossilMap…</div>;
 
   return (
-    <div className="max-w-6xl mx-auto p-4 font-sans text-gray-900 dark:text-gray-100 min-h-screen">
-      <header className="flex items-center gap-4 mb-4 flex-wrap border-b border-gray-200 dark:border-gray-700 pb-4">
-        <Link to="/" className="no-underline flex items-center gap-3">
-          <Logo />
-          <h1 className="m-0 text-2xl font-black tracking-tight bg-gradient-to-r from-blue-600 to-teal-500 bg-clip-text text-transparent">FossilMap</h1>
-        </Link>
+    <div className="max-w-6xl mx-auto p-3 sm:p-4 font-sans text-gray-900 dark:text-gray-100 min-h-screen overflow-x-hidden">
+      <header className="flex flex-col gap-4 mb-6 border-b border-gray-200 dark:border-gray-700 pb-4">
+        <div className="flex items-center justify-between gap-4">
+            <Link to="/" className="no-underline flex items-center gap-3 group">
+              <Logo />
+              <h1 className="m-0 text-2xl sm:text-3xl font-black tracking-tighter bg-gradient-to-r from-blue-600 to-teal-500 bg-clip-text text-transparent group-hover:from-blue-500 group-hover:to-teal-400 transition-all duration-500">FossilMap</h1>
+            </Link>
 
-        <nav className="flex gap-4 ml-2 items-center text-sm font-medium text-gray-600 dark:text-gray-300 overflow-x-auto whitespace-nowrap scrollbar-hide">
-          <NavLink to="/" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>Home</NavLink>
-          <NavLink to="/map" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>Map</NavLink>
-          <NavLink to="/tides" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>Tides</NavLink>
-          <NavLink to="/locations" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>Locations</NavLink>
-          <NavLink to="/field-trip" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>Field Trip</NavLink>
-          <NavLink to="/finds" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>All Finds</NavLink>
-          <NavLink to="/settings" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>Settings</NavLink>
-        </nav>
-
-        <div className="ml-auto flex items-center gap-4">
-            <div className="opacity-60 text-xs hidden sm:block font-mono bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">{project.name}</div>
-            
-            <div className="flex gap-3 items-center border-l pl-4 border-gray-300 dark:border-gray-600">
-                <button onClick={handleCSVExport} className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline">
+            <div className="flex items-center gap-3">
+                <button onClick={handleCSVExport} className="text-[10px] font-black text-blue-600 dark:text-blue-400 hover:underline uppercase tracking-widest bg-blue-50 dark:bg-blue-950/30 px-2 py-1 rounded">
                     CSV
                 </button>
-                <button onClick={handleExport} className="text-xs font-medium opacity-70 hover:opacity-100 hover:text-blue-600 transition-colors">
-                    Backup
-                </button>
-                <label className="text-xs font-medium opacity-70 hover:opacity-100 hover:text-blue-600 transition-colors cursor-pointer">
-                    Restore
-                    <input type="file" accept=".json" onChange={handleImport} className="hidden" />
-                </label>
+                <div className="flex gap-3 items-center border-l pl-3 border-gray-200 dark:border-gray-700">
+                    <button onClick={handleExport} className="text-xs font-medium opacity-70 hover:opacity-100 hover:text-blue-600 transition-colors">
+                        Backup
+                    </button>
+                    <label className="text-xs font-medium opacity-70 hover:opacity-100 hover:text-blue-600 transition-colors cursor-pointer">
+                        Restore
+                        <input type="file" accept=".json" onChange={handleImport} className="hidden" />
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+            <nav className="flex gap-x-4 gap-y-2 flex-wrap items-center text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-300">
+              <NavLink to="/" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>Home</NavLink>
+              <NavLink to="/map" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>Map</NavLink>
+              <NavLink to="/tides" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>Tides</NavLink>
+              <NavLink to="/locations" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>Locations</NavLink>
+              <NavLink to="/field-trip" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>Field Trip</NavLink>
+              <NavLink to="/finds" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>All Finds</NavLink>
+              <NavLink to="/settings" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>Settings</NavLink>
+            </nav>
+
+            <div className="flex items-center gap-3">
+                <div className="text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">UK Field App</div>
             </div>
         </div>
       </header>
