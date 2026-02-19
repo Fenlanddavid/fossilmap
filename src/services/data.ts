@@ -3,6 +3,7 @@ import { db, Media } from "../db";
 export async function exportData(): Promise<string> {
   const projects = await db.projects.toArray();
   const localities = await db.localities.toArray();
+  const sessions = await db.sessions.toArray();
   const specimens = await db.specimens.toArray();
   const settings = await db.settings.toArray();
   
@@ -19,6 +20,7 @@ export async function exportData(): Promise<string> {
     exportedAt: new Date().toISOString(),
     projects,
     localities,
+    sessions,
     specimens,
     media: mediaExport,
     settings
@@ -35,7 +37,8 @@ export async function exportToCSV(): Promise<string> {
   
   const headers = [
     "Specimen Code", "Taxon", "Confidence", "Element", "Preservation", 
-    "Locality Name", "Latitude", "Longitude", "GPS Accuracy (m)", 
+    "Find Latitude", "Find Longitude", "Weight (g)", "Length (mm)", "Width (mm)", "Thickness (mm)",
+    "Location Name", "Type", "Latitude", "Longitude", "GPS Accuracy (m)", 
     "Formation", "Member", "Bed", "Lithology", 
     "Date Observed", "Collector", "Specimen Notes", "Locality Notes"
   ];
@@ -48,7 +51,8 @@ export async function exportToCSV(): Promise<string> {
 
     return [
       s.specimenCode, s.taxon, s.taxonConfidence, s.element, s.preservation,
-      l?.name ?? "", l?.lat ?? "", l?.lon ?? "", l?.gpsAccuracyM ?? "",
+      s.lat ?? "", s.lon ?? "", s.weightG ?? "", s.lengthMm ?? "", s.widthMm ?? "", s.thicknessMm ?? "",
+      l?.name ?? "", l?.type ?? "location", l?.lat ?? "", l?.lon ?? "", l?.gpsAccuracyM ?? "",
       l?.formation ?? "", l?.member ?? "", l?.bed ?? "", l?.lithologyPrimary ?? "",
       l?.observedAt ? new Date(l.observedAt).toLocaleString() : "",
       l?.collector ?? "", sNotes, lNotes
@@ -63,9 +67,10 @@ export async function importData(json: string) {
   
   if (!data.projects || !Array.isArray(data.projects)) throw new Error("Invalid format: missing projects");
 
-  await db.transaction("rw", [db.projects, db.localities, db.specimens, db.media, db.settings], async () => {
+  await db.transaction("rw", [db.projects, db.localities, db.sessions, db.specimens, db.media, db.settings], async () => {
     await db.projects.bulkPut(data.projects);
     if(data.localities) await db.localities.bulkPut(data.localities);
+    if(data.sessions) await db.sessions.bulkPut(data.sessions);
     if(data.specimens) await db.specimens.bulkPut(data.specimens);
     if(data.settings) await db.settings.bulkPut(data.settings);
     

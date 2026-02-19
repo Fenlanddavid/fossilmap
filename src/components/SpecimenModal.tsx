@@ -6,17 +6,39 @@ import { v4 as uuid } from "uuid";
 import { fileToBlob } from "../services/photos";
 import { ScaleCalibrationModal } from "./ScaleCalibrationModal";
 import { ScaledImage } from "./ScaledImage";
+import { captureGPS } from "../services/gps";
 
 export function SpecimenModal(props: { specimenId: string; onClose: () => void }) {
   const specimen = useLiveQuery(async () => db.specimens.get(props.specimenId), [props.specimenId]);
   const media = useLiveQuery(async () => db.media.where("specimenId").equals(props.specimenId).toArray(), [props.specimenId]);
   const [draft, setDraft] = useState<Specimen | null>(null);
   const [busy, setBusy] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isCustomElement, setIsCustomElement] = useState(false);
   
   const [calibratingMedia, setCalibratingMedia] = useState<{ media: Media; url: string } | null>(null);
 
+  const commonTaxa = [
+    "Ammonite", "Belemnite", "Gryphaea", "Brachiopod", "Echinoid", "Gastropod", "Bivalve",
+    "Ichthyosaur", "Plesiosaur", "Pliosaur", "Dinosaur", "Croc", "Fish", "Shark", 
+    "Trilobite", "Plant / Wood", "Trace Fossil", "Coprolite"
+  ];
+
+  const commonElements = [
+    "Tooth", "Vertebra", "Rib", "Limb Bone", "Skull Element", "Jaw", "Paddle / Fin",
+    "Shell (Complete)", "Shell Fragment", "Nodule", "Matrix Block", "Osteoderm"
+  ];
+
   useEffect(() => {
-    if (specimen) setDraft(specimen);
+    if (specimen) {
+        setDraft(specimen);
+        // Check if current element is in common list
+        if (specimen.element && !commonElements.includes(specimen.element)) {
+            setIsCustomElement(true);
+        } else {
+            setIsCustomElement(false);
+        }
+    }
   }, [specimen?.id]);
 
   const imageUrls = useMemo(() => {
@@ -42,7 +64,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
     const now = new Date().toISOString();
     await db.specimens.update(draft.id, { ...draft, updatedAt: now });
     setBusy(false);
-    props.onClose();
+    setIsEditing(false);
   }
 
   async function del() {
@@ -88,112 +110,250 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
     setBusy(false);
   }
 
+  async function doGPS() {
+    setBusy(true);
+    try {
+      const fix = await captureGPS();
+      setDraft({ ...draft, lat: fix.lat, lon: fix.lon, gpsAccuracyM: fix.accuracyM });
+    } catch (e: any) {
+      alert(e?.message ?? "GPS failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const headerActions = (
+    <button 
+        onClick={() => setIsEditing(!isEditing)}
+        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all shadow-sm ${isEditing ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'}`}
+    >
+        {isEditing ? "Viewing..." : "Edit Details"}
+    </button>
+  );
+
   return (
     <>
-      <Modal onClose={props.onClose} title={`Find: ${draft.specimenCode}`}>
-        <div className="grid gap-4 max-h-[80vh] overflow-y-auto pr-1">
-          <label className="grid gap-1">
-            <span className="text-sm font-bold opacity-75">Taxon / ID</span>
-            <input className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all" value={draft.taxon} onChange={(e) => setDraft({ ...draft, taxon: e.target.value })} />
-          </label>
-
-          <label className="grid gap-1">
-            <span className="text-sm font-bold opacity-75">Confidence</span>
-            <select 
-              className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-              value={draft.taxonConfidence} 
-              onChange={(e) => setDraft({ ...draft, taxonConfidence: e.target.value as any })}
-            >
-              <option value="high">high</option>
-              <option value="med">med</option>
-              <option value="low">low</option>
-            </select>
-          </label>
-
-          <label className="grid gap-1">
-            <span className="text-sm font-bold opacity-75">Notes</span>
-            <textarea 
-              className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-              value={draft.notes} 
-              onChange={(e) => setDraft({ ...draft, notes: e.target.value })} rows={4} 
-            />
-          </label>
-
-          <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
-            <div className="flex flex-col gap-3 mb-3">
-              <div className="grid gap-0.5">
-                <h4 className="m-0 font-bold text-sm">Photos</h4>
-                {imageUrls.length > 0 && (
-                  <p className="text-[10px] text-blue-600 dark:text-blue-400 font-bold animate-pulse">
-                    Tip: Tap photo to set scale
-                  </p>
-                )}
-              </div>
-              
-              <div className="grid grid-cols-2 gap-2">
-                  <label className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 px-3 py-2 rounded-lg text-xs font-bold cursor-pointer hover:bg-amber-100 transition-colors shadow-sm text-center flex items-center justify-center gap-1">
-                  📸 Photo 1
-                  <input type="file" accept="image/*" capture="environment" onChange={(e) => addPhotos(e.target.files, "in-situ")} className="hidden" />
-                  </label>
-                  <label className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-400 px-3 py-2 rounded-lg text-xs font-bold cursor-pointer hover:bg-indigo-100 transition-colors shadow-sm text-center flex items-center justify-center gap-1">
-                  📸 Photo 2
-                  <input type="file" accept="image/*" capture="environment" onChange={(e) => addPhotos(e.target.files, "laboratory")} className="hidden" />
-                  </label>
-              </div>
-              
-              <label className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer hover:bg-gray-200 transition-colors shadow-sm text-center">
-                📁 Upload Files
-                <input type="file" accept="image/*" multiple onChange={(e) => addPhotos(e.target.files)} className="hidden" />
+      <Modal onClose={props.onClose} title={`Find: ${draft.specimenCode}`} headerActions={headerActions}>
+        <div className="grid gap-6 max-h-[80vh] overflow-y-auto pr-1">
+          {isEditing ? (
+            <div className="grid gap-4">
+              <label className="grid gap-1">
+                <span className="text-sm font-bold opacity-75">Taxon / ID</span>
+                <input 
+                    className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium" 
+                    value={draft.taxon} 
+                    onChange={(e) => setDraft({ ...draft, taxon: e.target.value })} 
+                    list="modal-taxa-list"
+                />
+                <datalist id="modal-taxa-list">
+                    {commonTaxa.map(t => <option key={t} value={t} />)}
+                </datalist>
               </label>
-            </div>
 
-            {imageUrls.length === 0 && <div className="text-sm opacity-60 italic text-center py-4 bg-gray-50 dark:bg-gray-900 rounded-xl border-2 border-dashed border-gray-100 dark:border-gray-800">No photos attached.</div>}
-
-            {imageUrls.length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {imageUrls.map((x) => (
-                  <div key={x.id} className="relative group border-2 border-gray-100 dark:border-gray-700 rounded-xl overflow-hidden aspect-square shadow-sm cursor-pointer" onClick={() => setCalibratingMedia({ media: x.media, url: x.url })}>
-                    <ScaledImage 
-                      media={x.media} 
-                      imgClassName="object-cover" 
-                      className="w-full h-full" 
-                    />
-
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); removePhoto(x.id); }} 
-                      disabled={busy}
-                      className="absolute top-1 right-1 bg-red-600 text-white w-7 h-7 rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-all shadow-lg hover:scale-110 active:scale-95 z-10"
-                    >✕</button>
-                    <div className="bg-white/90 dark:bg-gray-900/90 p-1 text-[9px] truncate absolute bottom-0 inset-x-0 font-mono text-center z-10 flex justify-between items-center px-1">
-                       <span className="truncate flex-1">{x.filename}</span>
-                       {x.media.photoType && (
-                         <span className={`px-1 rounded uppercase text-[7px] font-black ${x.media.photoType === 'in-situ' ? 'bg-amber-100 text-amber-800' : x.media.photoType === 'laboratory' ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-100 text-gray-800'}`}>
-                           {x.media.photoType === 'in-situ' ? 'Photo 1' : x.media.photoType === 'laboratory' ? 'Photo 2' : 'Photo'}
-                         </span>
-                       )}
-                    </div>
-                    
-                    <div className={`absolute inset-0 bg-blue-600/20 transition-opacity flex items-center justify-center z-10 ${x.media.pxPerMm ? 'opacity-0 group-hover:opacity-100' : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100'}`}>
-                        <span className={`bg-white dark:bg-gray-800 text-[10px] font-bold px-2 py-1 rounded-full shadow-sm ${!x.media.pxPerMm ? 'ring-2 ring-blue-500 animate-bounce' : ''}`}>
-                          {x.media.pxPerMm ? 'Rescale' : 'Set Scale'}
-                        </span>
-                    </div>
+              <div className="grid grid-cols-2 gap-4">
+                <label className="grid gap-1">
+                  <span className="text-sm font-bold opacity-75">Confidence</span>
+                  <select 
+                    className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"
+                    value={draft.taxonConfidence} 
+                    onChange={(e) => setDraft({ ...draft, taxonConfidence: e.target.value as any })}
+                  >
+                    <option value="high">High</option>
+                    <option value="med">Medium</option>
+                    <option value="low">Low</option>
+                  </select>
+                </label>
+                
+                <label className="grid gap-1">
+                  <span className="text-sm font-bold opacity-75">Element</span>
+                  <div className="grid gap-2">
+                    <select 
+                        value={isCustomElement ? "CUSTOM" : draft.element} 
+                        onChange={(e) => {
+                            if (e.target.value === "CUSTOM") {
+                                setIsCustomElement(true);
+                                setDraft({ ...draft, element: "" });
+                            } else {
+                                setIsCustomElement(false);
+                                setDraft({ ...draft, element: e.target.value });
+                            }
+                        }}
+                        className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"
+                    >
+                        <option value="">-- Select Element --</option>
+                        {commonElements.map(e => <option key={e} value={e}>{e}</option>)}
+                        <option value="CUSTOM">✎ Custom...</option>
+                    </select>
+                    {isCustomElement && (
+                        <input 
+                            className="w-full bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200 dark:border-blue-800 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-bold animate-in slide-in-from-top-1"
+                            value={draft.element} 
+                            onChange={(e) => setDraft({ ...draft, element: e.target.value })}
+                            placeholder="Type element..."
+                            autoFocus
+                        />
+                    )}
                   </div>
-                ))}
+                </label>
               </div>
-            )}
-          </div>
 
-          <div className="flex gap-4 mt-2 pt-3 border-t border-gray-100 dark:border-gray-700 justify-between items-center">
-            <button onClick={del} disabled={busy} className="text-red-600 hover:text-red-800 text-sm font-bold px-3 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-              Delete Find
-            </button>
+              <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800 flex justify-between items-center">
+                  <div className="text-xs">
+                      <div className="font-bold text-blue-600 dark:text-blue-400">GPS Find spot</div>
+                      <div className="font-mono mt-0.5">{draft.lat ? `${draft.lat.toFixed(6)}, ${draft.lon?.toFixed(6)}` : "Not set"}</div>
+                  </div>
+                  <button onClick={doGPS} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm">Update GPS</button>
+              </div>
 
-            <div className="flex gap-3">
-              <button onClick={props.onClose} disabled={busy} className="px-4 py-2 rounded-xl text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 transition-colors font-bold text-sm">Cancel</button>
-              <button onClick={save} disabled={busy} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl shadow-md font-bold transition-all disabled:opacity-50 text-sm">Save Changes</button>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <label className="grid gap-1">
+                    <span className="text-[10px] font-black uppercase opacity-60">Weight (g)</span>
+                    <input type="number" step="0.01" value={draft.weightG || ""} onChange={(e) => setDraft({...draft, weightG: parseFloat(e.target.value) || null})} className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2 focus:ring-2 focus:ring-blue-500 outline-none font-mono text-xs" />
+                </label>
+                <label className="grid gap-1">
+                    <span className="text-[10px] font-black uppercase opacity-60">Length (mm)</span>
+                    <input type="number" step="0.1" value={draft.lengthMm || ""} onChange={(e) => setDraft({...draft, lengthMm: parseFloat(e.target.value) || null})} className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2 focus:ring-2 focus:ring-blue-500 outline-none font-mono text-xs" />
+                </label>
+                <label className="grid gap-1">
+                    <span className="text-[10px] font-black uppercase opacity-60">Width (mm)</span>
+                    <input type="number" step="0.1" value={draft.widthMm || ""} onChange={(e) => setDraft({...draft, widthMm: parseFloat(e.target.value) || null})} className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2 focus:ring-2 focus:ring-blue-500 outline-none font-mono text-xs" />
+                </label>
+                <label className="grid gap-1">
+                    <span className="text-[10px] font-black uppercase opacity-60">Thick (mm)</span>
+                    <input type="number" step="0.1" value={draft.thicknessMm || ""} onChange={(e) => setDraft({...draft, thicknessMm: parseFloat(e.target.value) || null})} className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2 focus:ring-2 focus:ring-blue-500 outline-none font-mono text-xs" />
+                </label>
+              </div>
+
+              <label className="grid gap-1">
+                <span className="text-sm font-bold opacity-75">Notes</span>
+                <textarea 
+                  className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"
+                  value={draft.notes} 
+                  onChange={(e) => setDraft({ ...draft, notes: e.target.value })} rows={4} 
+                />
+              </label>
+
+              <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
+                <div className="flex flex-col gap-3 mb-3">
+                  <h4 className="m-0 font-bold text-sm uppercase tracking-tight">Add Photos (4 Max)</h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <label className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 px-2 py-3 rounded-xl text-[10px] font-black cursor-pointer hover:bg-amber-100 transition-colors shadow-sm text-center flex flex-col items-center justify-center gap-1 uppercase">
+                      📸 Photo 1
+                      <input type="file" accept="image/*" capture="environment" onChange={(e) => addPhotos(e.target.files, "in-situ")} className="hidden" />
+                      </label>
+                      <label className="bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 px-2 py-3 rounded-xl text-[10px] font-black cursor-pointer hover:bg-blue-100 transition-colors shadow-sm text-center flex flex-col items-center justify-center gap-1 uppercase">
+                      📸 Photo 2
+                      <input type="file" accept="image/*" capture="environment" onChange={(e) => addPhotos(e.target.files, "in-situ")} className="hidden" />
+                      </label>
+                      <label className="bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-400 px-2 py-3 rounded-xl text-[10px] font-black cursor-pointer hover:bg-indigo-100 transition-colors shadow-sm text-center flex flex-col items-center justify-center gap-1 uppercase">
+                      📸 Photo 3
+                      <input type="file" accept="image/*" capture="environment" onChange={(e) => addPhotos(e.target.files, "laboratory")} className="hidden" />
+                      </label>
+                      <label className="bg-purple-50 dark:bg-purple-900/10 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-400 px-2 py-3 rounded-xl text-[10px] font-black cursor-pointer hover:bg-purple-100 transition-colors shadow-sm text-center flex flex-col items-center justify-center gap-1 uppercase">
+                      📸 Photo 4
+                      <input type="file" accept="image/*" capture="environment" onChange={(e) => addPhotos(e.target.files, "laboratory")} className="hidden" />
+                      </label>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-4">
+                    {imageUrls.map((x) => (
+                    <div key={x.id} className="relative group border-2 border-gray-100 dark:border-gray-700 rounded-xl overflow-hidden aspect-square shadow-sm cursor-pointer" onClick={() => setCalibratingMedia({ media: x.media, url: x.url })}>
+                        <ScaledImage media={x.media} imgClassName="object-cover" className="w-full h-full" />
+                        <button onClick={(e) => { e.stopPropagation(); removePhoto(x.id); }} className="absolute top-1 right-1 bg-red-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs shadow-lg z-10">✕</button>
+                    </div>
+                    ))}
+                </div>
+              </div>
+
+              <div className="flex gap-4 mt-2 pt-3 border-t border-gray-100 dark:border-gray-700 justify-between items-center">
+                <button onClick={del} disabled={busy} className="text-red-600 hover:text-red-800 text-sm font-bold px-3 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                  Delete Find
+                </button>
+                <div className="flex gap-3">
+                  <button onClick={() => setIsEditing(false)} className="px-4 py-2 rounded-xl text-gray-500 font-bold text-sm">Cancel</button>
+                  <button onClick={save} disabled={busy} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl shadow-md font-bold text-sm">Save Changes</button>
+                </div>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="grid gap-6">
+              <div className="bg-gray-50 dark:bg-gray-900/50 p-6 rounded-2xl border border-gray-100 dark:border-gray-800">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-1">Find Details</div>
+                  <div className="text-2xl font-black text-gray-900 dark:text-white leading-tight mb-2">{draft.taxon || "(Unknown)"}</div>
+                  <div className="flex flex-wrap gap-2 mb-4">
+                      <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${draft.taxonConfidence === 'high' ? 'bg-green-50 text-green-700 border-green-100' : draft.taxonConfidence === 'med' ? 'bg-amber-50 text-amber-700 border-amber-100' : 'bg-red-50 text-red-700 border-red-100'}`}>{draft.taxonConfidence} confidence</span>
+                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-gray-100 text-gray-600 border border-gray-200">{draft.element}</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="bg-white dark:bg-gray-800 px-3 py-2 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
+                          <div className="text-[9px] font-black text-gray-400 uppercase tracking-tighter">Weight</div>
+                          <div className="text-xs font-bold text-gray-700 dark:text-gray-200">{draft.weightG ? `${draft.weightG}g` : "—"}</div>
+                      </div>
+                      <div className="bg-white dark:bg-gray-800 px-3 py-2 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
+                          <div className="text-[9px] font-black text-gray-400 uppercase tracking-tighter">Length</div>
+                          <div className="text-xs font-bold text-gray-700 dark:text-gray-200">{draft.lengthMm ? `${draft.lengthMm}mm` : "—"}</div>
+                      </div>
+                      <div className="bg-white dark:bg-gray-800 px-3 py-2 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
+                          <div className="text-[9px] font-black text-gray-400 uppercase tracking-tighter">Width</div>
+                          <div className="text-xs font-bold text-gray-700 dark:text-gray-200">{draft.widthMm ? `${draft.widthMm}mm` : "—"}</div>
+                      </div>
+                      <div className="bg-white dark:bg-gray-800 px-3 py-2 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
+                          <div className="text-[9px] font-black text-gray-400 uppercase tracking-tighter">Thick</div>
+                          <div className="text-xs font-bold text-gray-700 dark:text-gray-200">{draft.thicknessMm ? `${draft.thicknessMm}mm` : "—"}</div>
+                      </div>
+                  </div>
+
+                  {draft.lat && (
+                    <div className="mt-4 flex items-center justify-between bg-blue-50/50 dark:bg-blue-900/10 px-4 py-2 rounded-xl border border-blue-100 dark:border-blue-900/30">
+                        <div className="text-[10px] font-mono font-bold text-blue-600">📍 {draft.lat.toFixed(6)}, {draft.lon?.toFixed(6)}</div>
+                        <button onClick={() => window.open(`https://www.google.com/maps?q=${draft.lat},${draft.lon}`, "_blank")} className="text-[9px] font-black text-blue-500 hover:underline uppercase">View Map ↗</button>
+                    </div>
+                  )}
+              </div>
+
+              {draft.notes && (
+                  <div className="px-2">
+                    <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Field Notes</div>
+                    <div className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed whitespace-pre-wrap italic bg-gray-50 dark:bg-gray-900/30 p-4 rounded-xl border border-gray-100 dark:border-gray-800">{draft.notes}</div>
+                  </div>
+              )}
+
+              <div className="border-t border-gray-100 dark:border-gray-700 pt-6">
+                  <div className="flex justify-between items-center mb-4 px-2">
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Documentation</h4>
+                    <span className="text-[9px] font-mono bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded text-gray-500 font-bold">
+                        {imageUrls.length} PHOTO{imageUrls.length !== 1 ? 'S' : ''}
+                    </span>
+                  </div>
+                  
+                  {imageUrls.length === 0 ? (
+                      <div className="text-center py-12 opacity-30 italic text-sm border-2 border-dashed border-gray-100 dark:border-gray-800 rounded-2xl">No photos recorded.</div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-3">
+                        {imageUrls.map(x => (
+                            <div key={x.id} className="relative group border-2 border-gray-100 dark:border-gray-700 rounded-2xl overflow-hidden aspect-square shadow-md cursor-pointer" onClick={() => setCalibratingMedia({ media: x.media, url: x.url })}>
+                                <ScaledImage media={x.media} imgClassName="object-cover" className="w-full h-full" />
+                                <div className="absolute inset-0 bg-blue-600/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <span className="bg-white dark:bg-gray-800 text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg">View Scale</span>
+                                </div>
+                                {x.media.photoType && (
+                                    <div className="absolute bottom-2 left-2 bg-black/50 backdrop-blur-md text-[7px] text-white font-black px-1.5 py-0.5 rounded uppercase tracking-widest">
+                                        {x.media.photoType === 'in-situ' ? 'Field' : x.media.photoType === 'laboratory' ? 'Laboratory' : 'Photo'}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                  )}
+              </div>
+              
+              <div className="flex justify-end pt-4">
+                  <button onClick={props.onClose} className="bg-gray-900 dark:bg-gray-100 text-white dark:text-black px-8 py-3 rounded-2xl font-black shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all text-sm">Done</button>
+              </div>
+            </div>
+          )}
         </div>
       </Modal>
 

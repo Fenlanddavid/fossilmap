@@ -11,6 +11,7 @@ export default function Home(props: {
   goLocalityEdit: (id: string) => void;
   goSpecimen: (localityId?: string) => void;
   goAllFinds: () => void;
+  goFindsWithFilter: (query: string) => void;
   goMap: () => void;
 }) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -52,27 +53,50 @@ export default function Home(props: {
   return (
     <div className="grid gap-8 max-w-5xl mx-auto">
       <div className="flex gap-4 flex-wrap">
-        <button onClick={props.goLocality} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-2">
-            <span>📍</span> New Field Trip
+        <button onClick={props.goLocality} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-2 font-bold">
+            <span>📍</span> New Location
         </button>
-        <button onClick={() => props.goSpecimen(undefined)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-2">
-            Casual Find
+        <button onClick={() => props.goSpecimen(undefined)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-2 font-bold">
+            New Field Trip
         </button>
-        <button onClick={props.goMap} className="bg-gray-800 hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-2 ml-auto">
+        <button onClick={props.goMap} className="bg-gray-800 hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-2 ml-auto font-bold">
             <span>🗺️</span> Open Map
         </button>
+      </div>
+
+      <div className="flex flex-col gap-3 overflow-hidden">
+        <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Quick Search Collection</h3>
+        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-1 px-1">
+            <QuickFilterBtn label="All Finds" onClick={props.goAllFinds} />
+            <QuickFilterBtn label="Ammonite" onClick={() => props.goFindsWithFilter("Ammonite")} />
+            <QuickFilterBtn label="Belemnite" onClick={() => props.goFindsWithFilter("Belemnite")} />
+            <QuickFilterBtn label="Ichthyosaur" onClick={() => props.goFindsWithFilter("Ichthyosaur")} />
+            <QuickFilterBtn label="Pliosaur" onClick={() => props.goFindsWithFilter("Pliosaur")} />
+            <QuickFilterBtn label="Plesiosaur" onClick={() => props.goFindsWithFilter("Plesiosaur")} />
+            <QuickFilterBtn label="Crocodile" onClick={() => props.goFindsWithFilter("Croc")} />
+            <QuickFilterBtn label="Dinosaur" onClick={() => props.goFindsWithFilter("Dino")} />
+            <QuickFilterBtn label="Fish" onClick={() => props.goFindsWithFilter("Fish")} />
+            <QuickFilterBtn label="Shark Tooth" onClick={() => props.goFindsWithFilter("Shark")} />
+            <QuickFilterBtn label="Gryphaea" onClick={() => props.goFindsWithFilter("Gryphaea")} />
+            <QuickFilterBtn label="Brachiopod" onClick={() => props.goFindsWithFilter("Brachiopod")} />
+            <QuickFilterBtn label="Echinoid" onClick={() => props.goFindsWithFilter("Echinoid")} />
+            <QuickFilterBtn label="Shells" onClick={() => props.goFindsWithFilter("Shell")} />
+            <QuickFilterBtn label="Trace" onClick={() => props.goFindsWithFilter("Trace")} />
+            <QuickFilterBtn label="Plant" onClick={() => props.goFindsWithFilter("Plant")} />
+        </div>
+        <p className="text-[10px] text-gray-400 dark:text-gray-500 italic ml-1 -mt-1 font-medium">Tip: Scroll for more categories</p>
       </div>
 
       <div className="grid gap-8">
           <section>
             <div className="flex items-center justify-between mb-4 flex-wrap gap-4">
-                <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">Field Trips</h2>
+                <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100 uppercase tracking-tight">Locations & Trips</h2>
                 <div className="flex items-center gap-3 flex-1 max-w-md">
                     <div className="relative flex-1">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 opacity-40">🔍</span>
                         <input 
                             type="text"
-                            placeholder="Search trips by name or formation..."
+                            placeholder="Search by name or formation..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
@@ -84,20 +108,21 @@ export default function Home(props: {
             
             {(!localities || localities.length === 0) && (
                 <div className="text-gray-500 italic bg-gray-50 dark:bg-gray-800/50 p-10 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700 text-center">
-                    {searchQuery ? "No trips found matching your search." : "No field trips recorded yet. Start by adding a new trip!"}
+                    {searchQuery ? "No results found matching your search." : "No locations or trips recorded yet. Start by adding one!"}
                 </div>
             )}
             
             {localities && localities.length > 0 && (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {localities.slice(0, 12).map((l) => (
-                  <div key={l.id} className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all flex flex-col h-full group">
+                  <div key={l.id} className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all flex flex-col h-full group relative overflow-hidden">
+                    {l.type === 'trip' && <div className="absolute top-0 right-0 bg-emerald-500 text-white text-[8px] font-black px-2 py-0.5 rounded-bl uppercase tracking-widest">Trip</div>}
                     <div className="flex justify-between gap-3 mb-2">
                       <button 
                         onClick={() => props.goLocalityEdit(l.id)}
                         className="text-gray-900 dark:text-white truncate text-lg font-bold group-hover:text-blue-600 dark:group-hover:text-blue-400 text-left transition-colors"
                       >
-                        {l.name || "(Unnamed trip)"}
+                        {l.name || "(Unnamed)"}
                       </button>
                     </div>
                     
@@ -117,7 +142,7 @@ export default function Home(props: {
                         Add find <span>→</span>
                       </button>
                       <button onClick={() => props.goLocalityEdit(l.id)} className="text-xs text-gray-500 hover:text-gray-700 font-medium ml-auto px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
-                        Edit Trip
+                        {l.type === 'location' ? 'View/Edit' : 'Edit Details'}
                       </button>
                     </div>
                   </div>
@@ -180,9 +205,38 @@ export default function Home(props: {
           </div>
       </div>
 
-      {openSpecimenId && (
-        <SpecimenModal specimenId={openSpecimenId} onClose={() => setOpenSpecimenId(null)} />
-      )}
-    </div>
-  );
-}
+            {openSpecimenId && (
+
+              <SpecimenModal specimenId={openSpecimenId} onClose={() => setOpenSpecimenId(null)} />
+
+            )}
+
+          </div>
+
+        );
+
+      }
+
+      
+
+      function QuickFilterBtn({ label, onClick }: { label: string, onClick: () => void }) {
+
+          return (
+
+              <button 
+
+                  onClick={onClick}
+
+                  className="whitespace-nowrap px-5 py-2 rounded-xl text-xs font-bold text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm transition-all hover:shadow-md hover:border-blue-500 dark:hover:border-blue-500 hover:-translate-y-0.5 active:translate-y-0 active:scale-95"
+
+              >
+
+                  {label}
+
+              </button>
+
+          );
+
+      }
+
+      

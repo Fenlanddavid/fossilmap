@@ -10,6 +10,7 @@ export type Project = {
 export type Locality = {
   id: string;
   projectId: string;
+  type: "location" | "trip";
 
   name: string;
   lat: number | null;
@@ -64,24 +65,35 @@ export type Locality = {
   updatedAt: string;
 };
 
+export type Session = {
+  id: string;
+  projectId: string;
+  localityId: string; // Links to Locality.id (Location)
+
+  startTime: string; // ISO
+  endTime: string | null; // ISO
+  notes: string;
+  isFinished: boolean;
+
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type Specimen = {
   id: string;
   projectId: string;
   localityId: string;
+  sessionId: string | null;
 
   specimenCode: string;
   taxon: string;
   taxonConfidence: "high" | "med" | "low";
 
-  element:
-    | "shell"
-    | "bone"
-    | "tooth"
-    | "plant"
-    | "trace fossil"
-    | "microfossil"
-    | "unknown"
-    | "other";
+  lat: number | null;
+  lon: number | null;
+  gpsAccuracyM: number | null;
+
+  element: string;
 
   preservation:
     | "body fossil"
@@ -97,6 +109,11 @@ export type Specimen = {
 
   taphonomy: string;
   findContext: string;
+
+  weightG: number | null;
+  lengthMm: number | null;
+  widthMm: number | null;
+  thicknessMm: number | null;
 
   bagBoxId: string;
   storageLocation: string;
@@ -131,6 +148,7 @@ export type Setting = {
 export class FossilMapDB extends Dexie {
   projects!: Table<Project, string>;
   localities!: Table<Locality, string>;
+  sessions!: Table<Session, string>;
   specimens!: Table<Specimen, string>;
   media!: Table<Media, string>;
   settings!: Table<Setting, string>;
@@ -165,6 +183,22 @@ export class FossilMapDB extends Dexie {
     // Version 5: Media photoType
     this.version(5).stores({
       media: "id, projectId, specimenId, createdAt",
+    });
+
+    // Version 6: Sessions and updated Locality/Specimen types
+    this.version(6).stores({
+        localities: "id, projectId, type, name, observedAt, sssi, permissionGranted, formation, createdAt",
+        sessions: "id, projectId, localityId, startTime, isFinished, createdAt",
+        specimens: "id, projectId, localityId, sessionId, specimenCode, taxon, createdAt",
+    }).upgrade(async tx => {
+        await tx.table("localities").toCollection().modify(l => {
+            if (!l.type) l.type = "location";
+        });
+    });
+
+    // Version 7: Specimen GPS fields
+    this.version(7).stores({
+        specimens: "id, projectId, localityId, sessionId, specimenCode, taxon, lat, lon, createdAt",
     });
   }
 }

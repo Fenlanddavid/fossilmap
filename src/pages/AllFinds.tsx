@@ -1,14 +1,20 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, Media } from "../db";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ScaledImage } from "../components/ScaledImage";
 import { SpecimenModal } from "../components/SpecimenModal";
 
 export default function AllFinds(props: { projectId: string }) {
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchParams] = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
   const [openSpecimenId, setOpenSpecimenId] = useState<string | null>(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const q = searchParams.get("q");
+    if (q) setSearchQuery(q);
+  }, [searchParams]);
 
   const specimens = useLiveQuery(
     async () => {
@@ -47,8 +53,8 @@ export default function AllFinds(props: { projectId: string }) {
     <div className="max-w-5xl mx-auto pb-10">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">All Finds</h2>
-          <p className="text-gray-500 text-sm">Browse and search every recorded specimen.</p>
+          <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 uppercase tracking-tight">All Finds</h2>
+          <p className="text-gray-500 text-sm font-medium">Browse and search every recorded find.</p>
         </div>
         
         <div className="relative flex-1 max-w-md">

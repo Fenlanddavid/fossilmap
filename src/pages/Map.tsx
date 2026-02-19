@@ -16,6 +16,7 @@ const DEFAULT_ZOOM = 5;
 type SelectedLocality = {
   id: string;
   name: string;
+  type: "location" | "trip";
   lat: number;
   lon: number;
   sssi: boolean;
@@ -142,7 +143,8 @@ export default function MapPage({ projectId }: { projectId: string }) {
         geometry: { type: "Point" as const, coordinates: [l.lon, l.lat] as [number, number] },
         properties: {
           id: l.id,
-          name: l.name || "(Unnamed trip)",
+          type: l.type || "location",
+          name: l.name || "(Unnamed)",
           sssi: l.sssi ? 1 : 0,
           formation: l.formation || "",
           lithology: l.lithologyPrimary || "",
@@ -314,6 +316,7 @@ export default function MapPage({ projectId }: { projectId: string }) {
         setHighlightedLocalityId(id);
         setSelected({
           id,
+          type: props.type || "location",
           name: props.name,
           lon: coords[0],
           lat: coords[1],

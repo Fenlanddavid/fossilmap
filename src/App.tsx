@@ -8,6 +8,8 @@ import { exportData, importData, exportToCSV } from "./services/data";
 import Home from "./pages/Home";
 import LocalityPage from "./pages/Locality";
 import SpecimenPage from "./pages/Specimen";
+import SessionPage from "./pages/SessionPage";
+import AllLocations from "./pages/AllLocations";
 import MapPage from "./pages/Map";
 import AllFinds from "./pages/AllFinds";
 import Settings from "./pages/Settings";
@@ -58,7 +60,21 @@ function Shell() {
   const settings = useLiveQuery(() => db.settings.toArray());
   const lastBackup = settings?.find(s => s.key === "lastBackup")?.value;
 
-  const showBackupReminder = !dismissedBackup && (!lastBackup || (Date.now() - new Date(lastBackup).getTime() > 30 * 24 * 60 * 60 * 1000));
+  const dataCount = useLiveQuery(async () => {
+      const locs = await db.localities.count();
+      const finds = await db.specimens.count();
+      return locs + finds;
+  }, []);
+
+  const showBackupReminder = !dismissedBackup && 
+                             (dataCount ?? 0) > 0 && 
+                             (!lastBackup || (Date.now() - new Date(lastBackup).getTime() > 30 * 24 * 60 * 60 * 1000));
+
+  async function handleSnooze() {
+      // Set lastBackup to now to snooze for 30 days
+      await db.settings.put({ key: "lastBackup", value: new Date().toISOString() });
+      setDismissedBackup(true);
+  }
 
   async function handleExport() {
     try {
@@ -123,8 +139,9 @@ function Shell() {
           <NavLink to="/" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>Home</NavLink>
           <NavLink to="/map" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>Map</NavLink>
           <NavLink to="/tides" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>Tides</NavLink>
-          <NavLink to="/field-trip" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>New Field Trip</NavLink>
-          <NavLink to="/specimen" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>Casual Find</NavLink>
+          <NavLink to="/locations" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>Locations</NavLink>
+          <NavLink to="/field-trip" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>Field Trip</NavLink>
+          <NavLink to="/finds" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>All Finds</NavLink>
           <NavLink to="/settings" className={({ isActive }) => `hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${isActive ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}>Settings</NavLink>
         </nav>
 
@@ -159,7 +176,7 @@ function Shell() {
           </div>
           <div className="flex gap-2 shrink-0">
             <button 
-                onClick={() => setDismissedBackup(true)}
+                onClick={handleSnooze}
                 className="text-amber-800 dark:text-amber-200 font-bold py-1 px-3 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-800/50 transition-colors text-xs"
             >
                 Later
@@ -177,8 +194,13 @@ function Shell() {
       <main>
         <Routes>
             <Route path="/" element={<HomeRouter projectId={projectId} />} />
-            <Route path="/field-trip" element={<LocalityPage projectId={projectId} onSaved={(id) => nav(`/specimen?localityId=${encodeURIComponent(id)}`)} />} />
+            <Route path="/locations" element={<AllLocations projectId={projectId} />} />
+            <Route path="/location" element={<LocalityPage projectId={projectId} type="location" onSaved={(id) => nav(`/location/${id}`)} />} />
+            <Route path="/location/:id" element={<LocalityPage projectId={projectId} onSaved={() => {}} />} />
+            <Route path="/field-trip" element={<LocalityPage projectId={projectId} type="trip" onSaved={(id) => nav(`/field-trip/${id}`)} />} />
             <Route path="/field-trip/:id" element={<LocalityPage projectId={projectId} onSaved={() => {}} />} />
+            <Route path="/session/new" element={<SessionPage projectId={projectId} />} />
+            <Route path="/session/:id" element={<SessionPage projectId={projectId} />} />
             <Route path="/specimen" element={<SpecimenRouter projectId={projectId} />} />
             <Route path="/finds" element={<AllFinds projectId={projectId} />} />
             <Route path="/map" element={<MapPage projectId={projectId} />} />
@@ -196,7 +218,9 @@ function LinkToFieldTrip() {
     const nav = useNavigate();
     const { id } = useParams();
     useEffect(() => {
-        nav(id ? `/field-trip/${id}` : "/field-trip", { replace: true });
+        // Migration route: check if it's a trip or location would be ideal, 
+        // but default to location for now or just use location/:id as it's the same component
+        nav(id ? `/location/${id}` : "/location", { replace: true });
     }, [id, nav]);
     return null;
 }
@@ -206,13 +230,24 @@ function HomeRouter({ projectId }: { projectId: string }) {
   return (
     <Home
       projectId={projectId}
-      goLocality={() => nav("/field-trip")}
-      goLocalityEdit={(id: string) => nav(`/field-trip/${id}`)}
+      goLocality={() => nav("/locations")}
+      goLocalityEdit={(id: string) => {
+          // We need to know the type to route correctly, but LocalityPage handles both.
+          // For now, /location/:id works for both since they use the same component.
+          // In Home.tsx we can update the links to use the correct path if we want,
+          // but LocalityPage is agnostic if id is provided.
+          nav(`/location/${id}`);
+      }}
       goSpecimen={(localityId?: string) => {
-        const q = localityId ? `?localityId=${encodeURIComponent(localityId)}` : "";
-        nav(`/specimen${q}`);
+        if (!localityId) {
+            nav("/field-trip");
+        } else {
+            const q = `?localityId=${encodeURIComponent(localityId)}`;
+            nav(`/specimen${q}`);
+        }
       }}
       goAllFinds={() => nav("/finds")}
+      goFindsWithFilter={(query: string) => nav(`/finds?q=${encodeURIComponent(query)}`)}
       goMap={() => nav("/map")}
     />
   );
@@ -221,7 +256,8 @@ function HomeRouter({ projectId }: { projectId: string }) {
 function SpecimenRouter({ projectId }: { projectId: string }) {
   const [params] = useSearchParams();
   const localityId = params.get("localityId");
-  return <SpecimenPage projectId={projectId} localityId={localityId ?? null} />;
+  const sessionId = params.get("sessionId");
+  return <SpecimenPage projectId={projectId} localityId={localityId ?? null} sessionId={sessionId ?? null} />;
 }
 
 export default function App() {
