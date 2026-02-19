@@ -52,11 +52,11 @@ export default function Home(props: {
 
   return (
     <div className="grid gap-8 max-w-5xl mx-auto">
-      <div className="flex flex-col sm:flex-row gap-4">
-        <button onClick={props.goLocality} className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition-colors flex items-center justify-center gap-2 font-bold">
+      <div className="flex gap-2">
+        <button onClick={props.goLocality} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm shadow-sm transition-colors flex items-center justify-center gap-1.5 font-bold">
             <span>📍</span> New Location
         </button>
-        <button onClick={() => props.goSpecimen(undefined)} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition-colors flex items-center justify-center gap-2 font-bold">
+        <button onClick={() => props.goSpecimen(undefined)} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-sm shadow-sm transition-colors flex items-center justify-center gap-1.5 font-bold">
             New Field Trip
         </button>
       </div>

@@ -13,8 +13,8 @@ export default defineConfig({
         name: 'FossilMap UK',
         short_name: 'FossilMap',
         description: 'Offline geological field data collection',
-        theme_color: '#3b82f6',
-        background_color: '#ffffff',
+        theme_color: '#000000',
+        background_color: '#000000',
         display: 'standalone',
         start_url: '/fossilmap/',
         icons: [
