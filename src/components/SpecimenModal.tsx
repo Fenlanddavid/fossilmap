@@ -32,7 +32,6 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
   useEffect(() => {
     if (specimen) {
         setDraft(specimen);
-        // Check if current element is in common list
         if (specimen.element && !commonElements.includes(specimen.element)) {
             setIsCustomElement(true);
         } else {
@@ -114,7 +113,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
     setBusy(true);
     try {
       const fix = await captureGPS();
-      setDraft({ ...draft, lat: fix.lat, lon: fix.lon, gpsAccuracyM: fix.accuracyM });
+      setDraft(prev => prev ? { ...prev, lat: fix.lat, lon: fix.lon, gpsAccuracyM: fix.accuracyM } : null);
     } catch (e: any) {
       alert(e?.message ?? "GPS failed");
     } finally {
@@ -142,7 +141,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
                 <input 
                     className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium" 
                     value={draft.taxon} 
-                    onChange={(e) => setDraft({ ...draft, taxon: e.target.value })} 
+                    onChange={(e) => setDraft(prev => prev ? { ...prev, taxon: e.target.value } : null)} 
                     list="modal-taxa-list"
                 />
                 <datalist id="modal-taxa-list">
@@ -156,7 +155,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
                   <select 
                     className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"
                     value={draft.taxonConfidence} 
-                    onChange={(e) => setDraft({ ...draft, taxonConfidence: e.target.value as any })}
+                    onChange={(e) => setDraft(prev => prev ? { ...prev, taxonConfidence: e.target.value as any } : null)}
                   >
                     <option value="high">High</option>
                     <option value="med">Medium</option>
@@ -172,10 +171,10 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
                         onChange={(e) => {
                             if (e.target.value === "CUSTOM") {
                                 setIsCustomElement(true);
-                                setDraft({ ...draft, element: "" });
+                                setDraft(prev => prev ? { ...prev, element: "" } : null);
                             } else {
                                 setIsCustomElement(false);
-                                setDraft({ ...draft, element: e.target.value });
+                                setDraft(prev => prev ? { ...prev, element: e.target.value } : null);
                             }
                         }}
                         className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"
@@ -188,7 +187,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
                         <input 
                             className="w-full bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200 dark:border-blue-800 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-bold animate-in slide-in-from-top-1"
                             value={draft.element} 
-                            onChange={(e) => setDraft({ ...draft, element: e.target.value })}
+                            onChange={(e) => setDraft(prev => prev ? { ...prev, element: e.target.value } : null)}
                             placeholder="Type element..."
                             autoFocus
                         />
@@ -208,19 +207,19 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <label className="grid gap-1">
                     <span className="text-[10px] font-black uppercase opacity-60">Weight (g)</span>
-                    <input type="number" step="0.01" value={draft.weightG || ""} onChange={(e) => setDraft({...draft, weightG: parseFloat(e.target.value) || null})} className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2 focus:ring-2 focus:ring-blue-500 outline-none font-mono text-xs" />
+                    <input type="number" step="0.01" value={draft.weightG || ""} onChange={(e) => setDraft(prev => prev ? {...prev, weightG: parseFloat(e.target.value) || null} : null)} className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2 focus:ring-2 focus:ring-blue-500 outline-none font-mono text-xs" />
                 </label>
                 <label className="grid gap-1">
                     <span className="text-[10px] font-black uppercase opacity-60">Length (mm)</span>
-                    <input type="number" step="0.1" value={draft.lengthMm || ""} onChange={(e) => setDraft({...draft, lengthMm: parseFloat(e.target.value) || null})} className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2 focus:ring-2 focus:ring-blue-500 outline-none font-mono text-xs" />
+                    <input type="number" step="0.1" value={draft.lengthMm || ""} onChange={(e) => setDraft(prev => prev ? {...prev, lengthMm: parseFloat(e.target.value) || null} : null)} className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2 focus:ring-2 focus:ring-blue-500 outline-none font-mono text-xs" />
                 </label>
                 <label className="grid gap-1">
                     <span className="text-[10px] font-black uppercase opacity-60">Width (mm)</span>
-                    <input type="number" step="0.1" value={draft.widthMm || ""} onChange={(e) => setDraft({...draft, widthMm: parseFloat(e.target.value) || null})} className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2 focus:ring-2 focus:ring-blue-500 outline-none font-mono text-xs" />
+                    <input type="number" step="0.1" value={draft.widthMm || ""} onChange={(e) => setDraft(prev => prev ? {...prev, widthMm: parseFloat(e.target.value) || null} : null)} className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2 focus:ring-2 focus:ring-blue-500 outline-none font-mono text-xs" />
                 </label>
                 <label className="grid gap-1">
                     <span className="text-[10px] font-black uppercase opacity-60">Thick (mm)</span>
-                    <input type="number" step="0.1" value={draft.thicknessMm || ""} onChange={(e) => setDraft({...draft, thicknessMm: parseFloat(e.target.value) || null})} className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2 focus:ring-2 focus:ring-blue-500 outline-none font-mono text-xs" />
+                    <input type="number" step="0.1" value={draft.thicknessMm || ""} onChange={(e) => setDraft(prev => prev ? {...prev, thicknessMm: parseFloat(e.target.value) || null} : null)} className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2 focus:ring-2 focus:ring-blue-500 outline-none font-mono text-xs" />
                 </label>
               </div>
 
@@ -229,7 +228,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
                 <textarea 
                   className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"
                   value={draft.notes} 
-                  onChange={(e) => setDraft({ ...draft, notes: e.target.value })} rows={4} 
+                  onChange={(e) => setDraft(prev => prev ? { ...prev, notes: e.target.value } : null)} rows={4} 
                 />
               </label>
 
