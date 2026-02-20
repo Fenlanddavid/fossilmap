@@ -43,11 +43,22 @@ export function Logo() {
 function Shell() {
   const [projectId, setProjectId] = useState<string | null>(null);
   const [dismissedBackup, setDismissedBackup] = useState(false);
+  const [isInAppBrowser, setIsInAppBrowser] = useState(false);
   const nav = useNavigate();
 
   useEffect(() => {
     ensureDefaultProject().then(setProjectId);
     
+    // Detect In-App Browsers (Facebook, Instagram, etc.)
+    const ua = navigator.userAgent || navigator.vendor || (window as any).opera;
+    const isFB = ua.indexOf("FBAN") > -1 || ua.indexOf("FBAV") > -1;
+    const isInsta = ua.indexOf("Instagram") > -1;
+    const isAndroid = /Android/i.test(ua);
+    
+    if ((isFB || isInsta) && isAndroid) {
+        setIsInAppBrowser(true);
+    }
+
     // Request persistent storage
     if (navigator.storage && navigator.storage.persist) {
       navigator.storage.persist().then(granted => {
@@ -75,6 +86,8 @@ function Shell() {
       await db.settings.put({ key: "lastBackup", value: new Date().toISOString() });
       setDismissedBackup(true);
   }
+
+  const androidIntentUrl = `intent://${window.location.host}${window.location.pathname}#Intent;scheme=https;package=com.android.chrome;end`;
 
   async function handleExport() {
     try {
@@ -129,6 +142,30 @@ function Shell() {
 
   return (
     <div className="max-w-6xl mx-auto p-3 sm:p-4 font-sans text-gray-900 dark:text-gray-100 min-h-screen overflow-x-hidden">
+      {isInAppBrowser && (
+        <div className="bg-blue-600 text-white p-4 rounded-xl mb-4 shadow-lg flex flex-col items-center gap-3 text-center border-2 border-white animate-pulse">
+            <div className="text-2xl">🌐</div>
+            <div>
+                <h3 className="font-black uppercase tracking-tight text-lg">Open in Chrome to Install</h3>
+                <p className="text-xs opacity-90 leading-tight mt-1">
+                    Facebook's browser doesn't allow installing FossilMap or saving data properly.
+                </p>
+            </div>
+            <a 
+                href={androidIntentUrl}
+                className="bg-white text-blue-600 font-black px-6 py-2 rounded-full text-sm uppercase tracking-widest hover:bg-gray-100 transition-colors shadow-md no-underline"
+            >
+                Open in Chrome
+            </a>
+            <button 
+                onClick={() => setIsInAppBrowser(false)} 
+                className="text-[10px] opacity-70 hover:opacity-100 underline"
+            >
+                Continue anyway (Not Recommended)
+            </button>
+        </div>
+      )}
+
       <header className="flex flex-col gap-4 mb-6 border-b border-gray-200 dark:border-gray-700 pb-4">
         <div className="flex items-center justify-between gap-4">
             <Link to="/" className="no-underline flex items-center gap-3 group">
