@@ -146,16 +146,16 @@ function Shell() {
         <div className="bg-blue-600 text-white p-4 rounded-xl mb-4 shadow-lg flex flex-col items-center gap-3 text-center border-2 border-white animate-pulse">
             <div className="text-2xl">🌐</div>
             <div>
-                <h3 className="font-black uppercase tracking-tight text-lg">Open in Chrome to Install</h3>
+                <h3 className="font-black uppercase tracking-tight text-lg">Open in Chrome & Install</h3>
                 <p className="text-xs opacity-90 leading-tight mt-1">
-                    Facebook's browser doesn't allow installing FossilMap or saving data properly.
+                    To save data properly, open FossilMap in Chrome then tap 'Add to Home Screen'.
                 </p>
             </div>
             <a 
                 href={androidIntentUrl}
                 className="bg-white text-blue-600 font-black px-6 py-2 rounded-full text-sm uppercase tracking-widest hover:bg-gray-100 transition-colors shadow-md no-underline"
             >
-                Open in Chrome
+                Open & Install
             </a>
             <button 
                 onClick={() => setIsInAppBrowser(false)} 
