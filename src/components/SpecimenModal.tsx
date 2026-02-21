@@ -266,7 +266,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
                         <button onClick={(e) => { e.stopPropagation(); removePhoto(x.id); }} className="absolute top-1 right-1 bg-red-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs shadow-lg z-10">✕</button>
                         <button 
                             onClick={(e) => { e.stopPropagation(); setAnnotatingMedia({ media: x.media, url: x.url }); }} 
-                            className="absolute bottom-1 left-1 bg-blue-600 text-white px-2 py-1 rounded text-[8px] font-black uppercase shadow-lg z-10 opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="absolute bottom-1 left-1 bg-blue-600 text-white px-2 py-1 rounded text-[8px] font-black uppercase shadow-lg z-10 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                         >
                             ✎ Annotate
                         </button>
@@ -345,7 +345,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
                             <div key={x.id} className="relative group border-2 border-gray-100 dark:border-gray-700 rounded-2xl overflow-hidden aspect-square shadow-md cursor-pointer" onClick={() => setCalibratingMedia({ media: x.media, url: x.url })}>
                                 <ScaledImage media={x.media} imgClassName="object-cover" className="w-full h-full" />
                                 <div className="absolute inset-0 bg-blue-600/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                                    <span className="bg-white dark:bg-gray-800 text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg">View Scale</span>
+                                    <span className="bg-white dark:bg-gray-800 text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg hidden sm:inline-block">View Scale</span>
                                     <button 
                                         onClick={(e) => { e.stopPropagation(); setAnnotatingMedia({ media: x.media, url: x.url }); }}
                                         className="bg-blue-600 text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg"
