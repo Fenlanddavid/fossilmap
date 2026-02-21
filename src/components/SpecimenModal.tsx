@@ -6,6 +6,7 @@ import { v4 as uuid } from "uuid";
 import { fileToBlob } from "../services/photos";
 import { ScaleCalibrationModal } from "./ScaleCalibrationModal";
 import { ScaledImage } from "./ScaledImage";
+import { PhotoAnnotator } from "./PhotoAnnotator";
 import { captureGPS } from "../services/gps";
 
 export function SpecimenModal(props: { specimenId: string; onClose: () => void }) {
@@ -17,6 +18,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
   const [isCustomElement, setIsCustomElement] = useState(false);
   
   const [calibratingMedia, setCalibratingMedia] = useState<{ media: Media; url: string } | null>(null);
+  const [annotatingMedia, setAnnotatingMedia] = useState<{ media: Media; url: string } | null>(null);
 
   const commonTaxa = [
     "Ammonite", "Belemnite", "Gryphaea", "Brachiopod", "Echinoid", "Gastropod", "Bivalve",
@@ -122,12 +124,14 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
   }
 
   const headerActions = (
-    <button 
-        onClick={() => setIsEditing(!isEditing)}
-        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all shadow-sm ${isEditing ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'}`}
-    >
-        {isEditing ? "Viewing..." : "Edit Details"}
-    </button>
+    <div className="flex gap-2 items-center">
+        <button 
+            onClick={() => setIsEditing(!isEditing)}
+            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all shadow-sm ${isEditing ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'}`}
+        >
+            {isEditing ? "Viewing..." : "Edit Details"}
+        </button>
+    </div>
   );
 
   return (
@@ -260,6 +264,12 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
                     <div key={x.id} className="relative group border-2 border-gray-100 dark:border-gray-700 rounded-xl overflow-hidden aspect-square shadow-sm cursor-pointer" onClick={() => setCalibratingMedia({ media: x.media, url: x.url })}>
                         <ScaledImage media={x.media} imgClassName="object-cover" className="w-full h-full" />
                         <button onClick={(e) => { e.stopPropagation(); removePhoto(x.id); }} className="absolute top-1 right-1 bg-red-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs shadow-lg z-10">✕</button>
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); setAnnotatingMedia({ media: x.media, url: x.url }); }} 
+                            className="absolute bottom-1 left-1 bg-blue-600 text-white px-2 py-1 rounded text-[8px] font-black uppercase shadow-lg z-10 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                            ✎ Annotate
+                        </button>
                     </div>
                     ))}
                 </div>
@@ -334,8 +344,14 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
                         {imageUrls.map(x => (
                             <div key={x.id} className="relative group border-2 border-gray-100 dark:border-gray-700 rounded-2xl overflow-hidden aspect-square shadow-md cursor-pointer" onClick={() => setCalibratingMedia({ media: x.media, url: x.url })}>
                                 <ScaledImage media={x.media} imgClassName="object-cover" className="w-full h-full" />
-                                <div className="absolute inset-0 bg-blue-600/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <div className="absolute inset-0 bg-blue-600/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                                     <span className="bg-white dark:bg-gray-800 text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg">View Scale</span>
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); setAnnotatingMedia({ media: x.media, url: x.url }); }}
+                                        className="bg-blue-600 text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg"
+                                    >
+                                        Annotate
+                                    </button>
                                 </div>
                                 {x.media.photoType && (
                                     <div className="absolute bottom-2 left-2 bg-black/50 backdrop-blur-md text-[7px] text-white font-black px-1.5 py-0.5 rounded uppercase tracking-widest">
@@ -361,6 +377,14 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
           media={calibratingMedia.media} 
           url={calibratingMedia.url} 
           onClose={() => setCalibratingMedia(null)} 
+        />
+      )}
+
+      {annotatingMedia && (
+        <PhotoAnnotator 
+          media={annotatingMedia.media} 
+          url={annotatingMedia.url} 
+          onClose={() => setAnnotatingMedia(null)} 
         />
       )}
     </>

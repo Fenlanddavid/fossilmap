@@ -136,6 +136,7 @@ export type Media = {
   caption: string;
   scalePresent: boolean;
   pxPerMm?: number;
+  annotations?: string; // JSON string of drawing data
 
   createdAt: string;
 };
@@ -199,6 +200,11 @@ export class FossilMapDB extends Dexie {
     // Version 7: Specimen GPS fields
     this.version(7).stores({
         specimens: "id, projectId, localityId, sessionId, specimenCode, taxon, lat, lon, createdAt",
+    });
+
+    // Version 8: Media annotations
+    this.version(8).stores({
+        media: "id, projectId, specimenId, createdAt",
     });
   }
 }
