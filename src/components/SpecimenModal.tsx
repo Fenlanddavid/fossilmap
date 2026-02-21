@@ -86,7 +86,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
     const items: Media[] = [];
     for (const f of Array.from(files)) {
       const blob = await fileToBlob(f);
-      items.push({
+      const item: Media = {
         id: uuid(),
         projectId: draft.projectId,
         specimenId: draft.id,
@@ -98,9 +98,17 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
         caption: "",
         scalePresent: false,
         createdAt: now,
-      });
+      };
+      items.push(item);
     }
     await db.media.bulkAdd(items);
+
+    if (items.length === 1) {
+        const m = items[0];
+        const url = URL.createObjectURL(m.blob);
+        setAnnotatingMedia({ media: m, url });
+    }
+
     setBusy(false);
   }
 

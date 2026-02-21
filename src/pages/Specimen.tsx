@@ -5,6 +5,7 @@ import { db, Media, Specimen } from "../db";
 import { v4 as uuid } from "uuid";
 import { fileToBlob } from "../services/photos";
 import { ScaledImage } from "../components/ScaledImage";
+import { PhotoAnnotator } from "../components/PhotoAnnotator";
 import { captureGPS } from "../services/gps";
 
 const taxonConfidence: Specimen["taxonConfidence"][] = ["high", "med", "low"];
@@ -64,6 +65,7 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
   const [error, setError] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [annotatingMedia, setAnnotatingMedia] = useState<{ media: Media; url: string } | null>(null);
 
   useEffect(() => {
     if (props.localityId) {
@@ -207,7 +209,7 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
 
       for (const f of Array.from(files)) {
         const blob = await fileToBlob(f);
-        items.push({
+        const item: Media = {
           id: uuid(),
           projectId: props.projectId,
           specimenId: savedId,
@@ -219,16 +221,24 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
           caption: "",
           scalePresent: false,
           createdAt: now,
-        });
+        };
+        items.push(item);
       }
 
       await db.media.bulkAdd(items);
+
+      // If only one photo was added, open the annotator automatically
+      if (items.length === 1) {
+        const m = items[0];
+        const url = URL.createObjectURL(m.blob);
+        setAnnotatingMedia({ media: m, url });
+      }
     } catch (e: any) {
       setError(e?.message ?? "Photo add failed");
     }
   }
 
-  function PhotoThumb(props: { mediaId: string; filename: string }) {
+  function PhotoThumb(props: { mediaId: string; filename: string; onAnnotate: (m: Media, url: string) => void }) {
      const [media, setMedia] = useState<Media | null>(null);
      
      useEffect(() => {
@@ -243,13 +253,21 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
 
      if (!media) return <div className="w-full h-32 bg-gray-100 dark:bg-gray-700 animate-pulse rounded-lg" />;
      
+     const url = URL.createObjectURL(media.blob);
+
      return (
-        <div className="relative group border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden aspect-square shadow-sm">
+        <div 
+            className="relative group border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden aspect-square shadow-sm cursor-pointer"
+            onClick={() => props.onAnnotate(media, url)}
+        >
            <ScaledImage 
               media={media} 
               imgClassName="object-cover" 
               className="w-full h-full" 
            />
+           <div className="absolute inset-0 bg-blue-600/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <span className="bg-white dark:bg-gray-800 text-[8px] font-black px-2 py-1 rounded-full shadow-sm uppercase tracking-widest">Annotate</span>
+           </div>
            <div className="bg-white/90 dark:bg-gray-900/90 p-1 text-[8px] truncate absolute bottom-0 inset-x-0 z-10 flex justify-between items-center font-mono">
              <span className="truncate flex-1">{props.filename}</span>
              {media.photoType && (
@@ -487,11 +505,22 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
 
             {media && media.length > 0 && (
                 <div className="grid grid-cols-2 gap-3 overflow-y-auto pr-1">
-                    {media.map(m => <PhotoThumb key={m.id} mediaId={m.id} filename={m.filename} />)}
+                    {media.map(m => <PhotoThumb key={m.id} mediaId={m.id} filename={m.filename} onAnnotate={(media, url) => setAnnotatingMedia({ media, url })} />)}
                 </div>
             )}
         </div>
       </div>
+
+      {annotatingMedia && (
+        <PhotoAnnotator 
+            media={annotatingMedia.media} 
+            url={annotatingMedia.url} 
+            onClose={() => {
+                URL.revokeObjectURL(annotatingMedia.url);
+                setAnnotatingMedia(null);
+            }} 
+        />
+      )}
     </div>
   );
 }

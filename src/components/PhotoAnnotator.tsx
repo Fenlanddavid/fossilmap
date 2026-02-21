@@ -142,8 +142,8 @@ export function PhotoAnnotator(props: { media: Media; url: string; onClose: () =
 
   return (
     <Modal onClose={props.onClose} title="Annotate Photo">
-      <div className="flex flex-col gap-4 items-center">
-        <div className="flex flex-wrap gap-2 justify-center w-full bg-gray-50 dark:bg-gray-900 p-3 rounded-xl border border-gray-100 dark:border-gray-800 shadow-inner">
+      <div className="flex flex-col gap-4 items-center max-h-[85vh] overflow-y-auto pr-1 pb-4">
+        <div className="flex flex-wrap gap-2 justify-center w-full bg-gray-50 dark:bg-gray-900 p-3 rounded-xl border border-gray-100 dark:border-gray-800 shadow-inner sticky top-0 z-20">
           <button 
             onClick={() => setMode("arrow")} 
             className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${mode === 'arrow' ? 'bg-blue-600 text-white shadow-md' : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700'}`}
@@ -170,7 +170,7 @@ export function PhotoAnnotator(props: { media: Media; url: string; onClose: () =
           <button onClick={() => confirm("Clear all?") && setAnnotations([])} className="px-3 py-2 rounded-lg text-xs font-bold bg-red-50 text-red-600 border border-red-100">🗑️ Clear</button>
         </div>
 
-        <div className="relative border-4 border-white dark:border-gray-800 shadow-2xl rounded-sm cursor-crosshair touch-none overflow-hidden bg-black flex items-center justify-center">
+        <div className="relative border-4 border-white dark:border-gray-800 shadow-2xl rounded-sm cursor-crosshair touch-none overflow-hidden bg-black flex items-center justify-center mx-auto">
           <canvas
             ref={canvasRef}
             onMouseDown={handleStart}
