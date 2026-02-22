@@ -78,6 +78,15 @@ function Shell() {
   const project = useLiveQuery(async () => (projectId ? db.projects.get(projectId) : null), [projectId]);
   const settings = useLiveQuery(() => db.settings.toArray());
   const lastBackup = settings?.find(s => s.key === "lastBackup")?.value;
+  const theme = settings?.find(s => s.key === "theme")?.value ?? "dark";
+
+  useEffect(() => {
+    if (theme === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, [theme]);
 
   const dataCount = useLiveQuery(async () => {
       const locs = await db.localities.count();

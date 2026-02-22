@@ -9,6 +9,7 @@ export default function Settings() {
   const settings = useLiveQuery(() => db.settings.toArray());
   const lastBackup = settings?.find(s => s.key === "lastBackup")?.value;
   const defaultCollector = settings?.find(s => s.key === "defaultCollector")?.value;
+  const theme = settings?.find(s => s.key === "theme")?.value ?? "dark";
 
   useEffect(() => {
     if (defaultCollector) {
@@ -25,6 +26,11 @@ export default function Settings() {
   async function saveCollector() {
     await db.settings.put({ key: "defaultCollector", value: collectorName });
     alert("Settings saved!");
+  }
+
+  async function toggleTheme() {
+    const newTheme = theme === "dark" ? "light" : "dark";
+    await db.settings.put({ key: "theme", value: newTheme });
   }
 
   async function requestPersistence() {
@@ -44,7 +50,24 @@ export default function Settings() {
       <h2 className="text-3xl font-black mb-6">Settings</h2>
 
       <section className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 mb-6">
-        <h3 className="text-lg font-bold mb-4">User Preferences</h3>
+        <h3 className="text-lg font-bold mb-4">Appearance</h3>
+        <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+          <div>
+            <div className="font-medium">Theme</div>
+            <div className="text-sm text-gray-500">
+              Default is Dark mode.
+            </div>
+          </div>
+          <button
+            onClick={toggleTheme}
+            className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 px-4 py-2 rounded-lg font-bold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+          >
+            {theme === "dark" ? "🌙 Dark" : "☀️ Light"}
+          </button>
+        </div>
+      </section>
+
+      <section className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 mb-6">
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
