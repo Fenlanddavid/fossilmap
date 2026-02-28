@@ -152,6 +152,7 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
           exposureType: "other",
           sssi: false,
           permissionGranted: false,
+          period: "",
           formation: "",
           member: "",
           bed: "",
@@ -173,6 +174,7 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
         specimenCode: specimenCode.trim() || makeSpecimenCode(),
         taxon: taxon.trim(),
         taxonConfidence: confidence,
+        period: "", // Casual find starts with empty period
         lat,
         lon,
         gpsAccuracyM: acc,

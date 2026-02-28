@@ -237,7 +237,7 @@ export default function LocalityPage(props: {
 
   const currentLocality: Locality | null = id ? {
     id, projectId: props.projectId, type: localityType, name, lat, lon, gpsAccuracyM: acc, observedAt, collector,
-    exposureType, sssi, permissionGranted, formation, member, bed, lithologyPrimary, notes,
+    exposureType, sssi, permissionGranted, period, formation, member, bed, lithologyPrimary, notes,
     createdAt: "", updatedAt: ""
   } : null;
 
