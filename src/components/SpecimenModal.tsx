@@ -75,7 +75,10 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
       return;
     }
 
-    if (!confirm("Share this find with FossilMapped? It will be visible to everyone on the global map.")) return;
+    const shareMsg = "Share this find with FossilMapped? It will be visible to everyone on the global map.\n\n" + 
+                   "Note: Your collector name and contact email (if set in settings) will be shared with the find.";
+    
+    if (!confirm(shareMsg)) return;
 
     setSharing(true);
     try {
