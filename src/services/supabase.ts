@@ -6,6 +6,10 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'YOUR_ANON_KEY
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 export async function uploadSharedFind(payload: any) {
+  if (supabaseUrl.includes('YOUR_PROJECT_ID')) {
+    throw new Error("Supabase configuration is missing. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.");
+  }
+
   const { data, error } = await supabase
     .from('shared_finds')
     .insert([{

@@ -119,9 +119,12 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
 
       await db.specimens.update(draft.id, { isShared: true, sharedAt: payload.sharedAt });
       alert("Successfully shared with the FossilMapped community! 🌍");
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert("Sharing failed. Please try again later.");
+      let errorMsg = "Sharing failed. ";
+      if (e?.message) errorMsg += e.message;
+      if (e?.status === 413) errorMsg += " Photos might be too large.";
+      alert(errorMsg);
     } finally {
       setSharing(false);
     }
