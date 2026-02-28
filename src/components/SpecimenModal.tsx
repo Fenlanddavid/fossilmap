@@ -3,11 +3,13 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db, Specimen, Media } from "../db";
 import { Modal } from "./Modal";
 import { v4 as uuid } from "uuid";
+import { Globe, Check, Loader2 } from "lucide-react";
 import { fileToBlob } from "../services/photos";
 import { ScaleCalibrationModal } from "./ScaleCalibrationModal";
 import { ScaledImage } from "./ScaledImage";
 import { PhotoAnnotator } from "./PhotoAnnotator";
 import { captureGPS } from "../services/gps";
+import { uploadSharedFind, deleteSharedFind } from "../services/supabase";
 
 export function SpecimenModal(props: { specimenId: string; onClose: () => void }) {
   const specimen = useLiveQuery(async () => db.specimens.get(props.specimenId), [props.specimenId]);
@@ -16,7 +18,13 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
   const [busy, setBusy] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isCustomElement, setIsCustomElement] = useState(false);
+  const [sharing, setSharing] = useState(false);
   
+  const defaultCollector = useLiveQuery(async () => {
+    const s = await db.settings.get("defaultCollector");
+    return s?.value || "Anonymous Collector";
+  });
+
   const [calibratingMedia, setCalibratingMedia] = useState<{ media: Media; url: string } | null>(null);
   const [annotatingMedia, setAnnotatingMedia] = useState<{ media: Media; url: string } | null>(null);
 
@@ -58,6 +66,81 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
   }, [imageUrls]);
 
   if (!draft) return <Modal onClose={props.onClose} title="Loading…"><div>Loading data...</div></Modal>;
+
+  async function shareToCommunity() {
+    if (!draft || !draft.lat || !draft.lon) {
+      alert("GPS coordinates are required to share with the community.");
+      return;
+    }
+
+    if (!confirm("Share this find with FossilMapped? It will be visible to everyone on the global map.")) return;
+
+    setSharing(true);
+    try {
+      // Prepare the payload
+      const photos: string[] = [];
+      for (const m of media || []) {
+        // Convert blob to base64 for the payload
+        const reader = new FileReader();
+        const base64Promise = new Promise<string>((resolve) => {
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(m.blob);
+        });
+        photos.push(await base64Promise);
+      }
+
+      // Find location name
+      const locality = await db.localities.get(draft.localityId);
+
+      const payload = {
+        id: draft.id,
+        collectorName: defaultCollector,
+        taxon: draft.taxon,
+        element: draft.element,
+        locationName: locality?.name || "Unknown Location",
+        latitude: draft.lat,
+        longitude: draft.lon,
+        dateCollected: draft.createdAt,
+        photos: photos,
+        measurements: {
+          length: draft.lengthMm,
+          width: draft.widthMm,
+          thickness: draft.thicknessMm,
+          weight: draft.weightG
+        },
+        notes: draft.notes,
+        sharedAt: new Date().toISOString()
+      };
+
+      // Use Supabase Service
+      await uploadSharedFind(payload);
+
+      await db.specimens.update(draft.id, { isShared: true, sharedAt: payload.sharedAt });
+      alert("Successfully shared with the FossilMapped community! 🌍");
+    } catch (e) {
+      console.error(e);
+      alert("Sharing failed. Please try again later.");
+    } finally {
+      setSharing(false);
+    }
+  }
+
+  async function unshareFromCommunity() {
+    if (!draft || !draft.isShared) return;
+    if (!confirm("Remove this find from the public FossilMapped database?")) return;
+
+    setSharing(true);
+    try {
+      await deleteSharedFind(draft.id);
+      await db.specimens.update(draft.id, { isShared: false, sharedAt: undefined });
+      alert("Successfully removed from the community database. 🗑️");
+    } catch (e: any) {
+      console.error(e);
+      alert("Removal failed: " + (e?.message || "Check your internet connection"));
+    } finally {
+      setSharing(false);
+    }
+  }
 
   async function save() {
     if (!draft) return;
@@ -133,6 +216,27 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
 
   const headerActions = (
     <div className="flex gap-2 items-center">
+        {!isEditing && (
+            <div className="flex gap-1 items-center">
+                <button 
+                    onClick={shareToCommunity}
+                    disabled={sharing || draft.isShared}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-black transition-all shadow-sm ${draft.isShared ? 'bg-green-100 text-green-700 cursor-default' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'}`}
+                >
+                    {sharing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : draft.isShared ? <Check className="w-3.5 h-3.5" /> : <Globe className="w-3.5 h-3.5" />}
+                    {sharing ? "Sharing..." : draft.isShared ? "Shared" : "Share"}
+                </button>
+                {draft.isShared && !sharing && (
+                    <button 
+                        onClick={unshareFromCommunity}
+                        title="Remove from Community"
+                        className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                    >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                    </button>
+                )}
+            </div>
+        )}
         <button 
             onClick={() => setIsEditing(!isEditing)}
             className={`px-3 py-1 rounded-lg text-xs font-bold transition-all shadow-sm ${isEditing ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'}`}

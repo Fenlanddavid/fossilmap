@@ -236,7 +236,14 @@ function Shell() {
             </nav>
 
             <div className="flex items-center gap-3">
-                <div className="text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">UK Field App</div>
+                <a 
+                  href={import.meta.env.VITE_COMMUNITY_URL || "/fossilmapped/"} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="no-underline flex items-center gap-1.5 text-[9px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-widest bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-1.5 rounded-full hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-all shadow-sm"
+                >
+                  FossilMapped
+                </a>
             </div>
         </div>
       </header>

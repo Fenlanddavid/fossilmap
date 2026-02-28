@@ -198,6 +198,22 @@ export default function LocalityPage(props: {
       } else {
         (locality as any).createdAt = now;
         await db.localities.add(locality);
+        
+        // If it's a field trip, create an automatic session for it
+        if (localityType === "trip") {
+          await db.sessions.add({
+            id: uuid(),
+            projectId: props.projectId,
+            localityId: finalId,
+            startTime: now,
+            endTime: null,
+            notes: "Automatic session for field trip",
+            isFinished: false as any,
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+        
         setIsEditing(false);
         props.onSaved(finalId);
       }

@@ -17,6 +17,16 @@ export default function Home(props: {
   const [searchQuery, setSearchQuery] = useState("");
   const [openSpecimenId, setOpenSpecimenId] = useState<string | null>(null);
   
+  const activeSessions = useLiveQuery(async () => {
+    // Using filter instead of where.equals to be absolutely robust against type mismatches
+    const sessions = await db.sessions.toCollection().filter(s => !s.isFinished).toArray();
+    const map = new Map<string, any>();
+    for (const s of sessions) {
+      map.set(s.localityId, s);
+    }
+    return map;
+  }, []);
+
   const localities = useLiveQuery(
     async () => {
       let collection = db.localities.where("projectId").equals(props.projectId);
@@ -49,6 +59,18 @@ export default function Home(props: {
     }
     return m;
   }, [specimenIds]);
+
+  async function finishTrip(localityId: string) {
+    if (!confirm("Finish this field trip? This will record the end time and stop tracking.")) return;
+    const session = activeSessions?.get(localityId);
+    if (session) {
+      await db.sessions.update(session.id, { 
+        isFinished: true, 
+        endTime: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+    }
+  }
 
   return (
     <div className="grid gap-8 max-w-5xl mx-auto">
@@ -111,13 +133,23 @@ export default function Home(props: {
             
             {localities && localities.length > 0 && (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {localities.slice(0, 12).map((l) => (
-                  <div key={l.id} className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all flex flex-col h-full group relative overflow-hidden">
-                    {l.type === 'trip' && <div className="absolute top-0 right-0 bg-emerald-500 text-white text-[8px] font-black px-2 py-0.5 rounded-bl uppercase tracking-widest">Trip</div>}
+                {localities.slice(0, 12).map((l) => {
+                  const activeSession = activeSessions?.get(l.id);
+                  const isActive = !!activeSession;
+                  
+                  return (
+                  <div key={l.id} className={`border ${isActive ? 'border-emerald-500 ring-1 ring-emerald-500' : 'border-gray-200 dark:border-gray-700'} rounded-xl p-4 bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all flex flex-col h-full group relative overflow-hidden`}>
+                    {l.type === 'trip' && <div className={`absolute top-0 right-0 ${isActive ? 'bg-emerald-600' : 'bg-emerald-500'} text-white text-[8px] font-black px-2 py-0.5 rounded-bl uppercase tracking-widest`}>Trip</div>}
+                    {isActive && (
+                      <div className="absolute top-4 right-4 flex items-center gap-1.5">
+                        <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>
+                        <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Active</span>
+                      </div>
+                    )}
                     <div className="flex justify-between gap-3 mb-2">
                       <button 
                         onClick={() => props.goLocalityEdit(l.id)}
-                        className="text-gray-900 dark:text-white truncate text-lg font-bold group-hover:text-blue-600 dark:group-hover:text-blue-400 text-left transition-colors"
+                        className="text-gray-900 dark:text-white truncate text-lg font-bold group-hover:text-blue-600 dark:group-hover:text-blue-400 text-left transition-colors pr-12"
                       >
                         {l.name || "(Unnamed)"}
                       </button>
@@ -135,15 +167,29 @@ export default function Home(props: {
                     </div>
                     
                     <div className="pt-3 mt-auto border-t border-gray-100 dark:border-gray-700 flex gap-4 items-center">
-                      <button onClick={() => props.goSpecimen(l.id)} className="text-xs text-blue-600 hover:text-blue-800 font-bold hover:underline flex items-center gap-1">
-                        Add find <span>→</span>
-                      </button>
-                      <button onClick={() => props.goLocalityEdit(l.id)} className="text-xs text-gray-500 hover:text-gray-700 font-medium ml-auto px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
-                        {l.type === 'location' ? 'View/Edit' : 'Edit Details'}
-                      </button>
+                      {isActive ? (
+                        <>
+                          <button onClick={() => props.goSpecimen(l.id)} className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg font-bold shadow-sm flex items-center gap-1">
+                             <span>📸</span> Add Find
+                          </button>
+                          <button onClick={() => finishTrip(l.id)} className="text-xs bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 px-3 py-1.5 rounded-lg font-bold border border-red-100 dark:border-red-900/40 ml-auto">
+                            Finish
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button onClick={() => props.goSpecimen(l.id)} className="text-xs text-blue-600 hover:text-blue-800 font-bold hover:underline flex items-center gap-1">
+                            Add find <span>→</span>
+                          </button>
+                          <button onClick={() => props.goLocalityEdit(l.id)} className="text-xs text-gray-500 hover:text-gray-700 font-medium ml-auto px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
+                            {l.type === 'location' ? 'View/Edit' : 'Edit Details'}
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </section>

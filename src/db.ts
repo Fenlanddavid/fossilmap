@@ -119,6 +119,9 @@ export type Specimen = {
   storageLocation: string;
   notes: string;
 
+  isShared?: boolean;
+  sharedAt?: string;
+
   createdAt: string;
   updatedAt: string;
 };
@@ -205,6 +208,16 @@ export class FossilMapDB extends Dexie {
     // Version 8: Media annotations
     this.version(8).stores({
         media: "id, projectId, specimenId, createdAt",
+    });
+
+    // Version 9: Specimen isShared field
+    this.version(9).stores({
+        specimens: "id, projectId, localityId, sessionId, specimenCode, taxon, lat, lon, isShared, createdAt",
+    });
+
+    // Version 10: Index isFinished for active session lookups
+    this.version(10).stores({
+        sessions: "id, projectId, localityId, startTime, isFinished, createdAt",
     });
   }
 }
