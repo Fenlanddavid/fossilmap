@@ -35,6 +35,7 @@ export type Locality = {
   sssi: boolean;
   permissionGranted: boolean;
 
+  period: string;
   formation: string;
   member: string;
   bed: string;
@@ -88,6 +89,7 @@ export type Specimen = {
   specimenCode: string;
   taxon: string;
   taxonConfidence: "high" | "med" | "low";
+  period: string;
 
   lat: number | null;
   lon: number | null;
@@ -218,6 +220,12 @@ export class FossilMapDB extends Dexie {
     // Version 10: Index isFinished for active session lookups
     this.version(10).stores({
         sessions: "id, projectId, localityId, startTime, isFinished, createdAt",
+    });
+
+    // Version 11: Period indexing
+    this.version(11).stores({
+        localities: "id, projectId, type, name, observedAt, sssi, permissionGranted, formation, period, createdAt",
+        specimens: "id, projectId, localityId, sessionId, specimenCode, taxon, period, lat, lon, isShared, createdAt",
     });
   }
 }

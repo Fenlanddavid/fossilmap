@@ -4,18 +4,23 @@ import { useLiveQuery } from "dexie-react-hooks";
 
 export default function Settings() {
   const [collectorName, setCollectorName] = useState("");
+  const [collectorEmail, setCollectorEmail] = useState("");
   const [isPersisted, setIsPersisted] = useState<boolean | null>(null);
 
   const settings = useLiveQuery(() => db.settings.toArray());
   const lastBackup = settings?.find(s => s.key === "lastBackup")?.value;
   const defaultCollector = settings?.find(s => s.key === "defaultCollector")?.value;
+  const defaultEmail = settings?.find(s => s.key === "defaultEmail")?.value;
   const theme = settings?.find(s => s.key === "theme")?.value ?? "dark";
 
   useEffect(() => {
     if (defaultCollector) {
       setCollectorName(defaultCollector);
     }
-  }, [defaultCollector]);
+    if (defaultEmail) {
+      setCollectorEmail(defaultEmail);
+    }
+  }, [defaultCollector, defaultEmail]);
 
   useEffect(() => {
     if (navigator.storage && navigator.storage.persisted) {
@@ -25,6 +30,7 @@ export default function Settings() {
 
   async function saveCollector() {
     await db.settings.put({ key: "defaultCollector", value: collectorName });
+    await db.settings.put({ key: "defaultEmail", value: collectorEmail });
     alert("Settings saved!");
   }
 
@@ -82,6 +88,21 @@ export default function Settings() {
             />
             <p className="mt-1 text-xs text-gray-500">
               This name will be automatically filled in for new field trips.
+            </p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Collector Email (for Researcher Contact)
+            </label>
+            <input
+              type="email"
+              value={collectorEmail}
+              onChange={(e) => setCollectorEmail(e.target.value)}
+              placeholder="your@email.com"
+              className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 outline-none"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Sharing a find will include this email so researchers can request access.
             </p>
           </div>
           <button

@@ -91,14 +91,17 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
         photos.push(await base64Promise);
       }
 
-      // Find location name
+      // Find location name and period
       const locality = await db.localities.get(draft.localityId);
+      const collectorEmail = await db.settings.get("defaultEmail").then(s => s?.value || "");
 
       const payload = {
         id: draft.id,
         collectorName: defaultCollector,
+        collectorEmail: collectorEmail,
         taxon: draft.taxon,
         element: draft.element,
+        period: draft.period || locality?.period || "Unknown",
         locationName: locality?.name || "Unknown Location",
         latitude: draft.lat,
         longitude: draft.lon,

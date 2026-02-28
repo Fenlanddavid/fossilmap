@@ -15,7 +15,9 @@ export async function uploadSharedFind(payload: any) {
     .insert([{
         fossilmap_id: payload.id,
         collector_name: payload.collectorName,
+        collector_email: payload.collectorEmail,
         taxon: payload.taxon,
+        period: payload.period,
         element: payload.element,
         location_name: payload.locationName,
         latitude: payload.latitude,

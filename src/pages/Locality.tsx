@@ -42,6 +42,7 @@ export default function LocalityPage(props: {
   const [sssi, setSssi] = useState(false);
   const [permissionGranted, setPermissionGranted] = useState(false);
 
+  const [period, setPeriod] = useState("");
   const [formation, setFormation] = useState("");
   const [member, setMember] = useState("");
   const [bed, setBed] = useState("");
@@ -118,6 +119,7 @@ export default function LocalityPage(props: {
           setExposureType(l.exposureType);
           setSssi(l.sssi);
           setPermissionGranted(l.permissionGranted);
+          setPeriod(l.period || "");
           setFormation(l.formation);
           setMember(l.member);
           setBed(l.bed);
@@ -184,6 +186,7 @@ export default function LocalityPage(props: {
         exposureType,
         sssi,
         permissionGranted,
+        period,
         formation,
         member,
         bed,
@@ -396,6 +399,19 @@ export default function LocalityPage(props: {
                         </label>
 
                         <label className="block">
+                            <div className="mb-2 text-sm font-bold text-gray-700 dark:text-gray-300">Geological Period</div>
+                            <input 
+                                value={period} 
+                                onChange={(e) => setPeriod(e.target.value)} 
+                                placeholder="e.g. Jurassic" 
+                                list="periods-list"
+                                className="w-full bg-white dark:bg-gray-900 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-3.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium font-bold text-blue-600 dark:text-blue-400"
+                            />
+                            <datalist id="periods-list">
+                                {["Precambrian", "Cambrian", "Ordovician", "Silurian", "Devonian", "Carboniferous", "Permian", "Triassic", "Jurassic", "Cretaceous", "Paleogene", "Neogene", "Quaternary"].map(p => <option key={p} value={p} />)}
+                            </datalist>
+                        </label>
+                        <label className="block">
                             <div className="mb-2 text-sm font-bold text-gray-700 dark:text-gray-300">Primary Lithology</div>
                             <select 
                                 value={lithologyPrimary} 
@@ -483,7 +499,7 @@ export default function LocalityPage(props: {
                             <div>
                                 <h4 className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-1">Stratigraphy</h4>
                                 <p className="font-bold text-gray-700 dark:text-gray-300">
-                                    {formation || "Unknown Formation"}
+                                    {period ? `${period}, ` : ""}{formation || "Unknown Formation"}
                                 </p>
                                 {member && <p className="text-sm opacity-60 italic">{member}</p>}
                                 {bed && <p className="text-sm opacity-60">Bed: {bed}</p>}
