@@ -7,6 +7,7 @@ import { fileToBlob } from "../services/photos";
 import { ScaledImage } from "../components/ScaledImage";
 import { PhotoAnnotator } from "../components/PhotoAnnotator";
 import { captureGPS } from "../services/gps";
+import { LocationPickerModal } from "../components/LocationPickerModal";
 
 const taxonConfidence: Specimen["taxonConfidence"][] = ["high", "med", "low"];
 const preservations: Specimen["preservation"][] = [
@@ -65,6 +66,7 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
   const [error, setError] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [isPickingLocation, setIsPickingLocation] = useState(false);
   const [annotatingMedia, setAnnotatingMedia] = useState<{ media: Media; url: string } | null>(null);
 
   useEffect(() => {
@@ -358,22 +360,58 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
             </datalist>
             </label>
 
-            <div className="bg-blue-50/50 dark:bg-blue-900/20 p-5 rounded-2xl border-2 border-blue-100/50 dark:border-blue-800/30 flex flex-col sm:flex-row gap-4 items-center justify-between">
-                <div className="flex flex-col gap-1 w-full">
-                    <div className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">GPS Find spot</div>
-                    <div className="text-sm sm:text-lg font-mono font-bold text-gray-800 dark:text-gray-100 break-all">
-                        {lat && lon ? (
-                        <div className="flex items-center gap-2">
-                            {lat.toFixed(6)}, {lon.toFixed(6)}
+            <div className="bg-blue-50/50 dark:bg-blue-900/20 p-5 rounded-2xl border-2 border-blue-100/50 dark:border-blue-800/30 flex flex-col gap-4">
+                <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
+                    <div className="flex flex-col gap-1 w-full">
+                        <div className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">GPS Find spot</div>
+                        <div className="text-sm sm:text-lg font-mono font-bold text-gray-800 dark:text-gray-100 break-all">
+                            {lat && lon ? (
+                            <div className="flex items-center gap-2">
+                                {lat.toFixed(6)}, {lon.toFixed(6)}
+                            </div>
+                            ) : (
+                            <span className="opacity-40 italic text-sm">Coordinates not set</span>
+                            )}
                         </div>
-                        ) : (
-                        <span className="opacity-40 italic text-sm">Coordinates not set</span>
-                        )}
+                    </div>
+                    <div className="flex gap-2 w-full sm:w-auto">
+                        <button 
+                            type="button" 
+                            onClick={() => setIsPickingLocation(true)} 
+                            className="flex-1 sm:flex-none bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-1 hover:bg-blue-600 hover:text-white"
+                        >
+                            🗺️ Pick on Map
+                        </button>
+                        <button type="button" onClick={doGPS} className="flex-1 sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-md transition-all flex items-center justify-center gap-2 whitespace-nowrap text-sm">
+                            📍 {lat ? "Update GPS" : "Get Find GPS"}
+                        </button>
                     </div>
                 </div>
-                <button type="button" onClick={doGPS} className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-md transition-all flex items-center justify-center gap-2 whitespace-nowrap text-sm">
-                    📍 {lat ? "Update GPS" : "Get Find GPS"}
-                </button>
+
+                <div className="grid grid-cols-2 gap-4">
+                    <label className="grid gap-1">
+                        <span className="text-[10px] font-bold opacity-50 uppercase tracking-widest text-blue-600 dark:text-blue-400">Latitude</span>
+                        <input 
+                            type="number" 
+                            step="0.000001"
+                            placeholder="54.500000"
+                            className="w-full bg-white dark:bg-gray-900 border border-blue-100 dark:border-blue-800 rounded-xl p-2.5 text-xs font-mono font-bold focus:ring-2 focus:ring-blue-500 outline-none transition-all" 
+                            value={lat ?? ""} 
+                            onChange={(e) => setLat(e.target.value ? parseFloat(e.target.value) : null)} 
+                        />
+                    </label>
+                    <label className="grid gap-1">
+                        <span className="text-[10px] font-bold opacity-50 uppercase tracking-widest text-blue-600 dark:text-blue-400">Longitude</span>
+                        <input 
+                            type="number" 
+                            step="0.000001"
+                            placeholder="-2.000000"
+                            className="w-full bg-white dark:bg-gray-900 border border-blue-100 dark:border-blue-800 rounded-xl p-2.5 text-xs font-mono font-bold focus:ring-2 focus:ring-blue-500 outline-none transition-all" 
+                            value={lon ?? ""} 
+                            onChange={(e) => setLon(e.target.value ? parseFloat(e.target.value) : null)} 
+                        />
+                    </label>
+                </div>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -520,6 +558,20 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
                 setAnnotatingMedia(null);
             }} 
         />
+      )}
+
+      {isPickingLocation && (
+          <LocationPickerModal 
+              initialLat={lat}
+              initialLon={lon}
+              onClose={() => setIsPickingLocation(false)}
+              onSelect={(pickedLat, pickedLon) => {
+                  setLat(pickedLat);
+                  setLon(pickedLon);
+                  setAcc(null); // Manual pick doesn't have GPS accuracy
+                  setIsPickingLocation(false);
+              }}
+          />
       )}
     </div>
   );

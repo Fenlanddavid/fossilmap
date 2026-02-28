@@ -10,6 +10,7 @@ import { ScaledImage } from "./ScaledImage";
 import { PhotoAnnotator } from "./PhotoAnnotator";
 import { captureGPS } from "../services/gps";
 import { uploadSharedFind, deleteSharedFind } from "../services/supabase";
+import { LocationPickerModal } from "./LocationPickerModal";
 
 export function SpecimenModal(props: { specimenId: string; onClose: () => void }) {
   const specimen = useLiveQuery(async () => db.specimens.get(props.specimenId), [props.specimenId]);
@@ -17,6 +18,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
   const [draft, setDraft] = useState<Specimen | null>(null);
   const [busy, setBusy] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isPickingLocation, setIsPickingLocation] = useState(false);
   const [isCustomElement, setIsCustomElement] = useState(false);
   const [sharing, setSharing] = useState(false);
   
@@ -312,12 +314,48 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
                 </label>
               </div>
 
-              <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800 flex justify-between items-center">
-                  <div className="text-xs">
-                      <div className="font-bold text-blue-600 dark:text-blue-400">GPS Find spot</div>
-                      <div className="font-mono mt-0.5">{draft.lat ? `${draft.lat.toFixed(6)}, ${draft.lon?.toFixed(6)}` : "Not set"}</div>
+              <div className="bg-blue-50/50 dark:bg-blue-900/20 p-5 rounded-2xl border-2 border-blue-100/50 dark:border-blue-800/30 flex flex-col gap-4">
+                  <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
+                      <div className="flex flex-col gap-1 w-full text-xs">
+                          <div className="font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest">GPS Find spot</div>
+                          <div className="font-mono mt-0.5 font-bold text-gray-800 dark:text-gray-100">
+                              {draft.lat && draft.lon ? `${draft.lat.toFixed(6)}, ${draft.lon?.toFixed(6)}` : "Not set"}
+                          </div>
+                      </div>
+                      <div className="flex gap-2 w-full sm:w-auto">
+                          <button 
+                              type="button" 
+                              onClick={() => setIsPickingLocation(true)} 
+                              className="flex-1 sm:flex-none bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-1 hover:bg-blue-600 hover:text-white"
+                          >
+                              🗺️ Pick on Map
+                          </button>
+                          <button type="button" onClick={doGPS} className="flex-1 sm:w-auto bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm">Update GPS</button>
+                      </div>
                   </div>
-                  <button onClick={doGPS} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm">Update GPS</button>
+
+                  <div className="grid grid-cols-2 gap-4">
+                      <label className="grid gap-1">
+                          <span className="text-[10px] font-bold opacity-50 uppercase tracking-widest text-blue-600 dark:text-blue-400">Latitude</span>
+                          <input 
+                              type="number" 
+                              step="0.000001"
+                              className="w-full bg-white dark:bg-gray-900 border border-blue-100 dark:border-blue-800 rounded-xl p-2.5 text-xs font-mono font-bold focus:ring-2 focus:ring-blue-500 outline-none transition-all" 
+                              value={draft.lat ?? ""} 
+                              onChange={(e) => setDraft(prev => prev ? { ...prev, lat: e.target.value ? parseFloat(e.target.value) : null } : null)} 
+                          />
+                      </label>
+                      <label className="grid gap-1">
+                          <span className="text-[10px] font-bold opacity-50 uppercase tracking-widest text-blue-600 dark:text-blue-400">Longitude</span>
+                          <input 
+                              type="number" 
+                              step="0.000001"
+                              className="w-full bg-white dark:bg-gray-900 border border-blue-100 dark:border-blue-800 rounded-xl p-2.5 text-xs font-mono font-bold focus:ring-2 focus:ring-blue-500 outline-none transition-all" 
+                              value={draft.lon ?? ""} 
+                              onChange={(e) => setDraft(prev => prev ? { ...prev, lon: e.target.value ? parseFloat(e.target.value) : null } : null)} 
+                          />
+                      </label>
+                  </div>
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -498,6 +536,18 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
           url={annotatingMedia.url} 
           onClose={() => setAnnotatingMedia(null)} 
         />
+      )}
+
+      {isPickingLocation && draft && (
+          <LocationPickerModal 
+              initialLat={draft.lat}
+              initialLon={draft.lon}
+              onClose={() => setIsPickingLocation(false)}
+              onSelect={(pickedLat, pickedLon) => {
+                  setDraft(prev => prev ? { ...prev, lat: pickedLat, lon: pickedLon, gpsAccuracyM: null } : null);
+                  setIsPickingLocation(false);
+              }}
+          />
       )}
     </>
   );
