@@ -243,7 +243,7 @@ export default function Home(props: {
 
           <div className="border-t border-gray-100 dark:border-gray-800 pt-8 mt-4 text-center">
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              <span className="font-bold">🛡️ Data Protection:</span> All data is stored locally on this device. No finds or GPS locations are ever uploaded or shared.
+              <span className="font-bold">🛡️ Data Protection:</span> All data is stored locally on this device. No data is shared unless you choose to contribute a find to the <a href="https://Fenlanddavid.github.io/fossilmapped/" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">FossilMapped</a> community.
             </p>
           </div>
       </div>

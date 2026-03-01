@@ -255,7 +255,7 @@ function Shell() {
             <div className="flex flex-col leading-tight">
               <span className="font-bold text-amber-900 dark:text-amber-100">Backup Recommended</span>
               <span className="text-amber-800 dark:text-amber-200 text-xs mt-0.5">
-                It's been a while since your last backup. Since FossilMap is local-only, a backup protects your finds if your device is lost or broken.
+                It's been a while since your last backup. Since FossilMap is local-first, a backup protects your finds if your device is lost or broken.
               </span>
             </div>
           </div>

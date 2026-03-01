@@ -145,8 +145,8 @@ export default function Settings() {
         </div>
       </section>
 
-      <div className="text-center text-sm text-gray-500 mt-12">
-        FossilMap is strictly local. All data and settings are stored on this device.
+      <div className="text-center text-sm text-gray-500 mt-12 mb-4">
+        FossilMap is local-first. All data is stored on this device unless you choose to share a find with the <a href="https://Fenlanddavid.github.io/fossilmapped/" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">FossilMapped</a> community.
       </div>
     </div>
   );
