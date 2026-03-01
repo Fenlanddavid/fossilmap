@@ -160,7 +160,9 @@ export default function Home(props: {
                          <span className="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-gray-600 dark:text-gray-300">
                             {l.lat && l.lon ? `${l.lat.toFixed(4)}, ${l.lon.toFixed(4)}` : "No GPS"}
                          </span>
-                         <span className="text-xs opacity-60">{new Date(l.createdAt).toLocaleDateString()}</span>
+                         {l.type === 'trip' && l.createdAt && !isNaN(Date.parse(l.createdAt)) && (
+                           <span className="text-xs opacity-60">{new Date(l.createdAt).toLocaleDateString()}</span>
+                         )}
                       </div>
                       {l.formation && <div className="text-xs font-medium opacity-80 mt-1 truncate">{l.formation}</div>}
                       {l.sssi && <span className="text-amber-700 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded text-xs font-bold inline-block mt-1">⚠️ SSSI</span>}
