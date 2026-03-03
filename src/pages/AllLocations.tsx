@@ -16,7 +16,9 @@ export default function AllLocations(props: { projectId: string }) {
           .filter(l => 
             l.name.toLowerCase().includes(q) || 
             (l.notes?.toLowerCase().includes(q) ?? false) ||
-            (l.formation?.toLowerCase().includes(q) ?? false)
+            (l.formation?.toLowerCase().includes(q) ?? false) ||
+            (l.period?.toLowerCase().includes(q) ?? false) ||
+            (l.stage?.toLowerCase().includes(q) ?? false)
           )
           .reverse()
           .sortBy("createdAt");
@@ -84,6 +86,12 @@ export default function AllLocations(props: { projectId: string }) {
                       {l.lat && l.lon ? `${l.lat.toFixed(4)}, ${l.lon.toFixed(4)}` : "No GPS"}
                    </span>
                 </div>
+                {(l.period || l.stage) && (
+                    <div className="flex gap-2 items-center mb-1">
+                        {l.period && <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded shadow-sm border border-blue-100 dark:border-blue-800">{l.period}</span>}
+                        {l.stage && <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded shadow-sm border border-blue-100 dark:border-blue-800">{l.stage}</span>}
+                    </div>
+                )}
                 {l.formation && (
                     <div className="text-xs font-bold text-gray-600 dark:text-gray-400 mt-1 flex items-center gap-1">
                         🏔️ {l.formation}
@@ -96,9 +104,14 @@ export default function AllLocations(props: { projectId: string }) {
                 <span className="text-[10px] opacity-40 font-medium">
                   {new Date(l.createdAt).toLocaleDateString()}
                 </span>
-                {l.sssi && (
-                  <span className="text-[10px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded">⚠️ SSSI</span>
-                )}
+                <div className="flex gap-2">
+                    {l.sssi && (
+                        <span className="text-[10px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded">⚠️ SSSI</span>
+                    )}
+                    {l.rigs && (
+                        <span className="text-[10px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded">⚠️ RIGS</span>
+                    )}
+                </div>
               </div>
             </div>
           ))}

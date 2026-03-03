@@ -40,14 +40,17 @@ export default function LocalityPage(props: {
 
   const [exposureType, setExposureType] = useState<Locality["exposureType"]>("beach shingle");
   const [sssi, setSssi] = useState(false);
+  const [rigs, setRigs] = useState(false);
   const [permissionGranted, setPermissionGranted] = useState(false);
 
   const [period, setPeriod] = useState("");
+  const [stage, setStage] = useState("");
   const [formation, setFormation] = useState("");
   const [member, setMember] = useState("");
   const [bed, setBed] = useState("");
   const [lithologyPrimary, setLithologyPrimary] = useState<Locality["lithologyPrimary"]>("mudstone");
   const [notes, setNotes] = useState("");
+  const [designationNotes, setDesignationNotes] = useState("");
 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -117,14 +120,17 @@ export default function LocalityPage(props: {
           setLon(l.lon);
           setAcc(l.gpsAccuracyM);
           setExposureType(l.exposureType);
-          setSssi(l.sssi);
-          setPermissionGranted(l.permissionGranted);
+          setSssi(l.sssi || false);
+          setRigs(l.rigs || false);
+          setPermissionGranted(l.permissionGranted || false);
           setPeriod(l.period || "");
+          setStage(l.stage || "");
           setFormation(l.formation);
           setMember(l.member);
           setBed(l.bed);
           setLithologyPrimary(l.lithologyPrimary);
           setNotes(l.notes);
+          setDesignationNotes(l.designationNotes || "");
         }
         setLoading(false);
       });
@@ -185,13 +191,16 @@ export default function LocalityPage(props: {
         collector,
         exposureType,
         sssi,
+        rigs,
         permissionGranted,
         period,
+        stage,
         formation,
         member,
         bed,
         lithologyPrimary,
         notes,
+        designationNotes,
         createdAt: isEdit ? undefined as any : now, 
         updatedAt: now,
       };
@@ -237,7 +246,8 @@ export default function LocalityPage(props: {
 
   const currentLocality: Locality | null = id ? {
     id, projectId: props.projectId, type: localityType, name, lat, lon, gpsAccuracyM: acc, observedAt, collector,
-    exposureType, sssi, permissionGranted, period, formation, member, bed, lithologyPrimary, notes,
+    exposureType, sssi, rigs, permissionGranted, period, stage, formation, member, bed, lithologyPrimary, notes,
+    designationNotes,
     createdAt: "", updatedAt: ""
   } : null;
 
@@ -412,6 +422,34 @@ export default function LocalityPage(props: {
                             </datalist>
                         </label>
                         <label className="block">
+                            <div className="mb-2 text-sm font-bold text-gray-700 dark:text-gray-300">Geological Stage</div>
+                            <input 
+                                value={stage} 
+                                onChange={(e) => setStage(e.target.value)} 
+                                placeholder="e.g. Sinemurian" 
+                                list="stages-list"
+                                className="w-full bg-white dark:bg-gray-900 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-3.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium font-bold text-blue-600 dark:text-blue-400"
+                            />
+                            <datalist id="stages-list">
+                                {[
+                                    // Jurassic
+                                    "Hettangian", "Sinemurian", "Pliensbachian", "Toarcian", "Aalenian", "Bajocian", "Bathonian", "Callovian", "Oxfordian", "Kimmeridgian", "Tithonian",
+                                    // Cretaceous
+                                    "Berriasian", "Valanginian", "Hauterivian", "Barremian", "Aptian", "Albian", "Cenomanian", "Turonian", "Coniacian", "Santonian", "Campanian", "Maastrichtian",
+                                    // Paleogene/Neogene/Quaternary
+                                    "Danian", "Selandian", "Thanetian", "Ypresian", "Lutetian", "Bartonian", "Priabonian", "Rupelian", "Chattian", "Aquitanian", "Burdigalian", "Langhian", "Serravallian", "Tortonian", "Messinian", "Zanclean", "Piacenzian", "Gelasian", "Calabrian", "Chibanian", "Tarantian",
+                                    // Carboniferous
+                                    "Tournaisian", "Visean", "Serpukhovian", "Bashkirian", "Moscovian", "Kasimovian", "Gzhelian",
+                                    // Devonian
+                                    "Lochkovian", "Pragian", "Emsian", "Eifelian", "Givetian", "Frasnian", "Famennian",
+                                    // Silurian
+                                    "Rhuddanian", "Aeronian", "Telychian", "Sheinwoodian", "Homerian", "Gorstian", "Ludfordian",
+                                    // Ordovician
+                                    "Tremadocian", "Floian", "Dapingian", "Darriwilian", "Sandbian", "Katian", "Hirnantian"
+                                ].sort().map(s => <option key={s} value={s} />)}
+                            </datalist>
+                        </label>
+                        <label className="block">
                             <div className="mb-2 text-sm font-bold text-gray-700 dark:text-gray-300">Primary Lithology</div>
                             <select 
                                 value={lithologyPrimary} 
@@ -455,8 +493,36 @@ export default function LocalityPage(props: {
                         </label>
                     </div>
 
+                    <div className="bg-amber-50/50 dark:bg-amber-900/10 p-5 rounded-2xl border-2 border-amber-100/50 dark:border-amber-800/30 grid gap-4">
+                        <div className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">Conservation & Access</div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <label className="flex items-center gap-3 cursor-pointer group">
+                                <input type="checkbox" checked={sssi} onChange={(e) => setSssi(e.target.checked)} className="w-5 h-5 rounded border-amber-300 text-amber-600 focus:ring-amber-500" />
+                                <span className="text-sm font-bold text-gray-700 dark:text-gray-300 group-hover:text-amber-600">SSSI Status</span>
+                            </label>
+                            <label className="flex items-center gap-3 cursor-pointer group">
+                                <input type="checkbox" checked={rigs} onChange={(e) => setRigs(e.target.checked)} className="w-5 h-5 rounded border-amber-300 text-amber-600 focus:ring-amber-500" />
+                                <span className="text-sm font-bold text-gray-700 dark:text-gray-300 group-hover:text-amber-600">RIGS Status</span>
+                            </label>
+                            <label className="flex items-center gap-3 cursor-pointer group">
+                                <input type="checkbox" checked={permissionGranted} onChange={(e) => setPermissionGranted(e.target.checked)} className="w-5 h-5 rounded border-amber-300 text-amber-600 focus:ring-amber-500" />
+                                <span className="text-sm font-bold text-gray-700 dark:text-gray-300 group-hover:text-amber-600">Permission Granted</span>
+                            </label>
+                        </div>
+                        <label className="block">
+                            <div className="mb-2 text-[10px] font-bold text-amber-600/70 dark:text-amber-400/70 uppercase">Designation / Access Notes</div>
+                            <textarea 
+                                value={designationNotes} 
+                                onChange={(e) => setDesignationNotes(e.target.value)} 
+                                rows={2} 
+                                placeholder="e.g. Planning condition CS35 recording, RIGS boundary details..."
+                                className="w-full bg-white dark:bg-gray-900 border border-amber-100 dark:border-amber-800 rounded-xl p-3 focus:ring-2 focus:ring-amber-500 outline-none transition-all text-sm"
+                            />
+                        </label>
+                    </div>
+
                     <label className="block">
-                        <div className="mb-2 text-sm font-bold text-gray-700 dark:text-gray-300">Notes</div>
+                        <div className="mb-2 text-sm font-bold text-gray-700 dark:text-gray-300">Field Notes</div>
                         <textarea 
                             value={notes} 
                             onChange={(e) => setNotes(e.target.value)} 
@@ -499,20 +565,33 @@ export default function LocalityPage(props: {
                             <div>
                                 <h4 className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-1">Stratigraphy</h4>
                                 <p className="font-bold text-gray-700 dark:text-gray-300">
-                                    {period ? `${period}, ` : ""}{formation || "Unknown Formation"}
+                                    {period ? `${period}, ` : ""}{stage ? `${stage}, ` : ""}{formation || "Unknown Formation"}
                                 </p>
                                 {member && <p className="text-sm opacity-60 italic">{member}</p>}
                                 {bed && <p className="text-sm opacity-60">Bed: {bed}</p>}
                             </div>
+                            <div>
+                                <h4 className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-1">Conservation & Access</h4>
+                                <div className="flex flex-wrap gap-2 mt-1">
+                                    {sssi && <span className="text-[10px] font-black bg-amber-100 text-amber-800 px-2 py-0.5 rounded border border-amber-200 uppercase tracking-tighter">⚠️ SSSI</span>}
+                                    {rigs && <span className="text-[10px] font-black bg-amber-100 text-amber-800 px-2 py-0.5 rounded border border-amber-200 uppercase tracking-tighter">⚠️ RIGS</span>}
+                                    {permissionGranted ? (
+                                        <span className="text-[10px] font-black bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded border border-emerald-200 uppercase tracking-tighter">✓ Permission</span>
+                                    ) : (
+                                        <span className="text-[10px] font-black bg-red-50 text-red-700 px-2 py-0.5 rounded border border-red-100 uppercase tracking-tighter">No Permission</span>
+                                    )}
+                                </div>
+                                {designationNotes && <p className="text-xs italic opacity-60 mt-2">{designationNotes}</p>}
+                            </div>
+                        </div>
+
+                        <div className="grid gap-6">
                             <div>
                                 <h4 className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-1">Details</h4>
                                 <p className="font-bold text-gray-700 dark:text-gray-300 capitalize">
                                     {lithologyPrimary}, {exposureType}
                                 </p>
                             </div>
-                        </div>
-
-                        <div className="grid gap-6">
                             <div>
                                 <h4 className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-1">Location</h4>
                                 {lat && lon ? (
@@ -529,11 +608,14 @@ export default function LocalityPage(props: {
                                     <p className="text-sm opacity-40 italic">Coordinates not set</p>
                                 )}
                             </div>
-                            <div>
-                                <h4 className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-1">Collector / Date</h4>
-                                <p className="font-bold text-gray-700 dark:text-gray-300">{collector || "Not set"}</p>
-                                <p className="text-xs opacity-60">{new Date(observedAt).toLocaleDateString()}</p>
-                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-6">
+                        <div>
+                            <h4 className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-1">Collector / Date</h4>
+                            <p className="font-bold text-gray-700 dark:text-gray-300">{collector || "Not set"}</p>
+                            <p className="text-xs opacity-60">{new Date(observedAt).toLocaleDateString()}</p>
                         </div>
                     </div>
 

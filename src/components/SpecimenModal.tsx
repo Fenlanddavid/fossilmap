@@ -105,6 +105,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
         taxon: draft.taxon,
         element: draft.element,
         period: draft.period || locality?.period || "Unknown",
+        stage: draft.stage || locality?.stage || "Unknown",
         locationName: locality?.name || "Unknown Location",
         latitude: draft.lat,
         longitude: draft.lon,
@@ -276,19 +277,50 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
                 </datalist>
               </label>
 
-              <label className="grid gap-1">
-                <span className="text-sm font-bold opacity-75">Geological Period</span>
-                <input 
-                    className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium" 
-                    value={draft.period || ""} 
-                    onChange={(e) => setDraft(prev => prev ? { ...prev, period: e.target.value } : null)} 
-                    list="modal-periods-list"
-                    placeholder="Inherit from locality..."
-                />
-                <datalist id="modal-periods-list">
-                    {["Precambrian", "Cambrian", "Ordovician", "Silurian", "Devonian", "Carboniferous", "Permian", "Triassic", "Jurassic", "Cretaceous", "Paleogene", "Neogene", "Quaternary"].map(p => <option key={p} value={p} />)}
-                </datalist>
-              </label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label className="grid gap-1">
+                  <span className="text-sm font-bold opacity-75">Geological Period</span>
+                  <input 
+                      className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium" 
+                      value={draft.period || ""} 
+                      onChange={(e) => setDraft(prev => prev ? { ...prev, period: e.target.value } : null)} 
+                      list="modal-periods-list"
+                      placeholder="Inherit from locality..."
+                  />
+                  <datalist id="modal-periods-list">
+                      {["Precambrian", "Cambrian", "Ordovician", "Silurian", "Devonian", "Carboniferous", "Permian", "Triassic", "Jurassic", "Cretaceous", "Paleogene", "Neogene", "Quaternary"].map(p => <option key={p} value={p} />)}
+                  </datalist>
+                </label>
+
+                <label className="grid gap-1">
+                  <span className="text-sm font-bold opacity-75">Geological Stage</span>
+                  <input 
+                      className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium" 
+                      value={draft.stage || ""} 
+                      onChange={(e) => setDraft(prev => prev ? { ...prev, stage: e.target.value } : null)} 
+                      list="modal-stages-list"
+                      placeholder="Inherit from locality..."
+                  />
+                  <datalist id="modal-stages-list">
+                      {[
+                        // Jurassic
+                        "Hettangian", "Sinemurian", "Pliensbachian", "Toarcian", "Aalenian", "Bajocian", "Bathonian", "Callovian", "Oxfordian", "Kimmeridgian", "Tithonian",
+                        // Cretaceous
+                        "Berriasian", "Valanginian", "Hauterivian", "Barremian", "Aptian", "Albian", "Cenomanian", "Turonian", "Coniacian", "Santonian", "Campanian", "Maastrichtian",
+                        // Paleogene/Neogene/Quaternary
+                        "Danian", "Selandian", "Thanetian", "Ypresian", "Lutetian", "Bartonian", "Priabonian", "Rupelian", "Chattian", "Aquitanian", "Burdigalian", "Langhian", "Serravallian", "Tortonian", "Messinian", "Zanclean", "Piacenzian", "Gelasian", "Calabrian", "Chibanian", "Tarantian",
+                        // Carboniferous
+                        "Tournaisian", "Visean", "Serpukhovian", "Bashkirian", "Moscovian", "Kasimovian", "Gzhelian",
+                        // Devonian
+                        "Lochkovian", "Pragian", "Emsian", "Eifelian", "Givetian", "Frasnian", "Famennian",
+                        // Silurian
+                        "Rhuddanian", "Aeronian", "Telychian", "Sheinwoodian", "Homerian", "Gorstian", "Ludfordian",
+                        // Ordovician
+                        "Tremadocian", "Floian", "Dapingian", "Darriwilian", "Sandbian", "Katian", "Hirnantian"
+                      ].sort().map(s => <option key={s} value={s} />)}
+                  </datalist>
+                </label>
+              </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <label className="grid gap-1">
@@ -466,6 +498,9 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
                   <div className="flex flex-wrap gap-2 mb-4">
                       {draft.period && (
                           <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100">{draft.period}</span>
+                      )}
+                      {draft.stage && (
+                          <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100">{draft.stage}</span>
                       )}
                       <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${draft.taxonConfidence === 'high' ? 'bg-green-50 text-green-700 border-green-100' : draft.taxonConfidence === 'med' ? 'bg-amber-50 text-amber-700 border-amber-100' : 'bg-red-50 text-red-700 border-red-100'}`}>{draft.taxonConfidence} confidence</span>
                       <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-gray-100 text-gray-600 border border-gray-200">{draft.element}</span>

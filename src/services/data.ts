@@ -37,8 +37,10 @@ export async function exportToCSV(): Promise<string> {
   
   const headers = [
     "Specimen Code", "Taxon", "Confidence", "Element", "Preservation", 
+    "Specimen Period", "Specimen Stage",
     "Find Latitude", "Find Longitude", "Weight (g)", "Length (mm)", "Width (mm)", "Thickness (mm)",
     "Location Name", "Type", "Latitude", "Longitude", "GPS Accuracy (m)", 
+    "Location Period", "Location Stage",
     "Formation", "Member", "Bed", "Lithology", 
     "Date Observed", "Collector", "Specimen Notes", "Locality Notes"
   ];
@@ -51,8 +53,10 @@ export async function exportToCSV(): Promise<string> {
 
     return [
       s.specimenCode, s.taxon, s.taxonConfidence, s.element, s.preservation,
+      s.period ?? "", s.stage ?? "",
       s.lat ?? "", s.lon ?? "", s.weightG ?? "", s.lengthMm ?? "", s.widthMm ?? "", s.thicknessMm ?? "",
       l?.name ?? "", l?.type ?? "location", l?.lat ?? "", l?.lon ?? "", l?.gpsAccuracyM ?? "",
+      l?.period ?? "", l?.stage ?? "",
       l?.formation ?? "", l?.member ?? "", l?.bed ?? "", l?.lithologyPrimary ?? "",
       l?.observedAt ? new Date(l.observedAt).toLocaleString() : "",
       l?.collector ?? "", sNotes, lNotes

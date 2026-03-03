@@ -9,6 +9,9 @@ type SelectedLocality = {
   lat: number;
   lon: number;
   sssi: boolean;
+  rigs: boolean;
+  period: string;
+  stage: string;
   formation: string;
   lithology: string;
   specimenCount: number;
@@ -52,11 +55,13 @@ export function LocalityPanel(props: {
             {props.selectedSpecimens?.length ?? 0} find{(props.selectedSpecimens?.length ?? 0) === 1 ? "" : "s"} in view
         </div>
         <div className="flex flex-wrap gap-2 text-xs">
-            {selected.sssi ? (
-                <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-200 font-bold flex items-center gap-1">⚠️ SSSI Flagged</span>
-            ) : (
+            {selected.sssi && <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-200 font-bold flex items-center gap-1">⚠️ SSSI</span>}
+            {selected.rigs && <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-200 font-bold flex items-center gap-1">⚠️ RIGS</span>}
+            {!selected.sssi && !selected.rigs && (
                 <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-200 font-medium">Designation OK</span>
             )}
+            {selected.period && <span className="bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 px-2 py-0.5 rounded-lg border border-blue-100 dark:border-blue-800 font-medium">{selected.period}</span>}
+            {selected.stage && <span className="bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 px-2 py-0.5 rounded-lg border border-blue-100 dark:border-blue-800 font-medium">{selected.stage}</span>}
             {selected.formation && <span className="bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-2 py-0.5 rounded-lg border border-gray-200 dark:border-gray-600 font-medium">Fm: {selected.formation}</span>}
         </div>
       </div>

@@ -43,6 +43,8 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
   const [specimenCode, setSpecimenCode] = useState(makeSpecimenCode());
   const [taxon, setTaxon] = useState("");
   const [confidence, setConfidence] = useState<Specimen["taxonConfidence"]>("med");
+  const [period, setPeriod] = useState("");
+  const [stage, setStage] = useState("");
   const [element, setElement] = useState<Specimen["element"]>("shell");
   const [preservation, setPreservation] = useState<Specimen["preservation"]>("body fossil");
   const [taphonomy, setTaphonomy] = useState("");
@@ -89,6 +91,8 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
     setSpecimenCode(makeSpecimenCode());
     setTaxon("");
     setConfidence("med");
+    setPeriod("");
+    setStage("");
     setElement("shell");
     setPreservation("body fossil");
     setTaphonomy("");
@@ -151,13 +155,16 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
           collector: defaultCollector,
           exposureType: "other",
           sssi: false,
+          rigs: false,
           permissionGranted: false,
-          period: "",
+          period: period.trim(),
+          stage: stage.trim(),
           formation: "",
           member: "",
           bed: "",
           lithologyPrimary: "other",
           notes: props.localityId ? "Structured Location" : "Field Trip (Casual)",
+          designationNotes: "",
           createdAt: now,
           updatedAt: now,
         });
@@ -174,7 +181,8 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
         specimenCode: specimenCode.trim() || makeSpecimenCode(),
         taxon: taxon.trim(),
         taxonConfidence: confidence,
-        period: "", // Casual find starts with empty period
+        period: period.trim(),
+        stage: stage.trim(),
         lat,
         lon,
         gpsAccuracyM: acc,
@@ -361,6 +369,51 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
                 {commonTaxa.map(t => <option key={t} value={t} />)}
             </datalist>
             </label>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <label className="block">
+                <div className="mb-2 text-sm font-bold text-gray-700 dark:text-gray-300">Geological Period</div>
+                <input 
+                    value={period} 
+                    onChange={(e) => setPeriod(e.target.value)} 
+                    placeholder="e.g. Jurassic" 
+                    list="periods-list"
+                    className="w-full bg-white dark:bg-gray-900 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-3.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium font-bold text-blue-600 dark:text-blue-400"
+                />
+                <datalist id="periods-list">
+                    {["Precambrian", "Cambrian", "Ordovician", "Silurian", "Devonian", "Carboniferous", "Permian", "Triassic", "Jurassic", "Cretaceous", "Paleogene", "Neogene", "Quaternary"].map(p => <option key={p} value={p} />)}
+                </datalist>
+                </label>
+
+                <label className="block">
+                <div className="mb-2 text-sm font-bold text-gray-700 dark:text-gray-300">Geological Stage</div>
+                <input 
+                    value={stage} 
+                    onChange={(e) => setStage(e.target.value)} 
+                    placeholder="e.g. Sinemurian" 
+                    list="stages-list"
+                    className="w-full bg-white dark:bg-gray-900 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-3.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium font-bold text-blue-600 dark:text-blue-400"
+                />
+                <datalist id="stages-list">
+                    {[
+                        // Jurassic
+                        "Hettangian", "Sinemurian", "Pliensbachian", "Toarcian", "Aalenian", "Bajocian", "Bathonian", "Callovian", "Oxfordian", "Kimmeridgian", "Tithonian",
+                        // Cretaceous
+                        "Berriasian", "Valanginian", "Hauterivian", "Barremian", "Aptian", "Albian", "Cenomanian", "Turonian", "Coniacian", "Santonian", "Campanian", "Maastrichtian",
+                        // Paleogene/Neogene/Quaternary
+                        "Danian", "Selandian", "Thanetian", "Ypresian", "Lutetian", "Bartonian", "Priabonian", "Rupelian", "Chattian", "Aquitanian", "Burdigalian", "Langhian", "Serravallian", "Tortonian", "Messinian", "Zanclean", "Piacenzian", "Gelasian", "Calabrian", "Chibanian", "Tarantian",
+                        // Carboniferous
+                        "Tournaisian", "Visean", "Serpukhovian", "Bashkirian", "Moscovian", "Kasimovian", "Gzhelian",
+                        // Devonian
+                        "Lochkovian", "Pragian", "Emsian", "Eifelian", "Givetian", "Frasnian", "Famennian",
+                        // Silurian
+                        "Rhuddanian", "Aeronian", "Telychian", "Sheinwoodian", "Homerian", "Gorstian", "Ludfordian",
+                        // Ordovician
+                        "Tremadocian", "Floian", "Dapingian", "Darriwilian", "Sandbian", "Katian", "Hirnantian"
+                    ].sort().map(s => <option key={s} value={s} />)}
+                </datalist>
+                </label>
+            </div>
 
             <div className="bg-blue-50/50 dark:bg-blue-900/20 p-5 rounded-2xl border-2 border-blue-100/50 dark:border-blue-800/30 flex flex-col gap-4">
                 <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">

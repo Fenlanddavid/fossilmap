@@ -42,6 +42,8 @@ export function FieldTripReport(props: {
         <div className="grid gap-2">
           <h2 className="text-xs font-black uppercase tracking-widest text-gray-500">Stratigraphy</h2>
           <div className="grid grid-cols-[100px_1fr] gap-x-4">
+            <span className="font-bold">Period:</span> <span>{props.locality.period || "N/A"}</span>
+            <span className="font-bold">Stage:</span> <span>{props.locality.stage || "N/A"}</span>
             <span className="font-bold">Formation:</span> <span>{props.locality.formation}</span>
             <span className="font-bold">Member:</span> <span>{props.locality.member || "N/A"}</span>
             <span className="font-bold">Bed:</span> <span>{props.locality.bed || "N/A"}</span>

@@ -20,6 +20,9 @@ type SelectedLocality = {
   lat: number;
   lon: number;
   sssi: boolean;
+  rigs: boolean;
+  period: string;
+  stage: string;
   formation: string;
   lithology: string;
   specimenCount: number;
@@ -146,6 +149,9 @@ export default function MapPage({ projectId }: { projectId: string }) {
           type: l.type || "location",
           name: l.name || "(Unnamed)",
           sssi: l.sssi ? 1 : 0,
+          rigs: l.rigs ? 1 : 0,
+          period: l.period || "",
+          stage: l.stage || "",
           formation: l.formation || "",
           lithology: l.lithologyPrimary || "",
           specimenCount: specimenCountByLocality.get(l.id) ?? 0,
@@ -250,7 +256,11 @@ export default function MapPage({ projectId }: { projectId: string }) {
           "circle-radius": ["step", ["get", "specimenCount"], 8, 1, 10, 5, 12, 20, 14],
           "circle-stroke-width": 2,
           "circle-stroke-color": "#ffffff",
-          "circle-color": ["case", ["==", ["get", "sssi"], 1], "#d97706", "#059669"],
+          "circle-color": ["case", 
+            ["==", ["get", "sssi"], 1], "#d97706", 
+            ["==", ["get", "rigs"], 1], "#d97706",
+            "#059669"
+          ],
         },
       });
 
@@ -321,6 +331,9 @@ export default function MapPage({ projectId }: { projectId: string }) {
           lon: coords[0],
           lat: coords[1],
           sssi: props.sssi === 1 || props.sssi === "1",
+          rigs: props.rigs === 1 || props.rigs === "1",
+          period: props.period || "",
+          stage: props.stage || "",
           formation: props.formation || "",
           lithology: props.lithology || "",
           specimenCount: Number(props.specimenCount ?? 0),

@@ -24,6 +24,8 @@ export default function AllFinds(props: { projectId: string }) {
         return collection
           .filter(s => 
             s.taxon.toLowerCase().includes(q) || 
+            (s.period || "").toLowerCase().includes(q) ||
+            (s.stage || "").toLowerCase().includes(q) ||
             s.specimenCode.toLowerCase().includes(q) ||
             s.notes.toLowerCase().includes(q)
           )
@@ -111,6 +113,13 @@ export default function AllFinds(props: { projectId: string }) {
                       {s.taxon || "Unidentified"}
                     </h3>
                   </div>
+
+                  {(s.period || s.stage) && (
+                    <div className="flex gap-2 items-center mb-2">
+                        {s.period && <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded shadow-sm border border-blue-100 dark:border-blue-800">{s.period}</span>}
+                        {s.stage && <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded shadow-sm border border-blue-100 dark:border-blue-800">{s.stage}</span>}
+                    </div>
+                  )}
                   
                   <div className="flex flex-wrap gap-2 mt-auto pt-3">
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase border ${

@@ -33,9 +33,11 @@ export type Locality = {
     | "other";
 
   sssi: boolean;
+  rigs: boolean;
   permissionGranted: boolean;
 
   period: string;
+  stage: string;
   formation: string;
   member: string;
   bed: string;
@@ -61,6 +63,7 @@ export type Locality = {
     | "other";
 
   notes: string;
+  designationNotes: string;
 
   createdAt: string;
   updatedAt: string;
@@ -90,6 +93,7 @@ export type Specimen = {
   taxon: string;
   taxonConfidence: "high" | "med" | "low";
   period: string;
+  stage: string;
 
   lat: number | null;
   lon: number | null;
@@ -226,6 +230,17 @@ export class FossilMapDB extends Dexie {
     this.version(11).stores({
         localities: "id, projectId, type, name, observedAt, sssi, permissionGranted, formation, period, createdAt",
         specimens: "id, projectId, localityId, sessionId, specimenCode, taxon, period, lat, lon, isShared, createdAt",
+    });
+
+    // Version 12: Stage indexing
+    this.version(12).stores({
+        localities: "id, projectId, type, name, observedAt, sssi, permissionGranted, formation, period, stage, createdAt",
+        specimens: "id, projectId, localityId, sessionId, specimenCode, taxon, period, stage, lat, lon, isShared, createdAt",
+    });
+
+    // Version 13: RIGS indexing
+    this.version(13).stores({
+        localities: "id, projectId, type, name, observedAt, sssi, rigs, permissionGranted, formation, period, stage, createdAt",
     });
   }
 }

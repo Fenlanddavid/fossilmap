@@ -74,13 +74,22 @@ export default function Home(props: {
 
   return (
     <div className="grid gap-8 max-w-5xl mx-auto">
-      <div className="flex gap-2">
-        <button onClick={props.goLocality} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm shadow-sm transition-colors flex items-center justify-center gap-1.5 font-bold">
-            <span>📍</span> New Location
-        </button>
-        <button onClick={() => props.goSpecimen(undefined)} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-sm shadow-sm transition-colors flex items-center justify-center gap-1.5 font-bold">
-            New Field Trip
-        </button>
+      <div className="bg-emerald-50 dark:bg-emerald-900/20 border-2 border-emerald-100 dark:border-emerald-800 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm">
+        <div className="flex-1">
+            <div className="flex items-center gap-2 mb-2">
+                <span className="bg-emerald-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest shadow-sm">Local-First</span>
+            </div>
+            <h1 className="text-lg font-black text-gray-900 dark:text-white leading-tight">Your data, your choice.</h1>
+            <p className="text-gray-600 dark:text-gray-400 text-sm mt-1 max-w-lg">All data is stored locally on this device. No data is shared unless you choose to contribute a find to the FossilMapped database.</p>
+        </div>
+        <div className="flex gap-2 w-full md:w-auto shrink-0">
+            <button onClick={props.goLocality} className="flex-1 md:flex-none bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-2xl text-sm shadow-xl transition-all flex items-center justify-center gap-2 font-black transform active:scale-95">
+                <span>📍</span> New Location
+            </button>
+            <button onClick={() => props.goSpecimen(undefined)} className="flex-1 md:flex-none bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-2xl text-sm shadow-xl transition-all flex items-center justify-center gap-2 font-black transform active:scale-95">
+                New Field Trip
+            </button>
+        </div>
       </div>
 
       <div className="flex flex-col gap-3 overflow-hidden">
@@ -164,8 +173,15 @@ export default function Home(props: {
                            <span className="text-xs opacity-60">{new Date(l.createdAt).toLocaleDateString()}</span>
                          )}
                       </div>
-                      {l.formation && <div className="text-xs font-medium opacity-80 mt-1 truncate">{l.formation}</div>}
-                      {l.sssi && <span className="text-amber-700 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded text-xs font-bold inline-block mt-1">⚠️ SSSI</span>}
+                      <div className="flex gap-2 items-center mb-1 flex-wrap">
+                        {l.period && <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-1 py-0.5 rounded border border-blue-100 dark:border-blue-800">{l.period}</span>}
+                        {l.stage && <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-1 py-0.5 rounded border border-blue-100 dark:border-blue-800">{l.stage}</span>}
+                        {l.formation && <div className="text-[10px] font-medium opacity-80 truncate">{l.formation}</div>}
+                      </div>
+                      <div className="flex gap-2">
+                        {l.sssi && <span className="text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 px-1.5 py-0.5 rounded text-[9px] font-bold inline-block">⚠️ SSSI</span>}
+                        {l.rigs && <span className="text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 px-1.5 py-0.5 rounded text-[9px] font-bold inline-block">⚠️ RIGS</span>}
+                      </div>
                     </div>
                     
                     <div className="pt-3 mt-auto border-t border-gray-100 dark:border-gray-700 flex gap-4 items-center">
@@ -242,12 +258,6 @@ export default function Home(props: {
               </div>
             )}
           </section>
-
-          <div className="border-t border-gray-100 dark:border-gray-800 pt-8 mt-4 text-center">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              <span className="font-bold">🛡️ Data Protection:</span> All data is stored locally on this device. No data is shared unless you choose to contribute a find to the <a href="https://Fenlanddavid.github.io/fossilmapped/" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">FossilMapped</a> community.
-            </p>
-          </div>
       </div>
 
             {openSpecimenId && (

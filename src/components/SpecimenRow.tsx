@@ -32,8 +32,14 @@ export function SpecimenRow(props: {
           <strong className="text-sm font-semibold group-hover:text-blue-600 transition-colors">{s.specimenCode}</strong>
           <span className="opacity-75 text-xs">{new Date(s.createdAt).toLocaleDateString()}</span>
         </div>
-        <div className="opacity-90 mt-0.5 text-sm">
-          {s.taxon || "(Taxon TBD)"} <span className="opacity-60">• {s.taxonConfidence}</span>
+        <div className="opacity-90 mt-0.5 text-sm flex gap-1 items-center flex-wrap">
+          <span className="font-medium text-gray-800 dark:text-gray-100">{s.taxon || "(Taxon TBD)"}</span>
+          <span className="opacity-40 text-xs tracking-tighter">• {s.taxonConfidence}</span>
+          {(s.period || s.stage) && (
+            <span className="bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-[10px] font-bold px-1.5 py-0.5 rounded ml-auto">
+                {s.stage || s.period}
+            </span>
+          )}
         </div>
       </div>
     </button>
