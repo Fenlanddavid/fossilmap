@@ -50,7 +50,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
             setIsCustomElement(false);
         }
     }
-  }, [specimen?.id]);
+  }, [specimen]);
 
   const imageUrls = useMemo(() => {
     const urls: { id: string; url: string; filename: string; media: Media }[] = [];
@@ -98,14 +98,16 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
       const locality = await db.localities.get(draft.localityId);
       const collectorEmail = await db.settings.get("defaultEmail").then(s => s?.value || "");
 
+      const cleanStage = (draft.stage || locality?.stage || "").replace(/^Unknown$/i, "").trim();
+
       const payload = {
         id: draft.id,
         collectorName: defaultCollector,
         collectorEmail: collectorEmail,
         taxon: draft.taxon,
         element: draft.element,
-        period: draft.period || locality?.period || "Unknown",
-        stage: draft.stage || locality?.stage || "Unknown",
+        period: (draft.period || locality?.period || "Unknown").trim(),
+        stage: cleanStage,
         locationName: locality?.name || "Unknown Location",
         latitude: draft.lat,
         longitude: draft.lon,
@@ -120,6 +122,8 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
         notes: draft.notes,
         sharedAt: new Date().toISOString()
       };
+
+      console.log("SHARING PAYLOAD:", payload);
 
       // Use Supabase Service
       await uploadSharedFind(payload);

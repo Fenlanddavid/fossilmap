@@ -12,21 +12,23 @@ export async function uploadSharedFind(payload: any) {
 
   const { data, error } = await supabase
     .from('shared_finds')
-    .insert([{
+    .upsert([{
         fossilmap_id: payload.id,
         collector_name: payload.collectorName,
         collector_email: payload.collectorEmail,
         taxon: payload.taxon,
-        period: payload.period,
+        period: payload.period || "Unknown",
+        stage: payload.stage || "",
         element: payload.element,
         location_name: payload.locationName,
         latitude: payload.latitude,
         longitude: payload.longitude,
         date_collected: payload.dateCollected,
-        photos: payload.photos, // ideally upload to Storage bucket first
+        photos: payload.photos,
         measurements: payload.measurements,
-        notes: payload.notes
-    }])
+        notes: payload.notes,
+        shared_at: payload.sharedAt
+    }], { onConflict: 'fossilmap_id' })
     .select()
   
   if (error) throw error
