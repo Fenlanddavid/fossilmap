@@ -99,7 +99,7 @@ export default function LocalityPage(props: {
     const info = new Map<string, Media>();
     if (!allMedia || !finds) return info;
     
-    const sortedMedia = [...allMedia].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    const sortedMedia = [...allMedia].sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""));
     for (const row of sortedMedia) {
       if (!info.has(row.specimenId)) {
         info.set(row.specimenId, row);

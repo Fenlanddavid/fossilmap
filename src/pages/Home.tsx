@@ -53,7 +53,7 @@ export default function Home(props: {
     if (specimenIds.length === 0) return new Map<string, Media>();
     const media = await db.media.where("specimenId").anyOf(specimenIds).toArray();
     const m = new Map<string, Media>();
-    media.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    media.sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""));
     for (const row of media) {
         if (!m.has(row.specimenId)) m.set(row.specimenId, row);
     }

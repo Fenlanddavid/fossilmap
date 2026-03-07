@@ -50,7 +50,7 @@ export default function SessionPage(props: {
   const findThumbMedia = useMemo(() => {
     const info = new Map<string, Media>();
     if (!allMedia || !finds) return info;
-    const sortedMedia = [...allMedia].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    const sortedMedia = [...allMedia].sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""));
     for (const row of sortedMedia) {
       if (!info.has(row.specimenId)) info.set(row.specimenId, row);
     }
@@ -94,23 +94,27 @@ export default function SessionPage(props: {
       const now = new Date().toISOString();
       const finalId = id || uuid();
 
-      const session: Session = {
-        id: finalId,
-        projectId: props.projectId,
-        localityId: isEdit ? (await db.sessions.get(id))!.localityId : locationId!,
-        startTime: isoStart,
-        endTime: isFinished ? now : null,
-        notes,
-        isFinished,
-        createdAt: isEdit ? undefined as any : now, 
-        updatedAt: now,
-      };
-
       if (isEdit) {
-        await db.sessions.update(id, session);
+        await db.sessions.update(id, {
+          startTime: isoStart,
+          endTime: isFinished ? now : null,
+          notes,
+          isFinished,
+          updatedAt: now,
+        });
         setIsEditing(false);
       } else {
-        (session as any).createdAt = now;
+        const session: Session = {
+          id: finalId,
+          projectId: props.projectId,
+          localityId: locationId!,
+          startTime: isoStart,
+          endTime: isFinished ? now : null,
+          notes,
+          isFinished,
+          createdAt: now,
+          updatedAt: now,
+        };
         await db.sessions.add(session);
         setIsEditing(false);
         nav(`/session/${finalId}`, { replace: true });
