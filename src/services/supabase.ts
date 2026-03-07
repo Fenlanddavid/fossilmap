@@ -14,11 +14,15 @@ export async function uploadSharedFind(payload: any) {
     .from('shared_finds')
     .upsert([{
         fossilmap_id: payload.id,
+        hrid: payload.hrid,
         collector_name: payload.collectorName,
         collector_email: payload.collectorEmail,
         taxon: payload.taxon,
         period: payload.period || "Unknown",
         stage: payload.stage || "",
+        formation: payload.formation || "",
+        member: payload.member || "",
+        bed: payload.bed || "",
         element: payload.element,
         location_name: payload.locationName,
         latitude: payload.latitude,
@@ -26,6 +30,9 @@ export async function uploadSharedFind(payload: any) {
         date_collected: payload.dateCollected,
         photos: payload.photos,
         measurements: payload.measurements,
+        repository: payload.repository || "Private",
+        accession_id: payload.accession_id,
+        quality_score: payload.quality_score || 0,
         notes: payload.notes,
         shared_at: payload.sharedAt
     }], { onConflict: 'fossilmap_id' })
