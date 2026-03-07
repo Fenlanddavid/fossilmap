@@ -8,6 +8,7 @@ import { SpecimenRow } from "../components/SpecimenRow";
 import { SpecimenModal } from "../components/SpecimenModal";
 import { FieldTripReport } from "../components/FieldTripReport";
 import { LocationPickerModal } from "../components/LocationPickerModal";
+import { SessionFindsList } from "../components/SessionFindsList";
 
 const exposureTypes: Locality["exposureType"][] = [
   "beach shingle", "foreshore platform", "cliff fall / landslip debris",
@@ -701,6 +702,9 @@ export default function LocalityPage(props: {
                                                     </span>
                                                 )}
                                             </div>
+                                            
+                                            <SessionFindsList sessionId={s.id} />
+
                                             {s.notes && (
                                                 <div className="mt-2 text-[10px] font-mono opacity-40 italic line-clamp-1">
                                                     {s.notes}
