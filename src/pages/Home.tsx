@@ -1,9 +1,9 @@
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db, Media } from "../db";
-import { ScaledImage } from "../components/ScaledImage";
+import { db } from "../db";
 import { SpecimenModal } from "../components/SpecimenModal";
 import { TideWidget } from "../components/TideWidget";
+import { SpecimenThumbnail } from "../components/SpecimenThumbnail";
 
 export default function Home(props: {
   projectId: string;
@@ -46,19 +46,6 @@ export default function Home(props: {
     async () => db.specimens.where("projectId").equals(props.projectId).reverse().sortBy("createdAt"),
     [props.projectId]
   );
-
-  const specimenIds = useMemo(() => specimens?.slice(0, 12).map(s => s.id) ?? [], [specimens]);
-
-  const firstMediaMap = useLiveQuery(async () => {
-    if (specimenIds.length === 0) return new Map<string, Media>();
-    const media = await db.media.where("specimenId").anyOf(specimenIds).toArray();
-    const m = new Map<string, Media>();
-    media.sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""));
-    for (const row of media) {
-        if (!m.has(row.specimenId)) m.set(row.specimenId, row);
-    }
-    return m;
-  }, [specimenIds]);
 
   async function finishTrip(localityId: string) {
     if (!confirm("Finish this field trip? This will record the end time and stop tracking.")) return;
@@ -223,21 +210,14 @@ export default function Home(props: {
             {specimens && specimens.length > 0 && (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 {specimens.slice(0, 12).map((s) => {
-                  const media = firstMediaMap?.get(s.id);
                   return (
                     <div key={s.id} className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all flex flex-col h-full group cursor-pointer" onClick={() => setOpenSpecimenId(s.id)}>
                       <div className="aspect-square bg-gray-100 dark:bg-gray-900 relative">
-                        {media ? (
-                          <ScaledImage 
-                            media={media} 
+                        <SpecimenThumbnail 
+                            specimenId={s.id} 
                             className="w-full h-full" 
                             imgClassName="object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center opacity-30 italic text-[10px]">
-                            No photo
-                          </div>
-                        )}
+                        />
                         <div className="absolute top-2 left-2">
                             <strong className="text-white font-mono text-[9px] bg-black/50 backdrop-blur-sm px-1.5 py-0.5 rounded uppercase tracking-tighter">{s.specimenCode}</strong>
                         </div>
@@ -260,38 +240,20 @@ export default function Home(props: {
           </section>
       </div>
 
-            {openSpecimenId && (
+      {openSpecimenId && (
+        <SpecimenModal specimenId={openSpecimenId} onClose={() => setOpenSpecimenId(null)} />
+      )}
+    </div>
+  );
+}
 
-              <SpecimenModal specimenId={openSpecimenId} onClose={() => setOpenSpecimenId(null)} />
-
-            )}
-
-          </div>
-
-        );
-
-      }
-
-      
-
-      function QuickFilterBtn({ label, onClick }: { label: string, onClick: () => void }) {
-
-          return (
-
-              <button 
-
-                  onClick={onClick}
-
-                  className="whitespace-nowrap px-5 py-2 rounded-xl text-xs font-bold text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm transition-all hover:shadow-md hover:border-blue-500 dark:hover:border-blue-500 hover:-translate-y-0.5 active:translate-y-0 active:scale-95"
-
-              >
-
-                  {label}
-
-              </button>
-
-          );
-
-      }
-
-      
+function QuickFilterBtn({ label, onClick }: { label: string, onClick: () => void }) {
+    return (
+        <button 
+            onClick={onClick}
+            className="whitespace-nowrap px-5 py-2 rounded-xl text-xs font-bold text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm transition-all hover:shadow-md hover:border-blue-500 dark:hover:border-blue-500 hover:-translate-y-0.5 active:translate-y-0 active:scale-95"
+        >
+            {label}
+        </button>
+    );
+}

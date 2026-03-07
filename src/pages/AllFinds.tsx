@@ -1,9 +1,9 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db, Media } from "../db";
+import { db } from "../db";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ScaledImage } from "../components/ScaledImage";
 import { SpecimenModal } from "../components/SpecimenModal";
+import { SpecimenThumbnail } from "../components/SpecimenThumbnail";
 
 export default function AllFinds(props: { projectId: string }) {
   const [searchParams] = useSearchParams();
@@ -37,20 +37,6 @@ export default function AllFinds(props: { projectId: string }) {
     [props.projectId, searchQuery]
   );
 
-  const specimenIds = useMemo(() => specimens?.map(s => s.id) ?? [], [specimens]);
-
-  const firstMediaMap = useLiveQuery(async () => {
-    if (specimenIds.length === 0) return new Map<string, Media>();
-    const media = await db.media.where("specimenId").anyOf(specimenIds).toArray();
-    const m = new Map<string, Media>();
-    // Sort by createdAt to get the first photo
-    media.sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""));
-    for (const row of media) {
-        if (!m.has(row.specimenId)) m.set(row.specimenId, row);
-    }
-    return m;
-  }, [specimenIds]);
-
   return (
     <div className="max-w-5xl mx-auto pb-10">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
@@ -81,7 +67,6 @@ export default function AllFinds(props: { projectId: string }) {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {specimens.map((s) => {
-            const media = firstMediaMap?.get(s.id);
             return (
               <div 
                 key={s.id} 
@@ -89,17 +74,11 @@ export default function AllFinds(props: { projectId: string }) {
                 className="group border border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden bg-white dark:bg-gray-800 shadow-sm hover:shadow-md hover:border-blue-200 dark:hover:border-blue-900 transition-all cursor-pointer flex flex-col"
               >
                 <div className="aspect-video bg-gray-100 dark:bg-gray-900 relative border-b border-gray-100 dark:border-gray-700">
-                  {media ? (
-                    <ScaledImage 
-                      media={media} 
-                      className="w-full h-full" 
-                      imgClassName="object-cover"
+                    <SpecimenThumbnail 
+                        specimenId={s.id} 
+                        className="w-full h-full" 
+                        imgClassName="object-cover"
                     />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center opacity-30 italic text-xs">
-                      No photo
-                    </div>
-                  )}
                   <div className="absolute top-3 left-3">
                     <span className="font-mono text-[10px] font-bold bg-black/60 backdrop-blur-md text-white px-2 py-1 rounded shadow-sm">
                       {s.specimenCode}
@@ -127,23 +106,12 @@ export default function AllFinds(props: { projectId: string }) {
                       s.taxonConfidence === "med" ? "bg-amber-50 border-amber-100 text-amber-700" :
                       "bg-red-50 border-red-100 text-red-700"
                     }`}>
-                      {s.taxonConfidence}
+                      {s.taxonConfidence} confidence
                     </span>
-                    {s.element !== "unknown" && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600">
-                        {s.element}
-                      </span>
-                    )}
-                    <span className="ml-auto text-[10px] opacity-40 font-medium self-center">
-                      {new Date(s.createdAt).toLocaleDateString()}
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-50 dark:bg-gray-900 text-gray-600 dark:text-gray-400 border border-gray-100 dark:border-gray-800 uppercase">
+                      {s.element || "Unknown element"}
                     </span>
                   </div>
-
-                  {s.notes && (
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-3 line-clamp-2 italic">
-                      "{s.notes}"
-                    </p>
-                  )}
                 </div>
               </div>
             );
@@ -152,7 +120,10 @@ export default function AllFinds(props: { projectId: string }) {
       )}
 
       {openSpecimenId && (
-        <SpecimenModal specimenId={openSpecimenId} onClose={() => setOpenSpecimenId(null)} />
+        <SpecimenModal 
+          specimenId={openSpecimenId} 
+          onClose={() => setOpenSpecimenId(null)} 
+        />
       )}
     </div>
   );
