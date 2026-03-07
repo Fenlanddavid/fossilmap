@@ -10,8 +10,10 @@ export function FieldTripReport(props: {
   const mediaMap = useMemo(() => {
     const m = new Map<string, Media[]>();
     for (const item of props.media) {
-      if (!m.has(item.specimenId)) m.set(item.specimenId, []);
-      m.get(item.specimenId)!.push(item);
+      if (item.specimenId) {
+        if (!m.has(item.specimenId)) m.set(item.specimenId, []);
+        m.get(item.specimenId)!.push(item);
+      }
     }
     return m;
   }, [props.media]);

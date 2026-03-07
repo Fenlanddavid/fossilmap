@@ -1,9 +1,14 @@
 import React, { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db } from "../db";
+import { db, Media } from "../db";
 import { SpecimenModal } from "../components/SpecimenModal";
 import { TideWidget } from "../components/TideWidget";
 import { SpecimenThumbnail } from "../components/SpecimenThumbnail";
+import { LocalityThumbnail } from "../components/LocalityThumbnail";
+import { LocalityFindsList } from "../components/LocalityFindsList";
+import { Camera, Upload, Plus } from "lucide-react";
+import { fileToBlob } from "../services/photos";
+import { v4 as uuid } from "uuid";
 
 export default function Home(props: {
   projectId: string;
@@ -16,9 +21,9 @@ export default function Home(props: {
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [openSpecimenId, setOpenSpecimenId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   
   const activeSessions = useLiveQuery(async () => {
-    // Using filter instead of where.equals to be absolutely robust against type mismatches
     const sessions = await db.sessions.toCollection().filter(s => !s.isFinished).toArray();
     const map = new Map<string, any>();
     for (const s of sessions) {
@@ -32,12 +37,12 @@ export default function Home(props: {
       let collection = db.localities.where("projectId").equals(props.projectId);
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
-        return collection
+        return await collection
           .filter(l => l.name.toLowerCase().includes(query) || (l.formation?.toLowerCase().includes(query) ?? false))
           .reverse()
           .sortBy("createdAt");
       }
-      return collection.reverse().sortBy("createdAt");
+      return await collection.reverse().sortBy("createdAt");
     },
     [props.projectId, searchQuery]
   );
@@ -46,6 +51,33 @@ export default function Home(props: {
     async () => db.specimens.where("projectId").equals(props.projectId).reverse().sortBy("createdAt"),
     [props.projectId]
   );
+
+  async function addLocalityPhoto(localityId: string, files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setBusy(true);
+    try {
+        const file = files[0];
+        const blob = await fileToBlob(file);
+        const item: Media = {
+            id: uuid(),
+            projectId: props.projectId,
+            localityId: localityId,
+            type: "photo" as const,
+            filename: file.name,
+            mime: file.type || "image/jpeg",
+            blob,
+            caption: "Locality Photo",
+            scalePresent: false,
+            createdAt: new Date().toISOString(),
+        };
+        await db.media.add(item);
+    } catch (e) {
+        console.error("Locality photo failed:", e);
+        alert("Failed to save photo.");
+    } finally {
+        setBusy(false);
+    }
+  }
 
   async function finishTrip(localityId: string) {
     if (!confirm("Finish this field trip? This will record the end time and stop tracking.")) return;
@@ -128,69 +160,91 @@ export default function Home(props: {
             )}
             
             {localities && localities.length > 0 && (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2">
                 {localities.slice(0, 12).map((l) => {
                   const activeSession = activeSessions?.get(l.id);
                   const isActive = !!activeSession;
                   
                   return (
-                  <div key={l.id} className={`border ${isActive ? 'border-emerald-500 ring-1 ring-emerald-500' : 'border-gray-200 dark:border-gray-700'} rounded-xl p-4 bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all flex flex-col h-full group relative overflow-hidden`}>
-                    {l.type === 'trip' && <div className={`absolute top-0 right-0 ${isActive ? 'bg-emerald-600' : 'bg-emerald-500'} text-white text-[8px] font-black px-2 py-0.5 rounded-bl uppercase tracking-widest`}>Trip</div>}
-                    {isActive && (
-                      <div className="absolute top-4 right-4 flex items-center gap-1.5">
-                        <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>
-                        <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Active</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between gap-3 mb-2">
-                      <button 
-                        onClick={() => props.goLocalityEdit(l.id)}
-                        className="text-gray-900 dark:text-white truncate text-lg font-bold group-hover:text-blue-600 dark:group-hover:text-blue-400 text-left transition-colors pr-12"
-                      >
-                        {l.name || "(Unnamed)"}
-                      </button>
-                    </div>
+                  <div key={l.id} className={`border ${isActive ? 'border-emerald-500 ring-1 ring-emerald-500' : 'border-gray-200 dark:border-gray-700'} rounded-2xl bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all flex flex-row group relative overflow-hidden h-52 sm:h-48`}>
                     
-                    <div className="text-sm opacity-70 mb-4 flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                         <span className="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-gray-600 dark:text-gray-300">
-                            {l.lat && l.lon ? `${l.lat.toFixed(4)}, ${l.lon.toFixed(4)}` : "No GPS"}
-                         </span>
-                         {l.type === 'trip' && l.createdAt && !isNaN(Date.parse(l.createdAt)) && (
-                           <span className="text-xs opacity-60">{new Date(l.createdAt).toLocaleDateString()}</span>
-                         )}
-                      </div>
-                      <div className="flex gap-2 items-center mb-1 flex-wrap">
-                        {l.period && <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-1 py-0.5 rounded border border-blue-100 dark:border-blue-800">{l.period}</span>}
-                        {l.stage && <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-1 py-0.5 rounded border border-blue-100 dark:border-blue-800">{l.stage}</span>}
-                        {l.formation && <div className="text-[10px] font-medium opacity-80 truncate">{l.formation}</div>}
-                      </div>
-                      <div className="flex gap-2">
-                        {l.sssi && <span className="text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 px-1.5 py-0.5 rounded text-[9px] font-bold inline-block">⚠️ SSSI</span>}
-                        {l.rigs && <span className="text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 px-1.5 py-0.5 rounded text-[9px] font-bold inline-block">⚠️ RIGS</span>}
-                      </div>
+                    {/* Left Side: Content */}
+                    <div className="p-4 flex flex-col flex-1 min-w-0">
+                        <div className="flex justify-between gap-3 mb-1">
+                            <button 
+                                onClick={() => props.goLocalityEdit(l.id)}
+                                className="text-gray-900 dark:text-white truncate text-base font-black group-hover:text-blue-600 dark:group-hover:text-blue-400 text-left transition-colors"
+                            >
+                                {l.name || "(Unnamed)"}
+                            </button>
+                        </div>
+                        
+                        <div className="text-[11px] opacity-70 mb-3">
+                            <div className="flex items-center gap-2 mb-1">
+                                <span className="font-mono bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded text-gray-600 dark:text-gray-300">
+                                    {l.lat && l.lon ? `${l.lat.toFixed(4)}, ${l.lon.toFixed(4)}` : "No GPS"}
+                                </span>
+                                {l.type === 'trip' && l.createdAt && !isNaN(Date.parse(l.createdAt)) && (
+                                    <span className="opacity-60">{new Date(l.createdAt).toLocaleDateString()}</span>
+                                )}
+                            </div>
+                            <div className="flex gap-1.5 items-center flex-wrap">
+                                {l.period && <span className="font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-1 py-0.5 rounded border border-blue-100 dark:border-blue-800 uppercase tracking-tighter text-[9px]">{l.period}</span>}
+                                {l.stage && <span className="font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-1 py-0.5 rounded border border-blue-100 dark:border-blue-800 uppercase tracking-tighter text-[9px]">{l.stage}</span>}
+                            </div>
+                        </div>
+
+                        <LocalityFindsList localityId={l.id} />
+                        
+                        <div className="mt-auto flex gap-3 items-center">
+                        {isActive ? (
+                            <>
+                            <button onClick={() => props.goSpecimen(l.id)} className="text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 rounded-lg font-black shadow-sm flex items-center gap-1 uppercase tracking-wider">
+                                <Plus className="w-3 h-3" /> Find
+                            </button>
+                            <button onClick={() => finishTrip(l.id)} className="text-[10px] bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 px-2.5 py-1.5 rounded-lg font-black border border-red-100 dark:border-red-900/40 uppercase tracking-wider">
+                                Finish
+                            </button>
+                            </>
+                        ) : (
+                            <>
+                            <button onClick={() => props.goSpecimen(l.id)} className="text-[10px] text-blue-600 hover:text-blue-800 font-black hover:underline flex items-center gap-1 uppercase tracking-wider">
+                                Add find <span>→</span>
+                            </button>
+                            <button onClick={() => props.goLocalityEdit(l.id)} className="text-[10px] text-gray-500 hover:text-gray-700 font-bold ml-auto uppercase tracking-wider">
+                                {l.type === 'location' ? 'View' : 'Edit'}
+                            </button>
+                            </>
+                        )}
+                        </div>
                     </div>
-                    
-                    <div className="pt-3 mt-auto border-t border-gray-100 dark:border-gray-700 flex gap-4 items-center">
-                      {isActive ? (
-                        <>
-                          <button onClick={() => props.goSpecimen(l.id)} className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg font-bold shadow-sm flex items-center gap-1">
-                             <span>📸</span> Add Find
-                          </button>
-                          <button onClick={() => finishTrip(l.id)} className="text-xs bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 px-3 py-1.5 rounded-lg font-bold border border-red-100 dark:border-red-900/40 ml-auto">
-                            Finish
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button onClick={() => props.goSpecimen(l.id)} className="text-xs text-blue-600 hover:text-blue-800 font-bold hover:underline flex items-center gap-1">
-                            Add find <span>→</span>
-                          </button>
-                          <button onClick={() => props.goLocalityEdit(l.id)} className="text-xs text-gray-500 hover:text-gray-700 font-medium ml-auto px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
-                            {l.type === 'location' ? 'View/Edit' : 'Edit Details'}
-                          </button>
-                        </>
-                      )}
+
+                    {/* Right Side: Media Area */}
+                    <div className="w-28 sm:w-36 bg-gray-50 dark:bg-gray-900/50 relative border-l border-gray-100 dark:border-gray-700 group/media shrink-0">
+                        <LocalityThumbnail localityId={l.id} className="w-full h-full" imgClassName="object-cover" />
+                        
+                        {/* Overlay text when no image exists */}
+                        <div className="absolute inset-0 flex flex-col items-center justify-center p-2 text-center">
+                            <span className="text-[8px] font-black uppercase tracking-widest text-gray-400 group-hover/media:opacity-0 transition-opacity">Upload / Take Image</span>
+                        </div>
+
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/media:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
+                            <label className="cursor-pointer flex items-center gap-2 bg-white text-black px-2 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-transform">
+                                <Camera className="w-3.5 h-3.5" /> Camera
+                                <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => addLocalityPhoto(l.id, e.target.files)} />
+                            </label>
+                            <label className="cursor-pointer flex items-center gap-2 bg-white/20 backdrop-blur-md text-white px-2 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border border-white/20 hover:bg-white/30 transition-all">
+                                <Upload className="w-3.5 h-3.5" /> Upload
+                                <input type="file" accept="image/*" className="hidden" onChange={(e) => addLocalityPhoto(l.id, e.target.files)} />
+                            </label>
+                        </div>
+
+                        {l.type === 'trip' && <div className={`absolute top-0 right-0 ${isActive ? 'bg-emerald-600' : 'bg-emerald-500'} text-white text-[7px] font-black px-1.5 py-0.5 rounded-bl uppercase tracking-widest z-10`}>Trip</div>}
+                        {isActive && (
+                        <div className="absolute top-2 right-2 flex items-center gap-1 z-10">
+                            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+                        </div>
+                        )}
                     </div>
                   </div>
                   );
@@ -201,11 +255,11 @@ export default function Home(props: {
 
           <section>
             <div className="flex items-baseline justify-between mb-4">
-                <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">Recent Finds</h2>
+                <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100 uppercase tracking-tight">Recent Finds</h2>
                 <button onClick={props.goAllFinds} className="text-sm text-blue-600 font-bold hover:underline">View All Finds →</button>
             </div>
 
-            {(!specimens || specimens.length === 0) && <div className="text-gray-500 italic bg-gray-50 dark:bg-gray-800/50 p-10 rounded-2xl border border-dashed border-gray-200 dark:border-gray-700 text-center">No finds recorded yet.</div>}
+            {(!specimens || specimens.length === 0) && <div className="text-gray-500 italic bg-gray-50 dark:bg-gray-800/50 p-10 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700 text-center">No finds recorded yet.</div>}
             
             {specimens && specimens.length > 0 && (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

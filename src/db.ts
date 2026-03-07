@@ -141,7 +141,8 @@ export type Specimen = {
 export type Media = {
   id: string;
   projectId: string;
-  specimenId: string;
+  specimenId?: string;
+  localityId?: string;
 
   type: "photo";
   photoType?: "in-situ" | "laboratory" | "other";
@@ -252,6 +253,11 @@ export class FossilMapDB extends Dexie {
     // Version 14: Research ID (hrid) indexing
     this.version(14).stores({
         specimens: "id, projectId, localityId, sessionId, specimenCode, hrid, taxon, period, stage, lat, lon, isShared, createdAt",
+    });
+
+    // Version 15: Locality photos support
+    this.version(15).stores({
+        media: "id, projectId, specimenId, localityId, createdAt",
     });
   }
 }
