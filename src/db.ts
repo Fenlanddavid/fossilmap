@@ -125,6 +125,12 @@ export type Specimen = {
   storageLocation: string;
   notes: string;
 
+  // Research Grade Fields
+  hrid?: string;
+  repository?: string;
+  accessionId?: string;
+  qualityScore?: number;
+
   isShared?: boolean;
   sharedAt?: string;
 
@@ -241,6 +247,11 @@ export class FossilMapDB extends Dexie {
     // Version 13: RIGS indexing
     this.version(13).stores({
         localities: "id, projectId, type, name, observedAt, sssi, rigs, permissionGranted, formation, period, stage, createdAt",
+    });
+
+    // Version 14: Research ID (hrid) indexing
+    this.version(14).stores({
+        specimens: "id, projectId, localityId, sessionId, specimenCode, hrid, taxon, period, stage, lat, lon, isShared, createdAt",
     });
   }
 }

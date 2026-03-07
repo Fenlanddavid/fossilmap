@@ -11,6 +11,7 @@ import { PhotoAnnotator } from "./PhotoAnnotator";
 import { captureGPS } from "../services/gps";
 import { uploadSharedFind, deleteSharedFind } from "../services/supabase";
 import { LocationPickerModal } from "./LocationPickerModal";
+import { calculateQualityScore, generateHRID, getQualityColor, getQualityLabel } from "../services/research";
 
 export function SpecimenModal(props: { specimenId: string; onClose: () => void }) {
   const specimen = useLiveQuery(async () => db.specimens.get(props.specimenId), [props.specimenId]);
@@ -21,6 +22,11 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
   const [isPickingLocation, setIsPickingLocation] = useState(false);
   const [isCustomElement, setIsCustomElement] = useState(false);
   const [sharing, setSharing] = useState(false);
+  
+  const qualityScore = useMemo(() => {
+    if (!draft) return 0;
+    return calculateQualityScore(draft, media || []);
+  }, [draft, media]);
   
   const defaultCollector = useLiveQuery(async () => {
     const s = await db.settings.get("defaultCollector");
@@ -82,6 +88,9 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
 
     setSharing(true);
     try {
+      const hrid = draft.hrid || generateHRID();
+      const repository = draft.repository || "Private";
+
       // Prepare the payload
       const photos: string[] = [];
       for (const m of media || []) {
@@ -102,12 +111,16 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
 
       const payload = {
         id: draft.id,
+        hrid: hrid,
         collectorName: defaultCollector,
         collectorEmail: collectorEmail,
         taxon: draft.taxon,
         element: draft.element,
         period: (draft.period || locality?.period || "Unknown").trim(),
         stage: cleanStage,
+        formation: (draft as any).formation || locality?.formation || "",
+        member: (draft as any).member || locality?.member || "",
+        bed: (draft as any).bed || locality?.bed || "",
         locationName: locality?.name || "Unknown Location",
         latitude: draft.lat,
         longitude: draft.lon,
@@ -119,6 +132,9 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
           thickness: draft.thicknessMm,
           weight: draft.weightG
         },
+        repository: repository,
+        accession_id: draft.accessionId || null,
+        quality_score: qualityScore,
         notes: draft.notes,
         sharedAt: new Date().toISOString()
       };
@@ -128,8 +144,13 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
       // Use Supabase Service
       await uploadSharedFind(payload);
 
-      await db.specimens.update(draft.id, { isShared: true, sharedAt: payload.sharedAt });
-      alert("Successfully shared with the FossilMapped community! 🌍");
+      await db.specimens.update(draft.id, { 
+        isShared: true, 
+        sharedAt: payload.sharedAt,
+        hrid: hrid,
+        qualityScore: qualityScore
+      });
+      alert(`Shared with community as ${hrid}! 🌍`);
     } catch (e: any) {
       console.error(e);
       let errorMsg = "Sharing failed. ";
@@ -268,6 +289,37 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
         <div className="grid gap-6 max-h-[80vh] overflow-y-auto pr-1">
           {isEditing ? (
             <div className="grid gap-4">
+              <div className="bg-blue-600/5 dark:bg-blue-400/5 p-4 rounded-2xl border border-blue-100 dark:border-blue-900/50 flex items-center justify-between mb-2">
+                 <div>
+                    <div className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">Research Quality Score</div>
+                    <div className={`text-xl font-black ${getQualityColor(qualityScore)}`}>{qualityScore}% <span className="text-[10px] opacity-60 ml-1">— {getQualityLabel(qualityScore)}</span></div>
+                 </div>
+                 <div className="text-right">
+                    <div className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">Repository</div>
+                    <select 
+                      value={draft.repository || "Private"} 
+                      onChange={(e) => setDraft(prev => prev ? { ...prev, repository: e.target.value } : null)}
+                      className="bg-transparent text-sm font-bold border-none p-0 focus:ring-0 cursor-pointer text-right"
+                    >
+                      <option value="Private">Private Collection</option>
+                      <option value="Museum">Museum Collection</option>
+                      <option value="University">University Collection</option>
+                    </select>
+                 </div>
+              </div>
+
+              {draft.repository !== 'Private' && (
+                  <label className="grid gap-1 animate-in slide-in-from-top-2">
+                    <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Accession / Museum Number</span>
+                    <input 
+                      className="w-full bg-white dark:bg-gray-800 border-2 border-amber-100 dark:border-amber-900 rounded-xl p-2.5 focus:ring-2 focus:ring-amber-500 outline-none transition-all font-mono text-sm" 
+                      value={draft.accessionId || ""} 
+                      onChange={(e) => setDraft(prev => prev ? { ...prev, accessionId: e.target.value } : null)} 
+                      placeholder="e.g. NHMUK PV R 12345"
+                    />
+                  </label>
+              )}
+
               <label className="grid gap-1">
                 <span className="text-sm font-bold opacity-75">Taxon / ID</span>
                 <input 
