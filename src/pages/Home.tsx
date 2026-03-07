@@ -22,6 +22,7 @@ export default function Home(props: {
   const [searchQuery, setSearchQuery] = useState("");
   const [openSpecimenId, setOpenSpecimenId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [hasMediaMap, setHasMediaMap] = useState<Record<string, boolean>>({});
   
   const activeSessions = useLiveQuery(async () => {
     const sessions = await db.sessions.toCollection().filter(s => !s.isFinished).toArray();
@@ -166,7 +167,7 @@ export default function Home(props: {
                   const isActive = !!activeSession;
                   
                   return (
-                  <div key={l.id} className={`border ${isActive ? 'border-emerald-500 ring-1 ring-emerald-500' : 'border-gray-200 dark:border-gray-700'} rounded-2xl bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all flex flex-row group relative overflow-hidden h-52 sm:h-48`}>
+                  <div key={l.id} className={`border ${isActive ? 'border-emerald-500 ring-1 ring-emerald-500' : 'border-gray-200 dark:border-gray-700'} rounded-2xl bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all flex flex-row group relative overflow-hidden h-56 sm:h-52`}>
                     
                     {/* Left Side: Content */}
                     <div className="p-4 flex flex-col flex-1 min-w-0">
@@ -221,12 +222,19 @@ export default function Home(props: {
 
                     {/* Right Side: Media Area */}
                     <div className="w-28 sm:w-36 bg-gray-50 dark:bg-gray-900/50 relative border-l border-gray-100 dark:border-gray-700 group/media shrink-0">
-                        <LocalityThumbnail localityId={l.id} className="w-full h-full" imgClassName="object-cover" />
+                        <LocalityThumbnail 
+                            localityId={l.id} 
+                            className="w-full h-full" 
+                            imgClassName="object-cover" 
+                            onHasMedia={(has) => setHasMediaMap(prev => ({...prev, [l.id]: has}))}
+                        />
                         
                         {/* Overlay text when no image exists */}
-                        <div className="absolute inset-0 flex flex-col items-center justify-center p-2 text-center">
-                            <span className="text-[8px] font-black uppercase tracking-widest text-gray-400 group-hover/media:opacity-0 transition-opacity">Upload / Take Image</span>
-                        </div>
+                        {!hasMediaMap[l.id] && (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center p-2 text-center pointer-events-none">
+                              <span className="text-[8px] font-black uppercase tracking-widest text-gray-400 group-hover/media:opacity-0 transition-opacity">Upload / Take Image</span>
+                          </div>
+                        )}
 
                         <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/media:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
                             <label className="cursor-pointer flex items-center gap-2 bg-white text-black px-2 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-transform">

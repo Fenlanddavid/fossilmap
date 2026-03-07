@@ -211,6 +211,7 @@ export default function MapPage({ projectId }: { projectId: string }) {
       style: style,
       center: DEFAULT_CENTER,
       zoom: DEFAULT_ZOOM,
+      clickTolerance: 40 // Improved hit-testing for mobile touch
     });
 
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
