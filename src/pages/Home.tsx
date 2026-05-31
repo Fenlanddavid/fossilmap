@@ -20,7 +20,9 @@ import {
   Smartphone,
   Upload,
   Waves,
+  Zap,
 } from "lucide-react";
+import { QuickFindSheet } from "../components/QuickFindSheet";
 import { v4 as uuid } from "uuid";
 import { db, Media } from "../db";
 import { SpecimenThumbnail } from "../components/SpecimenThumbnail";
@@ -50,6 +52,8 @@ export default function Home(props: {
   const [searchQuery, setSearchQuery] = useState("");
   const [openSpecimenId, setOpenSpecimenId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showQuickFind, setShowQuickFind] = useState(false);
+  const [quickFindLocalityId, setQuickFindLocalityId] = useState<string | null>(null);
 
   const activeSessions = useLiveQuery(async () => {
     const sessions = await db.sessions.toCollection().filter((s) => !s.isFinished).toArray();
@@ -250,10 +254,16 @@ export default function Home(props: {
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-2xl">
               <p className="mb-2 text-[11px] font-black uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-300">Fossil field records</p>
-              <h2 className="text-3xl font-black leading-tight tracking-tight text-slate-950 dark:text-white sm:text-4xl">Record the fossil, the place and the evidence together.</h2>
-              <p className="mt-3 max-w-xl text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-                FossilMap is built for field context: locality, stratigraphy, photos, measurements, safe access notes and optional community sharing.
-              </p>
+              {!hasAnyData ? (
+                <>
+                  <h2 className="text-3xl font-black leading-tight tracking-tight text-slate-950 dark:text-white sm:text-4xl">Record the fossil, the place and the evidence together.</h2>
+                  <p className="mt-3 max-w-xl text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+                    FossilMap is built for field context: locality, stratigraphy, photos, measurements, safe access notes and optional community sharing.
+                  </p>
+                </>
+              ) : (
+                <h2 className="text-xl font-black tracking-tight text-slate-950 dark:text-white sm:text-2xl">Your field book</h2>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
               <PrimaryAction icon={Compass} label="Field Trip" onClick={props.goFieldTrip} />
@@ -280,43 +290,16 @@ export default function Home(props: {
         </div>
       </section>
 
-      <a
-        href={import.meta.env.VITE_COMMUNITY_URL || "/fossilmapped/"}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center gap-4 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-md hover:shadow-lg hover:scale-[1.008] hover:-translate-y-px transition-all duration-200 ease-out cursor-pointer group no-underline"
-      >
-        <svg width="40" height="40" viewBox="0 0 512 512" fill="none" className="shrink-0">
-          <defs>
-            <linearGradient id="fm-banner-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#34d399" />
-              <stop offset="50%" stopColor="#059669" />
-              <stop offset="100%" stopColor="#0d9488" />
-            </linearGradient>
-          </defs>
-          <rect width="512" height="512" rx="112" fill="url(#fm-banner-grad)" opacity="0.15" />
-          <circle cx="256" cy="256" r="160" stroke="url(#fm-banner-grad)" strokeWidth="24" fill="none" />
-          <circle cx="256" cy="256" r="80" fill="url(#fm-banner-grad)" opacity="0.5" />
-          <circle cx="256" cy="256" r="30" fill="url(#fm-banner-grad)" />
-          <path d="M256 96 L256 176 M256 336 L256 416 M96 256 L176 256 M336 256 L416 256" stroke="url(#fm-banner-grad)" strokeWidth="20" strokeLinecap="round" opacity="0.35" />
-        </svg>
-        <div className="flex-1 min-w-0">
-          <div className="font-black text-slate-800 dark:text-slate-100 text-sm group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">FossilMapped</div>
-          <div className="text-[11px] text-slate-500/80 dark:text-slate-400/80 mt-0.5 leading-snug">See what the community is finding across the UK</div>
-        </div>
-        <span className="shrink-0 px-3 py-1.5 text-xs font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg group-hover:bg-emerald-600 group-hover:text-white group-hover:border-emerald-600 transition-all">
-          Open
-        </span>
-      </a>
-
       <section className="grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
         {nextMove && <NextMoveCard item={nextMove} />}
 
-        <div className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:grid-cols-3">
-          <WorkflowStep icon={MapPin} title="Locality" detail="Where and what geology." />
-          <WorkflowStep icon={Compass} title="Trip" detail="The collecting visit." />
-          <WorkflowStep icon={Microscope} title="Specimen" detail="The fossil record." />
-        </div>
+        {!hasAnyData && (
+          <div className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:grid-cols-3">
+            <WorkflowStep icon={MapPin} title="Locality" detail="Where and what geology." />
+            <WorkflowStep icon={Compass} title="Trip" detail="The collecting visit." />
+            <WorkflowStep icon={Microscope} title="Specimen" detail="The fossil record." />
+          </div>
+        )}
       </section>
 
       {!hasAnyData && (
@@ -552,6 +535,61 @@ export default function Home(props: {
           </div>
         </aside>
       </section>
+
+      <a
+        href={import.meta.env.VITE_COMMUNITY_URL || "/fossilmapped/"}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-4 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-md hover:shadow-lg hover:scale-[1.008] hover:-translate-y-px transition-all duration-200 ease-out cursor-pointer group no-underline"
+      >
+        <svg width="40" height="40" viewBox="0 0 512 512" fill="none" className="shrink-0">
+          <defs>
+            <linearGradient id="fm-banner-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#34d399" />
+              <stop offset="50%" stopColor="#059669" />
+              <stop offset="100%" stopColor="#0d9488" />
+            </linearGradient>
+          </defs>
+          <rect width="512" height="512" rx="112" fill="url(#fm-banner-grad)" opacity="0.15" />
+          <circle cx="256" cy="256" r="160" stroke="url(#fm-banner-grad)" strokeWidth="24" fill="none" />
+          <circle cx="256" cy="256" r="80" fill="url(#fm-banner-grad)" opacity="0.5" />
+          <circle cx="256" cy="256" r="30" fill="url(#fm-banner-grad)" />
+          <path d="M256 96 L256 176 M256 336 L256 416 M96 256 L176 256 M336 256 L416 256" stroke="url(#fm-banner-grad)" strokeWidth="20" strokeLinecap="round" opacity="0.35" />
+        </svg>
+        <div className="flex-1 min-w-0">
+          <div className="font-black text-slate-800 dark:text-slate-100 text-sm group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">FossilMapped</div>
+          <div className="text-[11px] text-slate-500/80 dark:text-slate-400/80 mt-0.5 leading-snug">See what the community is finding across the UK</div>
+        </div>
+        <span className="shrink-0 px-3 py-1.5 text-xs font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg group-hover:bg-emerald-600 group-hover:text-white group-hover:border-emerald-600 transition-all">
+          Open
+        </span>
+      </a>
+
+      {/* Quick Find FAB — only show when user has data */}
+      {hasAnyData && (
+        <button
+          onClick={() => {
+            const active = activeSessions && Array.from(activeSessions.entries())[0];
+            setQuickFindLocalityId(active ? active[0] : null);
+            setShowQuickFind(true);
+          }}
+          className="fixed bottom-20 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-600 shadow-xl transition-all hover:bg-emerald-700 hover:shadow-2xl active:scale-95"
+          aria-label="Quick Find"
+        >
+          <Zap className="h-6 w-6 text-white" />
+        </button>
+      )}
+
+      {showQuickFind && (
+        <QuickFindSheet
+          projectId={props.projectId}
+          localityId={quickFindLocalityId}
+          onClose={() => setShowQuickFind(false)}
+          onSaved={() => {
+            // Find saved — sheet resets itself for next entry
+          }}
+        />
+      )}
 
       {openSpecimenId && (
         <React.Suspense fallback={null}>

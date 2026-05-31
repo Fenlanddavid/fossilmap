@@ -2,6 +2,7 @@ import React, { Suspense, useCallback, useEffect, useState } from "react";
 import { BrowserRouter, Link, NavLink, Route, Routes, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
+  Compass,
   Download,
   ExternalLink,
   FileDown,
@@ -16,7 +17,7 @@ import {
   ShieldCheck,
   Smartphone,
   Upload,
-  Waves,
+  Wrench,
   X,
 } from "lucide-react";
 import { db } from "./db";
@@ -34,6 +35,8 @@ const MapPage = React.lazy(() => import("./pages/Map"));
 const AllFinds = React.lazy(() => import("./pages/AllFinds"));
 const Settings = React.lazy(() => import("./pages/Settings"));
 const TidePage = React.lazy(() => import("./pages/TidePage"));
+const TripsPage = React.lazy(() => import("./pages/Trips"));
+const ToolsPage = React.lazy(() => import("./pages/Tools"));
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -249,11 +252,11 @@ function Shell() {
   }
 
   const navItems = [
-    { to: "/", label: "Home", icon: HomeIcon },
-    { to: "/map", label: "Map", icon: MapIcon },
-    { to: "/tides", label: "Tides", icon: Waves },
-    { to: "/locations", label: "Locations", icon: MapPin },
-    { to: "/finds", label: "Finds", icon: Microscope },
+    { to: "/",          label: "Home",      icon: HomeIcon  },
+    { to: "/trips",     label: "Trips",     icon: Compass   },
+    { to: "/locations", label: "Locations", icon: MapPin    },
+    { to: "/finds",     label: "Finds",     icon: Microscope},
+    { to: "/tools",     label: "Tools",     icon: Wrench    },
   ];
 
   return (
@@ -398,6 +401,8 @@ function Shell() {
               <Route path="/session/:id" element={<SessionPage projectId={projectId} />} />
               <Route path="/specimen" element={<SpecimenRouter projectId={projectId} />} />
               <Route path="/finds" element={<AllFinds projectId={projectId} />} />
+              <Route path="/trips" element={<TripsPage projectId={projectId} />} />
+              <Route path="/tools" element={<ToolsPage />} />
               <Route path="/map" element={<MapPage projectId={projectId} />} />
               <Route path="/tides" element={<TidePage />} />
               <Route path="/settings" element={<Settings />} />

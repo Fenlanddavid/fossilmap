@@ -51,7 +51,7 @@ export default function MapPage({ projectId }: { projectId: string }) {
   const [filterSSSIOnly, setFilterSSSIOnly] = useState(false);
   const [filterFormation, setFilterFormation] = useState<string>("");
   const [filterTaxon, setFilterTaxon] = useState("");
-  const [minSpecimens, setMinSpecimens] = useState(1);
+  const [minSpecimens, setMinSpecimens] = useState(0);
 
   // Date range
   const [dateMode, setDateMode] = useState<DateFilterMode>("all");
@@ -255,10 +255,10 @@ export default function MapPage({ projectId }: { projectId: string }) {
   // Map Initialization
   useEffect(() => {
     if (!mapDivRef.current) return;
-    
+
     if (mapRef.current) {
-        mapRef.current.remove();
-        mapRef.current = null;
+      mapRef.current.remove();
+      mapRef.current = null;
     }
 
     const style: any = {
@@ -423,11 +423,17 @@ export default function MapPage({ projectId }: { projectId: string }) {
       map.on("mouseleave", "clusters", () => (map.getCanvas().style.cursor = ""));
       map.on("mouseenter", "unclustered", () => (map.getCanvas().style.cursor = "pointer"));
       map.on("mouseleave", "unclustered", () => (map.getCanvas().style.cursor = ""));
+
+      setTimeout(() => map.resize(), 0);
     });
 
     mapRef.current = map;
 
+    const ro = new ResizeObserver(() => mapRef.current?.resize());
+    if (mapDivRef.current) ro.observe(mapDivRef.current);
+
     return () => {
+      ro.disconnect();
       map.remove();
       mapRef.current = null;
     };
@@ -513,13 +519,13 @@ export default function MapPage({ projectId }: { projectId: string }) {
     setFilterSSSIOnly(false);
     setFilterFormation("");
     setFilterTaxon("");
-    setMinSpecimens(1);
+    setMinSpecimens(0);
     setDateMode("all");
   }
 
   return (
-    <div className="flex flex-col gap-4 h-[calc(100vh-80px)]">
-      <MapFilterBar 
+    <div className="flex flex-col gap-3">
+      <MapFilterBar
         count={filteredLocalities.length}
         zoomToMyLocation={zoomToMyLocation}
         addLocalityHere={addLocalityHere}
@@ -547,8 +553,11 @@ export default function MapPage({ projectId }: { projectId: string }) {
         setColorMode={setColorMode}
       />
 
-      <div className="flex-1 relative border-2 border-gray-100 dark:border-gray-800 rounded-3xl overflow-hidden shadow-inner bg-gray-50 dark:bg-black">
-        <div ref={mapDivRef} className="absolute inset-0" />
+      <div className="rounded-3xl overflow-hidden shadow-inner border-2 border-gray-100 dark:border-gray-800">
+        <div
+          ref={mapDivRef}
+          style={{ height: "calc(100vh - 220px)", minHeight: "420px" }}
+        />
         {tileErrorCount >= 3 && (
           <div className="absolute right-3 top-3 z-10 max-w-xs rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950 shadow-lg dark:border-amber-900 dark:bg-amber-950/80 dark:text-amber-100">
             <strong className="block font-black">Map tiles are having trouble loading</strong>

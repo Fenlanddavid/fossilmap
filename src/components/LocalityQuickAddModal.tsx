@@ -6,7 +6,7 @@ export function LocalityQuickAddModal(props: { lat: number; lon: number; onCance
   const [busy, setBusy] = useState(false);
 
   return (
-    <Modal onClose={props.onCancel} title="Add locality here">
+    <Modal onClose={props.onCancel} title="Add field trip here">
       <div className="opacity-80 text-sm mb-4 font-mono bg-gray-50 dark:bg-gray-900 p-2 rounded border border-gray-200 dark:border-gray-700 inline-block">
         {props.lat.toFixed(6)}, {props.lon.toFixed(6)}
       </div>
@@ -33,7 +33,7 @@ export function LocalityQuickAddModal(props: { lat: number; lon: number; onCance
           disabled={busy || !name.trim()}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium shadow-sm disabled:opacity-50 transition-colors"
         >
-          {busy ? "Creating…" : "Create Locality"}
+          {busy ? "Creating…" : "Create Field Trip"}
         </button>
       </div>
     </Modal>

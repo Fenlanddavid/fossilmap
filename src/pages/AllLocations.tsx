@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../db";
 import { useNavigate } from "react-router-dom";
+import { LocalityThumbnail } from "../components/LocalityThumbnail";
 
 export default function AllLocations(props: { projectId: string }) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -64,56 +65,62 @@ export default function AllLocations(props: { projectId: string }) {
           </p>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2">
           {locations.map((l) => (
-            <div 
-              key={l.id} 
-              onClick={() => navigate(`/location/${l.id}`)}
-              className="group border border-gray-200 dark:border-gray-700 rounded-2xl p-5 bg-white dark:bg-gray-800 shadow-sm hover:shadow-md hover:border-blue-300 dark:hover:border-blue-900 transition-all cursor-pointer flex flex-col relative overflow-hidden"
+            <article
+              key={l.id}
+              onClick={() => navigate(l.type === "trip" ? `/field-trip/${l.id}` : `/location/${l.id}`)}
+              className="group grid min-h-44 grid-cols-[1fr_7.25rem] overflow-hidden rounded-lg border bg-white shadow-sm transition-all hover:shadow-md dark:bg-slate-900 border-slate-200 dark:border-slate-800 cursor-pointer"
             >
-              <div className="flex justify-between items-start mb-3">
-                <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100 group-hover:text-blue-600 transition-colors line-clamp-1">
-                  {l.name || "(Unnamed)"}
-                </h3>
-                <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${l.type === 'trip' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
-                    {l.type === 'trip' ? 'Trip' : 'Location'}
-                </span>
-              </div>
-              
-              <div className="text-sm opacity-70 space-y-2 mb-4 flex-1">
-                <div className="flex items-center gap-2">
-                   <span className="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-gray-600 dark:text-gray-300">
-                      {l.lat && l.lon ? `${l.lat.toFixed(4)}, ${l.lon.toFixed(4)}` : "No GPS"}
-                   </span>
+              {/* Left: text content */}
+              <div className="flex min-w-0 flex-col p-4">
+                <div className="mb-2 flex items-start justify-between gap-2">
+                  <span className="min-w-0 truncate text-base font-black text-slate-950 transition-colors group-hover:text-emerald-700 dark:text-white dark:group-hover:text-emerald-300">
+                    {l.name || "(Unnamed)"}
+                  </span>
+                  <span className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest ${l.type === "trip" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200" : "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200"}`}>
+                    {l.type === "trip" ? "Trip" : "Site"}
+                  </span>
                 </div>
-                {(l.period || l.stage) && (
-                    <div className="flex gap-2 items-center mb-1">
-                        {l.period && <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded shadow-sm border border-blue-100 dark:border-blue-800">{l.period}</span>}
-                        {l.stage && <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded shadow-sm border border-blue-100 dark:border-blue-800">{l.stage}</span>}
-                    </div>
-                )}
-                {l.formation && (
-                    <div className="text-xs font-bold text-gray-600 dark:text-gray-400 mt-1 flex items-center gap-1">
-                        🏔️ {l.formation}
-                    </div>
-                )}
-                {l.lithologyPrimary && <div className="text-[10px] font-medium opacity-60 capitalize">{l.lithologyPrimary}</div>}
+
+                <div className="mb-2 flex flex-wrap gap-1.5">
+                  {l.period && (
+                    <span className="rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200">
+                      {l.period}
+                    </span>
+                  )}
+                  {l.stage && (
+                    <span className="rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200">
+                      {l.stage}
+                    </span>
+                  )}
+                  {l.formation && (
+                    <span className="rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                      {l.formation}
+                    </span>
+                  )}
+                </div>
+
+                <div className="mb-2 text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                  {l.lat && l.lon ? `${l.lat.toFixed(4)}, ${l.lon.toFixed(4)}` : "No GPS set"}
+                </div>
+
+                <div className="mt-auto flex items-center justify-between border-t border-slate-100 pt-2 dark:border-slate-800">
+                  <span className="text-[10px] text-slate-400">
+                    {new Date(l.createdAt).toLocaleDateString()}
+                  </span>
+                  <div className="flex gap-1">
+                    {l.sssi && <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-600 dark:bg-amber-900/20">⚠️ SSSI</span>}
+                    {l.rigs && <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-600 dark:bg-amber-900/20">⚠️ RIGS</span>}
+                  </div>
+                </div>
               </div>
 
-              <div className="mt-auto pt-3 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">
-                <span className="text-[10px] opacity-40 font-medium">
-                  {new Date(l.createdAt).toLocaleDateString()}
-                </span>
-                <div className="flex gap-2">
-                    {l.sssi && (
-                        <span className="text-[10px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded">⚠️ SSSI</span>
-                    )}
-                    {l.rigs && (
-                        <span className="text-[10px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded">⚠️ RIGS</span>
-                    )}
-                </div>
+              {/* Right: cover photo */}
+              <div className="relative border-l border-slate-100 bg-slate-100 dark:border-slate-800 dark:bg-slate-950">
+                <LocalityThumbnail localityId={l.id} className="h-full w-full" imgClassName="object-cover" />
               </div>
-            </div>
+            </article>
           ))}
         </div>
       )}
