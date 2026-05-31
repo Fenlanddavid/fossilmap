@@ -23,6 +23,7 @@ export default function Settings() {
   const [collectorEmail, setCollectorEmail] = useState("");
   const [isPersisted, setIsPersisted] = useState<boolean | null>(null);
   const [saved, setSaved] = useState(false);
+  const [installCount, setInstallCount] = useState<number | null>(null);
 
   const settings = useLiveQuery(() => db.settings.toArray());
   const lastBackup = settings?.find((s) => s.key === "lastBackup")?.value;
@@ -41,6 +42,16 @@ export default function Settings() {
     if (navigator.storage?.persisted) {
       navigator.storage.persisted().then(setIsPersisted).catch(() => setIsPersisted(null));
     }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    fetch("https://fossilmap-counter.trials-uk.workers.dev/count", { signal: controller.signal })
+      .then(res => res.json())
+      .then(data => {
+        clearTimeout(timeoutId);
+        if (typeof data.count === 'number') setInstallCount(data.count);
+      })
+      .catch(() => clearTimeout(timeoutId));
   }, []);
 
   async function saveCollector() {
@@ -244,6 +255,12 @@ export default function Settings() {
           </div>
         </div>
       </section>
+
+      {typeof installCount === 'number' && (
+        <div className="flex justify-end">
+          <span className="text-[11px] font-black tabular-nums text-slate-400 dark:text-slate-500">+{installCount.toLocaleString()}</span>
+        </div>
+      )}
     </div>
   );
 }

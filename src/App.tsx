@@ -115,6 +115,13 @@ function Shell() {
       setInstallPromptEvent(null);
       setIsStandalone(true);
       setShowInstallHelp(false);
+      // Ping the install counter once per device
+      db.settings.get("fm_installed").then(existing => {
+        if (!existing) {
+          db.settings.put({ key: "fm_installed", value: "true" });
+          fetch("https://fossilmap-counter.trials-uk.workers.dev/up").catch(() => {});
+        }
+      }).catch(() => {});
     };
     window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
     window.addEventListener("appinstalled", onInstalled);

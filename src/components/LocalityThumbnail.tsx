@@ -3,8 +3,8 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../db";
 import { ScaledImage } from "./ScaledImage";
 
-export function LocalityThumbnail({ localityId, className, imgClassName, onHasMedia }: { 
-  localityId: string; 
+export function LocalityThumbnail({ localityId, className, imgClassName, onHasMedia }: {
+  localityId: string;
   className?: string;
   imgClassName?: string;
   onHasMedia?: (has: boolean) => void;
@@ -21,12 +21,22 @@ export function LocalityThumbnail({ localityId, className, imgClassName, onHasMe
     })[0];
   }, [localityId]);
 
-  if (!media) return null;
+  // Still loading
+  if (media === undefined) return null;
+
+  // No photo — show placeholder
+  if (media === null) {
+    return (
+      <div className={`flex items-center justify-center ${className ?? ""}`}>
+        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-600">Add photo</span>
+      </div>
+    );
+  }
 
   return (
-    <ScaledImage 
-      media={media} 
-      className={className} 
+    <ScaledImage
+      media={media}
+      className={className}
       imgClassName={imgClassName}
     />
   );

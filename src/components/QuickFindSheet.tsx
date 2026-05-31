@@ -43,44 +43,12 @@ export function QuickFindSheet({ projectId, localityId, onClose, onSaved }: Quic
     if (!taxon.trim()) return;
     setSaving(true);
     try {
-      let targetLocalityId = localityId;
-      if (!targetLocalityId) {
-        targetLocalityId = uuid();
-        const now = new Date().toISOString();
-        const defaultCollector = await db.settings.get("defaultCollector").then(s => s?.value || "");
-        await db.localities.add({
-          id: targetLocalityId,
-          projectId,
-          type: "trip",
-          name: `Quick trip ${new Date().toLocaleDateString("en-GB")}`,
-          lat,
-          lon,
-          gpsAccuracyM: null,
-          observedAt: now,
-          collector: defaultCollector,
-          exposureType: "other",
-          sssi: false,
-          rigs: false,
-          permissionGranted: false,
-          period: "",
-          stage: "",
-          formation: "",
-          member: "",
-          bed: "",
-          lithologyPrimary: "other",
-          notes: "Created from Quick Find",
-          designationNotes: "",
-          createdAt: now,
-          updatedAt: now,
-        } as any);
-      }
-
       const now = new Date().toISOString();
       const id  = uuid();
       const specimen: Specimen = {
         id,
         projectId,
-        localityId: targetLocalityId,
+        localityId: localityId ?? "",
         sessionId: null,
         specimenCode: `QF-${Date.now().toString(36).toUpperCase()}`,
         taxon: taxon.trim(),
@@ -115,10 +83,7 @@ export function QuickFindSheet({ projectId, localityId, onClose, onSaved }: Quic
       setSaved(true);
       onSaved(id);
       setTimeout(() => {
-        setTaxon("");
-        setSaved(false);
-        setSaving(false);
-        inputRef.current?.focus();
+        onClose();
       }, 800);
     } catch (e: any) {
       console.error("Quick Find save failed:", e);
@@ -187,7 +152,7 @@ export function QuickFindSheet({ projectId, localityId, onClose, onSaved }: Quic
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3.5 text-sm font-black text-white shadow-md transition-colors hover:bg-emerald-700 disabled:opacity-50"
           >
             {saved ? (
-              <><CheckCircle2 className="h-4 w-4" />Logged — tap again to add another</>
+              <><CheckCircle2 className="h-4 w-4" />Logged</>
             ) : saving ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
