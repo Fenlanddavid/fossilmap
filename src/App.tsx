@@ -15,6 +15,7 @@ import {
   Microscope,
   RefreshCw,
   RotateCcw,
+  Settings as SettingsIcon,
   ShieldCheck,
   Smartphone,
   Upload,
@@ -344,14 +345,16 @@ function Shell() {
                   to="/settings"
                   aria-label="Settings"
                   className={({ isActive }) =>
-                    `inline-flex h-9 items-center justify-center rounded-lg border px-3 text-xs font-black transition-colors ${
+                    `inline-flex h-9 items-center justify-center rounded-lg border transition-colors ${
+                      isStandalone ? "px-3 text-xs font-black" : "w-9"
+                    } ${
                       isActive
                         ? "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
                         : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                     }`
                   }
                 >
-                  Settings
+                  {isStandalone ? "Settings" : <SettingsIcon className="h-4 w-4" />}
                 </NavLink>
               </div>
           </div>

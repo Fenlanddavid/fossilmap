@@ -1,43 +1,44 @@
+const MAX_LONG_EDGE = 1600;
+const JPEG_QUALITY = 0.82;
+const SKIP_BELOW_BYTES = 512_000;
+
 export async function fileToBlob(file: File): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = (event) => {
-      const img = new Image();
-      img.src = event.target?.result as string;
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 1600;
-        const MAX_HEIGHT = 1600;
-        let width = img.width;
-        let height = img.height;
+  // Small files need no compression — return as-is
+  if (file.size < SKIP_BELOW_BYTES) return file;
 
-        if (width > height) {
-          if (width > MAX_WIDTH) {
-            height *= MAX_WIDTH / width;
-            width = MAX_WIDTH;
-          }
-        } else {
-          if (height > MAX_HEIGHT) {
-            width *= MAX_HEIGHT / height;
-            height = MAX_HEIGHT;
-          }
-        }
+  try {
+    const bitmap = await createImageBitmap(file); // respects EXIF orientation
 
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return reject(new Error("Canvas context failed"));
-        
-        ctx.drawImage(img, 0, 0, width, height);
-        canvas.toBlob((blob) => {
-          if (blob) resolve(blob);
-          else reject(new Error("Canvas toBlob failed"));
-        }, 'image/jpeg', 0.85); // 85% quality is perfect for scientific records
-      };
-      img.onerror = reject;
-    };
-    reader.onerror = reject;
-  });
+    let { width, height } = bitmap;
+    const longEdge = Math.max(width, height);
+
+    if (longEdge > MAX_LONG_EDGE) {
+      const scale = MAX_LONG_EDGE / longEdge;
+      width = Math.round(width * scale);
+      height = Math.round(height * scale);
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("canvas context unavailable");
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close();
+
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", JPEG_QUALITY)
+    );
+
+    // Release GPU memory
+    canvas.width = 0;
+    canvas.height = 0;
+
+    if (!blob) throw new Error("canvas toBlob returned null");
+    return blob;
+  } catch (err) {
+    console.warn("[FossilMap] photo compression failed, using original:", err);
+    return file;
+  }
 }
-
