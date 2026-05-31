@@ -491,7 +491,6 @@ function HomeRouter({ projectId, isStandalone, promptInstall }: { projectId: str
       goAllFinds={() => nav("/finds")}
       goFindsWithFilter={(query: string) => nav(`/finds?q=${encodeURIComponent(query)}`)}
       goMap={() => nav("/map")}
-      goTides={() => nav("/tides")}
       goSettings={() => nav("/settings")}
     />
   );

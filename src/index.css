@@ -15,6 +15,66 @@ button { cursor: pointer; }
 label > div { margin-bottom: 6px; opacity: 0.85; }
 h2 { margin: 0 0 6px 0; }
 
+.fossilmap-map-frame .maplibregl-ctrl-top-right {
+  top: 12px;
+  right: 12px;
+}
+
+.fossilmap-map-frame .maplibregl-ctrl-top-right .maplibregl-ctrl {
+  margin: 0 0 8px 0;
+}
+
+.fossilmap-map-frame .maplibregl-ctrl-group {
+  overflow: hidden;
+  border: 1px solid rgba(203, 213, 225, 0.95);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.16);
+}
+
+.fossilmap-map-frame .maplibregl-ctrl-group:not(:empty) {
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.16);
+}
+
+.fossilmap-map-frame .maplibregl-ctrl-group button {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background-color: transparent;
+}
+
+.fossilmap-map-frame .maplibregl-ctrl-group button + button {
+  border-top: 1px solid rgba(203, 213, 225, 0.9);
+}
+
+.fossilmap-map-frame .maplibregl-ctrl-group button:not(:disabled):hover {
+  background-color: rgba(226, 232, 240, 0.85);
+}
+
+.dark .fossilmap-map-frame .maplibregl-ctrl-group {
+  border-color: rgba(71, 85, 105, 0.9);
+  background: rgba(15, 23, 42, 0.94);
+}
+
+.dark .fossilmap-map-frame .maplibregl-ctrl-group button + button {
+  border-top-color: rgba(71, 85, 105, 0.9);
+}
+
+.dark .fossilmap-map-frame .maplibregl-ctrl-group button:not(:disabled):hover {
+  background-color: rgba(51, 65, 85, 0.9);
+}
+
+.dark .fossilmap-map-frame .maplibregl-ctrl button .maplibregl-ctrl-icon {
+  filter: invert(1);
+}
+
+.fossilmap-map-frame .maplibregl-ctrl-attrib {
+  border-radius: 8px 0 0 0;
+  font-size: 10px;
+}
+
 @layer utilities {
   .scrollbar-hide::-webkit-scrollbar {
     display: none;

@@ -467,15 +467,6 @@ export default function MapPage({ projectId }: { projectId: string }) {
     }
   }, [selected, highlightedLocalityId, featureCollection]);
 
-  function zoomToMyLocation() {
-    if (!("geolocation" in navigator)) return;
-    navigator.geolocation.getCurrentPosition(
-      (pos) => mapRef.current?.easeTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 13 }),
-      () => {},
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-    );
-  }
-
   function addLocalityHere() {
     if (!("geolocation" in navigator)) return;
     navigator.geolocation.getCurrentPosition(
@@ -521,13 +512,14 @@ export default function MapPage({ projectId }: { projectId: string }) {
     setFilterTaxon("");
     setMinSpecimens(0);
     setDateMode("all");
+    setCustomFrom("");
+    setCustomTo("");
   }
 
   return (
     <div className="flex flex-col gap-3">
       <MapFilterBar
         count={filteredLocalities.length}
-        zoomToMyLocation={zoomToMyLocation}
         addLocalityHere={addLocalityHere}
         filterSSSIOnly={filterSSSIOnly}
         setFilterSSSIOnly={setFilterSSSIOnly}
@@ -553,13 +545,13 @@ export default function MapPage({ projectId }: { projectId: string }) {
         setColorMode={setColorMode}
       />
 
-      <div className="rounded-3xl overflow-hidden shadow-inner border-2 border-gray-100 dark:border-gray-800">
+      <div className="fossilmap-map-frame relative overflow-hidden rounded-xl border border-slate-200 bg-slate-100 shadow-inner dark:border-slate-800 dark:bg-slate-900">
         <div
           ref={mapDivRef}
-          style={{ height: "calc(100vh - 220px)", minHeight: "420px" }}
+          className="h-[calc(100svh-335px)] min-h-[430px] w-full md:h-[calc(100svh-270px)]"
         />
         {tileErrorCount >= 3 && (
-          <div className="absolute right-3 top-3 z-10 max-w-xs rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950 shadow-lg dark:border-amber-900 dark:bg-amber-950/80 dark:text-amber-100">
+          <div className="absolute right-14 top-3 z-10 max-w-xs rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950 shadow-lg dark:border-amber-900 dark:bg-amber-950/80 dark:text-amber-100">
             <strong className="block font-black">Map tiles are having trouble loading</strong>
             <span className="mt-1 block leading-relaxed">Your fossil records and filters still work. Check your connection if the base map stays blank.</span>
           </div>
@@ -574,7 +566,7 @@ export default function MapPage({ projectId }: { projectId: string }) {
             </div>
           </div>
         )}
-        <div className="absolute left-3 top-3 z-10 max-w-[calc(100%-1.5rem)] rounded-xl border border-white/70 bg-white/90 p-3 text-xs shadow-lg backdrop-blur dark:border-slate-700 dark:bg-slate-900/90">
+        <div className="absolute left-3 top-3 z-10 max-w-[calc(100%-5.75rem)] rounded-xl border border-white/70 bg-white/90 p-2.5 text-xs shadow-lg backdrop-blur dark:border-slate-700 dark:bg-slate-900/90">
           <div className="mb-2 font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Legend: {colorMode}</div>
           <div className="flex flex-wrap gap-2">
             {legendItems.length > 0 ? legendItems.map(item => (

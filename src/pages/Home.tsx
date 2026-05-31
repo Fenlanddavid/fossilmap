@@ -7,8 +7,6 @@ import {
   Clock,
   Compass,
   Download,
-  ExternalLink,
-  FileText,
   HardDrive,
   Map as MapIcon,
   MapPin,
@@ -16,10 +14,8 @@ import {
   Plus,
   Search,
   Settings,
-  ShieldCheck,
   Smartphone,
   Upload,
-  Waves,
   Zap,
 } from "lucide-react";
 import { QuickFindSheet } from "../components/QuickFindSheet";
@@ -46,7 +42,6 @@ export default function Home(props: {
   goAllFinds: () => void;
   goFindsWithFilter: (query: string) => void;
   goMap: () => void;
-  goTides: () => void;
   goSettings: () => void;
 }) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -99,7 +94,6 @@ export default function Home(props: {
     const trips = locations.filter((l) => l.type === "trip").length;
     const fixedLocations = locations.filter((l) => l.type !== "trip").length;
     const active = sessions.filter((s) => !s.isFinished).length;
-    const protectedSites = locations.filter((l) => l.sssi || l.rigs).length;
     const lastBackup = settings.find((s) => s.key === "lastBackup")?.value as string | undefined;
     const defaultCollector = settings.find((s) => s.key === "defaultCollector")?.value as string | undefined;
 
@@ -109,7 +103,6 @@ export default function Home(props: {
       finds: specimensCount,
       media: mediaCount,
       active,
-      protectedSites,
       lastBackup,
       defaultCollector,
     };
@@ -514,14 +507,6 @@ export default function Home(props: {
             )}
           </div>
 
-          <div className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <h3 className="text-lg font-black text-slate-950 dark:text-white">Field tools</h3>
-            <ToolButton icon={Waves} label="Tide planning" detail="Foreshore aid" onClick={props.goTides} />
-            <ToolButton icon={FileText} label="Reports" detail="Open a trip or locality to print" onClick={props.goLocality} />
-            <ToolButton icon={ShieldCheck} label="Access checks" detail={`${dashboard?.protectedSites ?? 0} protected-site flags`} onClick={props.goLocality} />
-            <ToolButton icon={ExternalLink} label="FossilMapped" detail="Community map" onClick={() => window.open(import.meta.env.VITE_COMMUNITY_URL || "/fossilmapped/", "_blank", "noopener,noreferrer")} />
-          </div>
-
           <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <div className="flex gap-3">
               <HardDrive className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-300" />
@@ -659,21 +644,6 @@ function NextMoveCard({ item }: { item: { icon: React.ComponentType<{ className?
         </button>
       </div>
     </div>
-  );
-}
-
-function ToolButton({ icon: Icon, label, detail, onClick }: { icon: React.ComponentType<{ className?: string }>; label: string; detail: string; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className="flex w-full items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-left transition-colors hover:border-emerald-300 hover:bg-white dark:border-slate-800 dark:bg-slate-950/45 dark:hover:border-emerald-800 dark:hover:bg-slate-950">
-      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white text-emerald-700 shadow-sm dark:bg-slate-900 dark:text-emerald-300">
-        <Icon className="h-4 w-4" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-black text-slate-950 dark:text-white">{label}</p>
-        <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">{detail}</p>
-      </div>
-      <ChevronRight className="h-4 w-4 text-slate-400" />
-    </button>
   );
 }
 
