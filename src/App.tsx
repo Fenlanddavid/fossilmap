@@ -1,6 +1,7 @@
 import React, { Suspense, useCallback, useEffect, useState } from "react";
 import { BrowserRouter, Link, NavLink, Route, Routes, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
+import { useRegisterSW } from "virtual:pwa-register/react";
 import {
   Compass,
   Download,
@@ -12,6 +13,7 @@ import {
   Map as MapIcon,
   MapPin,
   Microscope,
+  RefreshCw,
   RotateCcw,
   Settings as SettingsIcon,
   ShieldCheck,
@@ -23,6 +25,7 @@ import {
 import { db } from "./db";
 import { ensureDefaultProject } from "./app/seed";
 import { exportData, exportToCSV, importData, previewImportConflicts } from "./services/data";
+import { UPDATE_NOTES } from "./version";
 import OnboardingFlow from "./components/OnboardingFlow";
 
 import Home from "./pages/Home";
@@ -66,6 +69,7 @@ export function Logo() {
 }
 
 function Shell() {
+  const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW();
   const [projectId, setProjectId] = useState<string | null>(null);
   const [dismissedBackup, setDismissedBackup] = useState(false);
   const [showInstallHelp, setShowInstallHelp] = useState(false);
@@ -74,6 +78,7 @@ function Shell() {
   const [isStandalone, setIsStandalone] = useState(true);
   const [installPromptEvent, setInstallPromptEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [showQuotaWarning, setShowQuotaWarning] = useState(false);
+  const [updatingApp, setUpdatingApp] = useState(false);
   const nav = useNavigate();
 
   useEffect(() => {
@@ -177,6 +182,18 @@ function Shell() {
   async function handleSnooze() {
     await db.settings.put({ key: "lastBackup", value: new Date().toISOString() });
     setDismissedBackup(true);
+  }
+
+  async function handleAppUpdate() {
+    const ok = confirm("Update FossilMap now? The app will reload, so finish any unsaved form entry first.");
+    if (!ok) return;
+    setUpdatingApp(true);
+    try {
+      await updateServiceWorker(true);
+    } catch (e) {
+      setUpdatingApp(false);
+      alert("Update failed: " + e);
+    }
   }
 
   async function handleExport(includeMedia = true) {
@@ -328,20 +345,44 @@ function Shell() {
                   to="/settings"
                   aria-label="Settings"
                   className={({ isActive }) =>
-                    `grid h-9 w-9 place-items-center rounded-lg border transition-colors ${
+                    `${isStandalone ? "inline-flex h-9 items-center justify-center px-3 text-xs font-black" : "grid h-9 w-9 place-items-center"} rounded-lg border transition-colors ${
                       isActive
                         ? "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
                         : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                     }`
                   }
                 >
-                  <SettingsIcon className="h-4 w-4" />
+                  {isStandalone ? "Settings" : <SettingsIcon className="h-4 w-4" />}
                 </NavLink>
               </div>
           </div>
         </header>
 
         <div className="mb-4 grid gap-3">
+          {needRefresh && (
+            <div className="rounded-lg border border-sky-200 bg-sky-50 p-4 text-sky-950 shadow-sm dark:border-sky-800 dark:bg-sky-950/35 dark:text-sky-100">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex gap-3">
+                  <RefreshCw className="mt-0.5 h-5 w-5 shrink-0 text-sky-700 dark:text-sky-300" />
+                  <div>
+                    <h2 className="text-sm font-black">Update available</h2>
+                    <p className="mt-1 text-xs leading-relaxed text-sky-800 dark:text-sky-200">
+                      {UPDATE_NOTES} Tap update when you are ready to reload.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleAppUpdate}
+                  disabled={updatingApp}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-sky-600 px-3 py-2 text-xs font-black text-white transition-colors hover:bg-sky-700 disabled:opacity-60"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${updatingApp ? "animate-spin" : ""}`} />
+                  {updatingApp ? "Updating" : "Update FossilMap"}
+                </button>
+              </div>
+            </div>
+          )}
+
           {showInstallHelp && (
             <div className="rounded-lg border border-sky-200 bg-sky-50 p-4 text-sky-950 shadow-sm dark:border-sky-800 dark:bg-sky-950/35 dark:text-sky-100">
               <div className="flex items-start justify-between gap-3">

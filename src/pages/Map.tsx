@@ -558,9 +558,9 @@ export default function MapPage({ projectId }: { projectId: string }) {
         )}
         {filteredLocalities.length === 0 && (
           <div className="pointer-events-none absolute inset-0 z-[5] grid place-items-center p-6">
-            <div className="max-w-sm rounded-2xl border border-white/70 bg-white/92 p-5 text-center shadow-xl backdrop-blur dark:border-slate-700 dark:bg-slate-900/92">
-              <h3 className="text-base font-black text-slate-950 dark:text-white">No mapped records yet</h3>
-              <p className="mt-2 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
+            <div className="max-w-sm rounded-2xl border border-white/15 bg-slate-950/85 p-5 text-center text-white shadow-xl backdrop-blur">
+              <h3 className="text-base font-black">No mapped records yet</h3>
+              <p className="mt-2 text-sm leading-relaxed text-white/72">
                 Add GPS to a locality or specimen, then use the filters and colour modes to review patterns.
               </p>
             </div>

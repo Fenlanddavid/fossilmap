@@ -18,15 +18,15 @@ export function LocalityFindsList({ localityId }: { localityId: string }) {
   if (!topFinds || topFinds.length === 0) return null;
 
   return (
-    <div className="mb-4">
-      <div className="text-[8px] font-black uppercase tracking-widest text-gray-400 mb-1.5">Latest Finds</div>
+    <div className="mb-4 rounded-lg border border-slate-100 bg-slate-50/70 p-2 dark:border-slate-800 dark:bg-slate-950/40">
+      <div className="mb-1.5 text-[8px] font-black uppercase tracking-widest text-slate-400">Latest finds</div>
       <div className="flex flex-wrap gap-1">
         {topFinds.map((f) => (
-          <span key={f.id} className="text-[9px] bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-700 px-1.5 py-0.5 rounded text-gray-600 dark:text-gray-400 font-medium">
+          <span key={f.id} className="rounded border border-white bg-white px-1.5 py-0.5 text-[9px] font-bold text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
             {f.taxon || "Find"}
           </span>
         ))}
-        {topFinds.length >= 5 && <span className="text-[9px] text-gray-400 flex items-center px-1">...</span>}
+        {topFinds.length >= 5 && <span className="flex items-center px-1 text-[9px] text-slate-400">...</span>}
       </div>
     </div>
   );

@@ -8,7 +8,9 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // Prompt before applying a new service worker so a mid-fieldwork update
+      // never reloads the app without the user's consent.
+      registerType: 'prompt',
       includeAssets: ['logo.svg'],
       manifest: {
         name: 'FossilMap UK',
@@ -35,6 +37,9 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}']
+      },
+      devOptions: {
+        enabled: true,
       }
     })
   ],

@@ -3,6 +3,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import {
   ArrowRight,
   Camera,
+  Calendar,
   ChevronRight,
   ClipboardList,
   Compass,
@@ -12,6 +13,7 @@ import {
   Microscope,
   Plus,
   Search,
+  ShieldAlert,
   Upload,
   Zap,
 } from "lucide-react";
@@ -111,6 +113,14 @@ export default function Home(props: {
   );
 
   const recentFinds = useMemo(() => (specimens ?? []).filter(s => !s.isPending).slice(0, 8), [specimens]);
+  const specimenCountByLocality = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const specimen of specimens ?? []) {
+      if (specimen.isPending) continue;
+      counts.set(specimen.localityId, (counts.get(specimen.localityId) ?? 0) + 1);
+    }
+    return counts;
+  }, [specimens]);
   const visibleLocalities = useMemo(() => localities?.slice(0, searchQuery.trim() ? 24 : 8) ?? [], [localities, searchQuery]);
   const hasAnyData = (dashboard?.locations ?? 0) + (dashboard?.trips ?? 0) + (dashboard?.finds ?? 0) > 0;
   const hasPendingFinds = (pendingFinds?.length ?? 0) > 0;
@@ -283,13 +293,15 @@ export default function Home(props: {
               {visibleLocalities.map((locality) => {
                 const activeSession = activeSessions?.get(locality.id);
                 const isActive = !!activeSession;
+                const findCount = specimenCountByLocality.get(locality.id) ?? 0;
                 return (
-                  <article key={locality.id} className={`group grid min-h-44 grid-cols-[1fr_7.25rem] overflow-hidden rounded-lg border bg-white shadow-sm transition-all hover:shadow-md dark:bg-slate-900 ${isActive ? "border-emerald-400 ring-1 ring-emerald-400" : "border-slate-200 dark:border-slate-800"}`}>
+                  <article key={locality.id} className={`group relative grid min-h-48 grid-cols-[1fr_7.75rem] overflow-hidden rounded-xl border bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg dark:bg-slate-900 ${isActive ? "border-emerald-400 ring-1 ring-emerald-400" : "border-slate-200 hover:border-emerald-300 dark:border-slate-800 dark:hover:border-emerald-800"}`}>
+                    <div className={`absolute inset-x-0 top-0 h-1 ${isActive ? "bg-emerald-500" : locality.type === "trip" ? "bg-emerald-400" : "bg-sky-400"}`} />
                     <div className="flex min-w-0 flex-col p-4">
                       <div className="mb-2 flex items-start justify-between gap-2">
                         <button
                           onClick={() => props.goLocalityEdit(locality.id, locality.type)}
-                          className="min-w-0 truncate text-left text-base font-black text-slate-950 transition-colors hover:text-emerald-700 dark:text-white dark:hover:text-emerald-300"
+                          className="min-w-0 text-left text-base font-black leading-tight text-slate-950 transition-colors hover:text-emerald-700 dark:text-white dark:hover:text-emerald-300"
                         >
                           {locality.name || "(Unnamed)"}
                         </button>
@@ -302,10 +314,27 @@ export default function Home(props: {
                         {locality.period && <Pill>{locality.period}</Pill>}
                         {locality.stage && <Pill>{locality.stage}</Pill>}
                         {locality.formation && <Pill muted>{locality.formation}</Pill>}
+                        {(locality.sssi || locality.rigs) && (
+                          <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-amber-800 dark:bg-amber-900/35 dark:text-amber-200">
+                            <ShieldAlert className="h-2.5 w-2.5" />
+                            Protected
+                          </span>
+                        )}
                       </div>
 
-                      <div className="mb-3 text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                        {locality.lat && locality.lon ? `${locality.lat.toFixed(4)}, ${locality.lon.toFixed(4)}` : "No GPS set"}
+                      <div className="mb-3 grid gap-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                        <div className="flex items-center gap-1.5">
+                          <MapPin className="h-3.5 w-3.5" />
+                          <span>{locality.lat && locality.lon ? `${locality.lat.toFixed(4)}, ${locality.lon.toFixed(4)}` : "No GPS set"}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Microscope className="h-3.5 w-3.5" />
+                          <span>{findCount} find{findCount !== 1 ? "s" : ""}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Calendar className="h-3.5 w-3.5" />
+                          <span>{new Date(locality.observedAt || locality.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
+                        </div>
                       </div>
 
                       <LocalityFindsList localityId={locality.id} />
@@ -313,7 +342,7 @@ export default function Home(props: {
                       <div className="mt-auto flex items-center gap-2 pt-3">
                         {isActive ? (
                           <>
-                            <button onClick={() => props.goSpecimen(locality.id)} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[11px] font-black text-white hover:bg-emerald-700">
+                            <button onClick={() => props.goSpecimen(locality.id)} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[11px] font-black text-white shadow-sm hover:bg-emerald-700">
                               <Plus className="h-3.5 w-3.5" />
                               Find
                             </button>
@@ -323,11 +352,11 @@ export default function Home(props: {
                           </>
                         ) : (
                           <>
-                            <button onClick={() => props.goSpecimen(locality.id)} className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-black text-emerald-800 hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/25 dark:text-emerald-200">
+                            <button onClick={() => props.goSpecimen(locality.id)} className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-black text-emerald-800 shadow-sm hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/25 dark:text-emerald-200">
                               <Plus className="h-3.5 w-3.5" />
                               Add find
                             </button>
-                            <button onClick={() => props.goLocalityEdit(locality.id, locality.type)} className="ml-auto inline-flex items-center gap-1 text-[11px] font-black text-slate-500 hover:text-slate-900 dark:hover:text-white">
+                            <button onClick={() => props.goLocalityEdit(locality.id, locality.type)} className="ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-black text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white">
                               Open
                               <ChevronRight className="h-3.5 w-3.5" />
                             </button>
@@ -338,6 +367,7 @@ export default function Home(props: {
 
                     <div className="relative border-l border-slate-100 bg-slate-100 dark:border-slate-800 dark:bg-slate-950">
                       <LocalityThumbnail localityId={locality.id} className="h-full w-full" imgClassName="object-cover" />
+                      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-slate-950/55 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
                       <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-950/0 opacity-0 transition-opacity group-hover:bg-slate-950/60 group-hover:opacity-100">
                         <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-white px-2 py-1.5 text-[10px] font-black text-slate-900 shadow-sm">
                           <Camera className="h-3.5 w-3.5" />
@@ -385,9 +415,9 @@ export default function Home(props: {
                   <button
                     key={find.id}
                     onClick={() => setOpenSpecimenId(find.id)}
-                    className="grid grid-cols-[3.5rem_1fr] gap-3 rounded-lg border border-slate-200 bg-slate-50 p-2 text-left transition-colors hover:border-emerald-300 hover:bg-white dark:border-slate-800 dark:bg-slate-950/50 dark:hover:border-emerald-800 dark:hover:bg-slate-950"
+                    className="group grid grid-cols-[4rem_1fr_auto] gap-3 rounded-xl border border-slate-200 bg-slate-50 p-2 text-left transition-all hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-white hover:shadow-md dark:border-slate-800 dark:bg-slate-950/50 dark:hover:border-emerald-800 dark:hover:bg-slate-950"
                   >
-                    <div className="aspect-square overflow-hidden rounded bg-slate-200 dark:bg-slate-800">
+                    <div className="aspect-square overflow-hidden rounded-lg bg-slate-200 dark:bg-slate-800">
                       <SpecimenThumbnail specimenId={find.id} className="h-full w-full" imgClassName="object-cover" />
                     </div>
                     <div className="min-w-0 self-center">
@@ -398,6 +428,7 @@ export default function Home(props: {
                         <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[9px] font-black uppercase text-slate-600 dark:bg-slate-800 dark:text-slate-300">{find.taxonConfidence}</span>
                       </div>
                     </div>
+                    <ArrowRight className="mr-1 mt-5 h-3.5 w-3.5 text-slate-400 transition-transform group-hover:translate-x-0.5 group-hover:text-emerald-600" />
                   </button>
                 ))}
               </div>

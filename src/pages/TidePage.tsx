@@ -1,32 +1,44 @@
 import React from "react";
+import { AlertTriangle, Waves } from "lucide-react";
 import { TideWidget } from "../components/TideWidget";
 
 export default function TidePage() {
-    return (
-        <div className="max-w-2xl mx-auto py-8 px-4">
-            <div className="mb-8">
-                <h2 className="text-3xl font-black text-gray-800 dark:text-gray-100 mb-2">Tide Times</h2>
-                <p className="text-gray-500 dark:text-gray-400">
-                    Real-time tidal data from the UK Environment Agency gauge network. 
-                    Useful for planning safe foreshore and cliff-base collecting.
-                </p>
-            </div>
+  return (
+    <div className="mx-auto grid max-w-2xl gap-5 py-4">
+      <header>
+        <p className="mb-2 text-[11px] font-black uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-300">Foreshore planning</p>
+        <h2 className="text-2xl font-black tracking-tight text-slate-950 dark:text-white sm:text-3xl">Tide times</h2>
+        <p className="mt-2 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
+          Check nearby Environment Agency gauge readings before planning foreshore or cliff-base collecting.
+        </p>
+      </header>
 
-            <div className="grid gap-6">
-                <TideWidget />
-                
-                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-6 rounded-2xl">
-                    <h3 className="font-bold text-amber-800 dark:text-amber-400 mb-2 flex items-center gap-2">
-                        ⚠️ Safety First
-                    </h3>
-                    <ul className="text-sm text-amber-800/80 dark:text-amber-400/80 space-y-2 list-disc ml-4">
-                        <li>Always check local weather and sea conditions before heading out.</li>
-                        <li>Be aware of cut-off points on beaches with high cliffs.</li>
-                        <li>Give yourself plenty of time to return before the tide turns.</li>
-                        <li>Gauge readings are approximations and can be affected by weather/surges.</li>
-                    </ul>
-                </div>
-            </div>
+      <TideWidget />
+
+      <section className="rounded-lg border border-amber-200 bg-amber-50 p-5 dark:border-amber-800 dark:bg-amber-950/25">
+        <div className="mb-3 flex items-center gap-2">
+          <AlertTriangle className="h-5 w-5 text-amber-700 dark:text-amber-300" />
+          <h3 className="font-black text-amber-900 dark:text-amber-100">Safety first</h3>
         </div>
-    );
+        <ul className="grid gap-2 text-sm leading-relaxed text-amber-900/80 dark:text-amber-100/75">
+          <li className="flex gap-2">
+            <Waves className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>Check local weather, sea state and tide tables before heading out.</span>
+          </li>
+          <li className="flex gap-2">
+            <Waves className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>Identify cut-off points on beaches below cliffs and landslips.</span>
+          </li>
+          <li className="flex gap-2">
+            <Waves className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>Leave enough time to return before the tide turns.</span>
+          </li>
+          <li className="flex gap-2">
+            <Waves className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>Gauge readings are approximations and can be affected by weather or surge.</span>
+          </li>
+        </ul>
+      </section>
+    </div>
+  );
 }
