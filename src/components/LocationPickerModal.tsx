@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import type { Map as MapLibreMap, Marker as MapLibreMarker } from "maplibre-gl";
+import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { Modal } from "./Modal";
 
@@ -10,8 +10,7 @@ export function LocationPickerModal(props: {
   onSelect: (lat: number, lon: number) => void;
 }) {
   const mapDivRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<MapLibreMap | null>(null);
-  const markerRef = useRef<MapLibreMarker | null>(null);
+  const mapRef = useRef<maplibregl.Map | null>(null);
 
   const [lat, setLat] = useState(props.initialLat ?? 54.5);
   const [lon, setLon] = useState(props.initialLon ?? -2.0);
@@ -22,87 +21,79 @@ export function LocationPickerModal(props: {
 
   useEffect(() => {
     if (!mapDivRef.current) return;
-    let disposed = false;
+
+    if (mapRef.current) {
+      mapRef.current.remove();
+      mapRef.current = null;
+    }
+
     setMapReady(false);
     setTileErrorCount(0);
 
-    let tiles: string[] = [];
-    let attribution = "";
-    
-    switch (mapStyle) {
-        case "streets":
-            tiles = ["https://a.tile.openstreetmap.org/{z}/{x}/{y}.png"];
-            attribution = "© OpenStreetMap";
-            break;
-        case "satellite":
-            tiles = ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"];
-            attribution = "© Esri World Imagery";
-            break;
-    }
+    const tiles =
+      mapStyle === "streets"
+        ? ["https://a.tile.openstreetmap.org/{z}/{x}/{y}.png"]
+        : ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"];
+    const attribution = mapStyle === "streets" ? "© OpenStreetMap" : "© Esri World Imagery";
 
-    import("maplibre-gl").then(({ default: maplibregl }) => {
-      if (disposed || !mapDivRef.current) return;
-
-      const map = new maplibregl.Map({
-        container: mapDivRef.current,
-        style: {
-          version: 8,
-          glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
-          sources: {
-            "raster-tiles": {
-              type: "raster",
-              tiles,
-              tileSize: 256,
-              attribution,
-            },
-          },
-          layers: [{ id: "simple-tiles", type: "raster", source: "raster-tiles", minzoom: 0, maxzoom: 22 }],
+    const map = new maplibregl.Map({
+      container: mapDivRef.current,
+      style: {
+        version: 8,
+        glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
+        sources: {
+          "raster-tiles": { type: "raster", tiles, tileSize: 256, attribution },
         },
-        center: [lon, lat],
-        zoom,
-      });
-
-      map.addControl(new maplibregl.NavigationControl(), "top-right");
-      map.addControl(new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: true }), "top-right");
-
-      const marker = new maplibregl.Marker({ draggable: true })
-        .setLngLat([lon, lat])
-        .addTo(map);
-
-      marker.on("dragend", () => {
-        const lngLat = marker.getLngLat();
-        setLat(lngLat.lat);
-        setLon(lngLat.lng);
-      });
-
-      map.on("click", (e) => {
-        marker.setLngLat(e.lngLat);
-        setLat(e.lngLat.lat);
-        setLon(e.lngLat.lng);
-      });
-
-      map.on("load", () => setMapReady(true));
-      map.on("error", () => setTileErrorCount((count) => Math.min(count + 1, 10)));
-
-      mapRef.current = map;
-      markerRef.current = marker;
-    }).catch(() => {
-      if (!disposed) setTileErrorCount(10);
+        layers: [{ id: "simple-tiles", type: "raster", source: "raster-tiles", minzoom: 0, maxzoom: 22 }],
+      },
+      center: [lon, lat],
+      zoom,
     });
 
+    map.addControl(new maplibregl.NavigationControl(), "top-right");
+    map.addControl(
+      new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: true }),
+      "top-right"
+    );
+
+    const marker = new maplibregl.Marker({ draggable: true }).setLngLat([lon, lat]).addTo(map);
+
+    marker.on("dragend", () => {
+      const lngLat = marker.getLngLat();
+      setLat(lngLat.lat);
+      setLon(lngLat.lng);
+    });
+
+    map.on("click", (e) => {
+      marker.setLngLat(e.lngLat);
+      setLat(e.lngLat.lat);
+      setLon(e.lngLat.lng);
+    });
+
+    map.on("load", () => {
+      setTimeout(() => map.resize(), 0);
+      setTimeout(() => map.resize(), 250);
+      setMapReady(true);
+    });
+    map.on("error", () => setTileErrorCount((count) => Math.min(count + 1, 10)));
+
+    mapRef.current = map;
+
+    const ro = new ResizeObserver(() => mapRef.current?.resize());
+    if (mapDivRef.current) ro.observe(mapDivRef.current);
+
     return () => {
-      disposed = true;
-      mapRef.current?.remove();
+      ro.disconnect();
+      map.remove();
       mapRef.current = null;
-      markerRef.current = null;
     };
   }, [mapStyle]);
 
   return (
     <Modal title="Pick Find Location" onClose={props.onClose}>
       <div className="grid gap-4 no-print">
-        <div className="h-[60vh] rounded-2xl overflow-hidden border-2 border-gray-100 dark:border-gray-800 relative shadow-inner bg-gray-50 dark:bg-black">
-          <div ref={mapDivRef} className="absolute inset-0" />
+        <div className="rounded-2xl overflow-hidden border-2 border-gray-100 dark:border-gray-800 relative shadow-inner bg-gray-50 dark:bg-black">
+          <div ref={mapDivRef} className="w-full h-[60vh]" />
           {!mapReady && tileErrorCount < 3 && (
             <div className="absolute inset-0 z-[5] grid place-items-center bg-white/70 text-xs font-black text-slate-500 backdrop-blur-sm dark:bg-slate-950/60 dark:text-slate-300">
               Loading map...
@@ -114,19 +105,19 @@ export function LocationPickerModal(props: {
               <span className="mt-1 block leading-relaxed">You can still enter coordinates below or confirm the current marker position.</span>
             </div>
           )}
-          
+
           <div className="absolute top-2 left-2 z-10 flex gap-1 bg-white/90 dark:bg-gray-900/90 p-1 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-            <button 
-                onClick={() => setMapStyle("streets")}
-                className={`px-2 py-1 text-[10px] font-bold rounded ${mapStyle === "streets" ? "bg-blue-600 text-white" : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}`}
+            <button
+              onClick={() => setMapStyle("streets")}
+              className={`px-2 py-1 text-[10px] font-bold rounded ${mapStyle === "streets" ? "bg-blue-600 text-white" : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}`}
             >
-                Streets
+              Streets
             </button>
-            <button 
-                onClick={() => setMapStyle("satellite")}
-                className={`px-2 py-1 text-[10px] font-bold rounded ${mapStyle === "satellite" ? "bg-blue-600 text-white" : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}`}
+            <button
+              onClick={() => setMapStyle("satellite")}
+              className={`px-2 py-1 text-[10px] font-bold rounded ${mapStyle === "satellite" ? "bg-blue-600 text-white" : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}`}
             >
-                Satellite
+              Satellite
             </button>
           </div>
 
@@ -139,9 +130,9 @@ export function LocationPickerModal(props: {
           <div className="flex flex-col">
             <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-1">Selected Coordinates</span>
             <div className="font-mono font-bold text-sm text-gray-800 dark:text-gray-100 flex gap-3">
-                <span>{lat.toFixed(6)}</span>
-                <span className="opacity-20">|</span>
-                <span>{lon.toFixed(6)}</span>
+              <span>{lat.toFixed(6)}</span>
+              <span className="opacity-20">|</span>
+              <span>{lon.toFixed(6)}</span>
             </div>
           </div>
           <div className="flex gap-3 w-full sm:w-auto">

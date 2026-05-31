@@ -45,15 +45,22 @@ type BeforeInstallPromptEvent = Event & {
 
 export function Logo() {
   return (
-    <svg width="34" height="34" viewBox="0 0 512 512" fill="none" aria-hidden="true">
-      <rect width="512" height="512" rx="112" fill="#0f172a" />
+    <svg width="32" height="32" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path
-        d="M96 340c58-94 118-142 180-142 23 0 38 9 52 22 8-54 26-92 54-114 12-10 30-6 38 8l14 26c8 15 1 34-15 40l-43 17c-7 50-20 91-40 122-21 33-52 49-93 49H128c-26 0-43-8-32-28Z"
-        fill="#34d399"
+        d="M50 400
+           C 150 400, 180 250, 320 250
+           C 340 250, 350 150, 370 100
+           L 460 100
+           L 460 180
+           L 380 180
+           C 360 180, 350 350, 320 350
+           L 150 350
+           C 100 350, 50 400, 50 400 Z"
+        fill="#10b981"
       />
-      <path d="M163 368h45v56h-45zM260 368h45v56h-45z" fill="#34d399" />
-      <circle cx="398" cy="135" r="9" fill="#f8fafc" />
-      <path d="M114 338c67-16 124-23 170-20 36 2 67 11 94 27" stroke="#064e3b" strokeWidth="18" strokeLinecap="round" opacity=".45" />
+      <rect x="180" y="350" width="35" height="100" fill="#10b981" rx="15" />
+      <rect x="260" y="350" width="35" height="100" fill="#10b981" rx="15" />
+      <circle cx="420" cy="130" r="10" fill="white" />
     </svg>
   );
 }
