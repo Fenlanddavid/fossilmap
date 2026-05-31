@@ -7,7 +7,11 @@ import { fileToBlob } from "../services/photos";
 import { ScaledImage } from "../components/ScaledImage";
 import { PhotoAnnotator } from "../components/PhotoAnnotator";
 import { captureGPS } from "../services/gps";
-import { LocationPickerModal } from "../components/LocationPickerModal";
+import { ArrowDown, ArrowUp, Camera, CheckCircle2, ClipboardList, MapPin, Microscope, RefreshCw, Ruler, Trash2, Warehouse } from "lucide-react";
+
+const LocationPickerModal = React.lazy(() =>
+  import("../components/LocationPickerModal").then((mod) => ({ default: mod.LocationPickerModal }))
+);
 
 const taxonConfidence: Specimen["taxonConfidence"][] = ["high", "med", "low"];
 const preservations: Specimen["preservation"][] = [
@@ -34,6 +38,9 @@ function makeSpecimenCode(): string {
 
 export default function SpecimenPage(props: { projectId: string; localityId: string | null; sessionId?: string | null }) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const editId = searchParams.get("id");
+  const isEditingExisting = !!editId;
   const localities = useLiveQuery(
     async () => db.localities.where("projectId").equals(props.projectId).reverse().sortBy("createdAt"),
     [props.projectId]
@@ -72,6 +79,7 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
   const [annotatingMedia, setAnnotatingMedia] = useState<{ media: Media; url: string } | null>(null);
 
   useEffect(() => {
+    if (editId) return;
     if (props.localityId) {
       db.localities.get(props.localityId).then(l => {
         if (l) setLocationName(l.name);
@@ -79,14 +87,82 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
     } else if (localities && localities.length > 0 && !locationName) {
       setLocationName(localities[0].name || "");
     }
-  }, [props.localityId, localities]);
+  }, [props.localityId, localities, editId]);
+
+  useEffect(() => {
+    if (!editId) return;
+    const targetId = editId;
+    let active = true;
+    setError(null);
+
+    async function loadExistingSpecimen() {
+      const specimen = await db.specimens.get(targetId);
+      if (!active) return;
+      if (!specimen) {
+        setError("Find not found.");
+        return;
+      }
+
+      const locality = await db.localities.get(specimen.localityId);
+      if (!active) return;
+
+      setSavedId(specimen.id);
+      setLocationName(locality?.name || "");
+      setSpecimenCode(specimen.specimenCode || makeSpecimenCode());
+      setTaxon(specimen.taxon || "");
+      setConfidence(specimen.taxonConfidence || "med");
+      setPeriod(specimen.period || "");
+      setStage(specimen.stage || "");
+      setElement(specimen.element || "shell");
+      setPreservation(specimen.preservation || "body fossil");
+      setTaphonomy(specimen.taphonomy || "");
+      setFindContext(specimen.findContext || "");
+      setLat(specimen.lat ?? null);
+      setLon(specimen.lon ?? null);
+      setAcc(specimen.gpsAccuracyM ?? null);
+      setWeightG(specimen.weightG != null ? String(specimen.weightG) : "");
+      setLengthMm(specimen.lengthMm != null ? String(specimen.lengthMm) : "");
+      setWidthMm(specimen.widthMm != null ? String(specimen.widthMm) : "");
+      setThicknessMm(specimen.thicknessMm != null ? String(specimen.thicknessMm) : "");
+      setBagBoxId(specimen.bagBoxId || "");
+      setStorageLocation(specimen.storageLocation || "");
+      setNotes(specimen.notes || "");
+      setIsCustomElement(!!specimen.element && !commonElements.includes(specimen.element));
+    }
+
+    loadExistingSpecimen().catch((e) => {
+      if (active) setError(e?.message ?? "Find load failed.");
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [editId]);
 
   const media = useLiveQuery(
-    async () => (savedId ? db.media.where("specimenId").equals(savedId).toArray() : []),
+    async () => (savedId ? db.media.where("specimenId").equals(savedId).sortBy("createdAt") : []),
     [savedId]
   );
+  const formLocked = !!savedId && !isEditingExisting;
+
+  const qualityItems = [
+    { label: "Taxon", done: !!taxon.trim() },
+    { label: "Location", done: !!locationName.trim() },
+    { label: "GPS", done: lat != null && lon != null },
+    { label: "Period", done: !!period.trim() },
+    { label: "Element", done: !!element.trim() },
+    { label: "Context", done: !!findContext.trim() || !!notes.trim() },
+    { label: "Measurements", done: !!lengthMm || !!widthMm || !!thicknessMm || !!weightG },
+    { label: "Photos", done: (media?.length ?? 0) > 0 },
+  ];
+  const qualityDone = qualityItems.filter(item => item.done).length;
+  const qualityPercent = Math.round((qualityDone / qualityItems.length) * 100);
 
   function resetForm() {
+    if (isEditingExisting) {
+      navigate("/specimen");
+      return;
+    }
     setSavedId(null);
     setSpecimenCode(makeSpecimenCode());
     setTaxon("");
@@ -170,7 +246,8 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
         });
       }
 
-      const id = uuid();
+      const existingSpecimen = editId ? await db.specimens.get(editId) : null;
+      const id = editId || uuid();
       const now = new Date().toISOString();
 
       const s: Specimen = {
@@ -197,11 +274,21 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
         bagBoxId: bagBoxId.trim(),
         storageLocation: storageLocation.trim(),
         notes: notes.trim(),
-        createdAt: now,
+        hrid: existingSpecimen?.hrid,
+        repository: existingSpecimen?.repository,
+        accessionId: existingSpecimen?.accessionId,
+        qualityScore: existingSpecimen?.qualityScore,
+        isShared: existingSpecimen?.isShared,
+        sharedAt: existingSpecimen?.sharedAt,
+        createdAt: existingSpecimen?.createdAt || now,
         updatedAt: now,
       };
 
-      await db.specimens.add(s);
+      if (editId) {
+        await db.specimens.put(s);
+      } else {
+        await db.specimens.add(s);
+      }
       setSavedId(id);
     } catch (e: any) {
       setError(e?.message ?? "Save failed");
@@ -250,7 +337,62 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
     }
   }
 
-  function PhotoThumb(props: { mediaId: string; filename: string; onAnnotate: (m: Media, url: string) => void }) {
+  async function removePhoto(mediaId: string) {
+    if (!confirm("Remove this photo from the find?")) return;
+    setError(null);
+    try {
+      await db.media.delete(mediaId);
+    } catch (e: any) {
+      setError(e?.message ?? "Photo remove failed");
+    }
+  }
+
+  async function replacePhoto(mediaId: string, files: FileList | null) {
+    setError(null);
+    try {
+      const file = files?.[0];
+      if (!file) return;
+      const blob = await fileToBlob(file);
+      await db.media.update(mediaId, {
+        blob,
+        filename: file.name,
+        mime: file.type || "application/octet-stream",
+      });
+    } catch (e: any) {
+      setError(e?.message ?? "Photo replace failed");
+    }
+  }
+
+  async function movePhoto(mediaId: string, direction: -1 | 1) {
+    if (!media) return;
+    const ordered = [...media].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+    const fromIndex = ordered.findIndex((item) => item.id === mediaId);
+    const toIndex = fromIndex + direction;
+    if (fromIndex < 0 || toIndex < 0 || toIndex >= ordered.length) return;
+
+    const moved = [...ordered];
+    [moved[fromIndex], moved[toIndex]] = [moved[toIndex], moved[fromIndex]];
+    const baseTime = Date.now() - moved.length * 1000;
+
+    await db.transaction("rw", db.media, async () => {
+      await Promise.all(
+        moved.map((item, index) =>
+          db.media.update(item.id, { createdAt: new Date(baseTime + index * 1000).toISOString() })
+        )
+      );
+    });
+  }
+
+  function PhotoThumb(props: {
+    mediaId: string;
+    filename: string;
+    index: number;
+    count: number;
+    onAnnotate: (m: Media, url: string) => void;
+    onRemove: (mediaId: string) => void;
+    onReplace: (mediaId: string, files: FileList | null) => void;
+    onMove: (mediaId: string, direction: -1 | 1) => void;
+  }) {
      const [media, setMedia] = useState<Media | null>(null);
      
      useEffect(() => {
@@ -265,23 +407,67 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
 
      if (!media) return <div className="w-full h-32 bg-gray-100 dark:bg-gray-700 animate-pulse rounded-lg" />;
      
-     const url = URL.createObjectURL(media.blob);
-
      return (
-        <div 
+        <div
             className="relative group border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden aspect-square shadow-sm cursor-pointer"
-            onClick={() => props.onAnnotate(media, url)}
+            onClick={() => props.onAnnotate(media, URL.createObjectURL(media.blob))}
         >
            <ScaledImage 
               media={media} 
               imgClassName="object-cover" 
               className="w-full h-full" 
            />
-           <div className="absolute inset-0 bg-blue-600/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+           <div className="pointer-events-none absolute inset-0 bg-blue-600/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                 <span className="bg-white dark:bg-gray-800 text-[8px] font-black px-2 py-1 rounded-full shadow-sm uppercase tracking-widest">Annotate</span>
+           </div>
+           <div className="absolute top-1 left-1 right-1 z-20 flex items-center justify-between gap-1">
+             <div className="flex gap-1">
+               <button
+                 type="button"
+                 title="Move earlier"
+                 aria-label="Move photo earlier"
+                 disabled={props.index === 0}
+                 onClick={(e) => {
+                   e.stopPropagation();
+                   props.onMove(props.mediaId, -1);
+                 }}
+                 className="grid h-6 w-6 place-items-center rounded bg-white/90 text-slate-700 shadow-sm disabled:opacity-35 dark:bg-slate-900/90 dark:text-slate-100"
+               >
+                 <ArrowUp className="h-3.5 w-3.5" />
+               </button>
+               <button
+                 type="button"
+                 title="Move later"
+                 aria-label="Move photo later"
+                 disabled={props.index === props.count - 1}
+                 onClick={(e) => {
+                   e.stopPropagation();
+                   props.onMove(props.mediaId, 1);
+                 }}
+                 className="grid h-6 w-6 place-items-center rounded bg-white/90 text-slate-700 shadow-sm disabled:opacity-35 dark:bg-slate-900/90 dark:text-slate-100"
+               >
+                 <ArrowDown className="h-3.5 w-3.5" />
+               </button>
+             </div>
+             <button
+               type="button"
+               title="Delete photo"
+               aria-label="Delete photo"
+               onClick={(e) => {
+                 e.stopPropagation();
+                 props.onRemove(props.mediaId);
+               }}
+               className="grid h-6 w-6 place-items-center rounded bg-red-600 text-white shadow-sm"
+             >
+               <Trash2 className="h-3.5 w-3.5" />
+             </button>
            </div>
            <div className="bg-white/90 dark:bg-gray-900/90 p-1 text-[8px] truncate absolute bottom-0 inset-x-0 z-10 flex justify-between items-center font-mono">
              <span className="truncate flex-1">{props.filename}</span>
+             <label className="mr-1 inline-grid h-5 w-5 cursor-pointer place-items-center rounded bg-white text-slate-600 shadow-sm dark:bg-slate-800 dark:text-slate-200" title="Replace photo" aria-label="Replace photo" onClick={(e) => e.stopPropagation()}>
+               <RefreshCw className="h-3 w-3" />
+               <input type="file" accept="image/*" className="hidden" onChange={(e) => props.onReplace(props.mediaId, e.target.files)} />
+             </label>
              {media.photoType && (
                <span className={`px-1 rounded uppercase text-[7px] font-black ${media.photoType === 'in-situ' ? 'bg-amber-100 text-amber-800' : media.photoType === 'laboratory' ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-100 text-gray-800'}`}>
                  {media.photoType === 'in-situ' ? 'Field' : media.photoType === 'laboratory' ? 'Lab' : 'Photo'}
@@ -295,9 +481,12 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
   return (
     <div className="grid gap-6 max-w-5xl mx-auto pb-20 px-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mt-4">
-        <h2 className="text-xl sm:text-2xl font-black text-gray-800 dark:text-gray-100 uppercase tracking-tight">
-          {props.localityId ? "Record Find" : "New Field Trip Find"}
-        </h2>
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-300">Specimen recorder</p>
+          <h2 className="text-xl sm:text-2xl font-black text-gray-800 dark:text-gray-100 tracking-tight">
+            {isEditingExisting ? "Edit Find" : props.localityId ? "Record Find" : "New Field Trip Find"}
+          </h2>
+        </div>
         <div className="flex gap-2 w-full sm:w-auto">
             <button 
                 onClick={() => navigate("/finds")}
@@ -305,7 +494,7 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
             >
                 View All
             </button>
-            {savedId && (
+            {savedId && !isEditingExisting && (
                 <button 
                     onClick={resetForm}
                     className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-bold shadow-md transition-all text-sm"
@@ -319,9 +508,31 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
 
       {error && <div className="border-2 border-red-200 bg-red-50 text-red-800 p-4 rounded-xl shadow-sm font-medium">⚠️ {error}</div>}
 
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-4 shadow-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="font-black text-gray-900 dark:text-white">Record quality</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Save quickly in the field, then fill gaps before sharing or reporting.</p>
+          </div>
+          <div className="text-sm font-black text-emerald-700 dark:text-emerald-300">{qualityPercent}% complete</div>
+        </div>
+        <div className="mt-3 h-2 rounded-full bg-gray-100 dark:bg-gray-900 overflow-hidden">
+          <div className="h-full rounded-full bg-emerald-600" style={{ width: `${qualityPercent}%` }} />
+        </div>
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {qualityItems.map(item => (
+            <span key={item.label} className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide ${item.done ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-100' : 'bg-gray-100 text-gray-500 dark:bg-gray-900 dark:text-gray-400'}`}>
+              {item.done && <CheckCircle2 className="w-3 h-3" />}
+              {item.label}
+            </span>
+          ))}
+        </div>
+      </div>
+
       <div className="grid lg:grid-cols-3 gap-8">
           {/* Main Form */}
-          <div className={`lg:col-span-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-sm grid gap-6 h-fit transition-opacity ${savedId ? 'opacity-50 pointer-events-none' : ''}`}>
+          <div className={`lg:col-span-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-sm grid gap-6 h-fit transition-opacity ${formLocked ? 'opacity-50 pointer-events-none' : ''}`}>
+            <SectionTitle icon={MapPin} title="1. Place" detail="Link the specimen to the right locality or trip." />
             <label className="block">
             <div className="mb-2 text-sm font-bold text-gray-700 dark:text-gray-300">Location Name</div>
             <input 
@@ -331,6 +542,8 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
                 className="w-full bg-white dark:bg-gray-900 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-3.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-bold"
             />
             </label>
+
+            <SectionTitle icon={Microscope} title="2. Identify" detail="Record the identification and geological age as far as you know it." />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <label className="block">
@@ -415,6 +628,8 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
                 </label>
             </div>
 
+            <SectionTitle icon={MapPin} title="3. Find spot" detail="Capture GPS now if possible. You can correct it on the map later." />
+
             <div className="bg-blue-50/50 dark:bg-blue-900/20 p-5 rounded-2xl border-2 border-blue-100/50 dark:border-blue-800/30 flex flex-col gap-4">
                 <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
                     <div className="flex flex-col gap-1 w-full">
@@ -468,6 +683,8 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
                     </label>
                 </div>
             </div>
+
+            <SectionTitle icon={Ruler} title="4. Measure and describe" detail="Measurements, element, preservation, context and field observations." />
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <label className="block">
@@ -534,6 +751,52 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
                 </label>
             </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <label className="block">
+                    <div className="mb-2 text-sm font-bold text-gray-700 dark:text-gray-300">Find Context</div>
+                    <textarea
+                        value={findContext}
+                        onChange={(e) => setFindContext(e.target.value)}
+                        rows={3}
+                        placeholder="In situ, loose block, beach shingle, cliff fall, nodule split, spoil heap..."
+                        className="w-full bg-white dark:bg-gray-900 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-3.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"
+                    />
+                </label>
+                <label className="block">
+                    <div className="mb-2 text-sm font-bold text-gray-700 dark:text-gray-300">Taphonomy / Preservation Notes</div>
+                    <textarea
+                        value={taphonomy}
+                        onChange={(e) => setTaphonomy(e.target.value)}
+                        rows={3}
+                        placeholder="Abraded, compressed, pyritised, phosphatic, articulated, rolled, encrusted..."
+                        className="w-full bg-white dark:bg-gray-900 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-3.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"
+                    />
+                </label>
+            </div>
+
+            <SectionTitle icon={Warehouse} title="5. Storage" detail="Make the physical fossil findable after the field day." />
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <label className="block">
+                    <div className="mb-2 text-sm font-bold text-gray-700 dark:text-gray-300">Bag / Box ID</div>
+                    <input
+                        value={bagBoxId}
+                        onChange={(e) => setBagBoxId(e.target.value)}
+                        placeholder="e.g. Bag 3, Tray B, Box JUR-01"
+                        className="w-full bg-white dark:bg-gray-900 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-3.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"
+                    />
+                </label>
+                <label className="block">
+                    <div className="mb-2 text-sm font-bold text-gray-700 dark:text-gray-300">Storage Location</div>
+                    <input
+                        value={storageLocation}
+                        onChange={(e) => setStorageLocation(e.target.value)}
+                        placeholder="e.g. Cabinet 2, shelf 4"
+                        className="w-full bg-white dark:bg-gray-900 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-3.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"
+                    />
+                </label>
+            </div>
+
             <label className="block">
             <div className="mb-2 text-sm font-bold text-gray-700 dark:text-gray-300">Notes</div>
             <textarea 
@@ -548,9 +811,9 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
             <button 
                 onClick={saveSpecimen} 
                 disabled={saving || !locationName.trim()} 
-                className={`mt-4 w-full px-8 py-5 rounded-2xl font-black text-2xl shadow-xl transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:transform-none ${savedId ? "bg-green-600 text-white" : "bg-blue-600 hover:bg-blue-700 text-white"}`}
+                className={`mt-4 w-full px-8 py-5 rounded-2xl font-black text-2xl shadow-xl transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:transform-none ${savedId && !isEditingExisting ? "bg-green-600 text-white" : "bg-blue-600 hover:bg-blue-700 text-white"}`}
             >
-            {saving ? "Saving..." : savedId ? "Find Recorded ✓" : "Record Find →"}
+            {saving ? "Saving..." : isEditingExisting ? "Save Changes" : savedId ? "Find Recorded" : "Save Specimen Draft"}
             </button>
         </div>
 
@@ -558,38 +821,42 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
         <div className="bg-gray-50 dark:bg-gray-900/30 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-inner flex flex-col gap-6 h-fit sticky top-4">
             <div className="flex flex-col gap-4">
                 <div className="flex justify-between items-center">
-                    <h2 className="text-xl font-black text-gray-800 dark:text-gray-100 uppercase tracking-tight m-0">Photos</h2>
+                    <h2 className="text-xl font-black text-gray-800 dark:text-gray-100 uppercase tracking-tight m-0 flex items-center gap-2"><Camera className="w-5 h-5" /> Photos</h2>
                     {savedId && <span className="text-[10px] font-mono font-bold bg-white dark:bg-gray-800 px-2 py-1 rounded shadow-sm">{media?.length || 0} / 4</span>}
+                </div>
+
+                <div className="rounded-2xl border border-amber-100 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-100">
+                    Take at least one context photo and one scale/detail photo before cleaning or trimming matrix.
                 </div>
                 
                 <div className="grid grid-cols-2 gap-3">
                     <label className={`aspect-square rounded-2xl font-black text-[10px] shadow-sm transition-all cursor-pointer flex flex-col items-center justify-center gap-1 text-center border-2 uppercase tracking-widest ${!savedId ? "bg-gray-100 text-gray-400 cursor-not-allowed border-transparent" : "bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800/50 text-amber-700 dark:text-amber-400 hover:bg-amber-100"}`}>
-                       <span className="text-2xl">📸</span>
-                       <span>Photo 1</span>
+                       <Camera className="w-6 h-6" />
+                       <span>In situ</span>
                        <input type="file" accept="image/*" capture="environment" onChange={(e) => addPhotos(e.target.files, "in-situ")} disabled={!savedId} className="hidden" />
                     </label>
                     
                     <label className={`aspect-square rounded-2xl font-black text-[10px] shadow-sm transition-all cursor-pointer flex flex-col items-center justify-center gap-1 text-center border-2 uppercase tracking-widest ${!savedId ? "bg-gray-100 text-gray-400 cursor-not-allowed border-transparent" : "bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800/50 text-blue-700 dark:text-blue-400 hover:bg-blue-100"}`}>
-                       <span className="text-2xl">📸</span>
-                       <span>Photo 2</span>
+                       <Ruler className="w-6 h-6" />
+                       <span>With scale</span>
                        <input type="file" accept="image/*" capture="environment" onChange={(e) => addPhotos(e.target.files, "in-situ")} disabled={!savedId} className="hidden" />
                     </label>
 
                     <label className={`aspect-square rounded-2xl font-black text-[10px] shadow-sm transition-all cursor-pointer flex flex-col items-center justify-center gap-1 text-center border-2 uppercase tracking-widest ${!savedId ? "bg-gray-100 text-gray-400 cursor-not-allowed border-transparent" : "bg-indigo-50 dark:bg-indigo-900/10 border-indigo-200 dark:border-indigo-800/50 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-100"}`}>
-                       <span className="text-2xl">📸</span>
-                       <span>Photo 3</span>
+                       <Microscope className="w-6 h-6" />
+                       <span>Cleaned</span>
                        <input type="file" accept="image/*" capture="environment" onChange={(e) => addPhotos(e.target.files, "laboratory")} disabled={!savedId} className="hidden" />
                     </label>
                     
                     <label className={`aspect-square rounded-2xl font-black text-[10px] shadow-sm transition-all cursor-pointer flex flex-col items-center justify-center gap-1 text-center border-2 uppercase tracking-widest ${!savedId ? "bg-gray-100 text-gray-400 cursor-not-allowed border-transparent" : "bg-purple-50 dark:bg-purple-900/10 border-purple-200 dark:border-purple-800/50 text-purple-700 dark:text-purple-400 hover:bg-purple-100"}`}>
-                       <span className="text-2xl">📸</span>
-                       <span>Photo 4</span>
+                       <ClipboardList className="w-6 h-6" />
+                       <span>Detail</span>
                        <input type="file" accept="image/*" capture="environment" onChange={(e) => addPhotos(e.target.files, "laboratory")} disabled={!savedId} className="hidden" />
                     </label>
                 </div>
                 
                 <label className={`w-full px-4 py-3 rounded-xl font-bold text-xs shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-2 border ${!savedId ? "bg-gray-100 text-gray-400 cursor-not-allowed border-transparent" : "bg-white dark:bg-gray-800 hover:bg-gray-50 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300"}`}>
-                    📁 Upload Files
+                    Upload Files
                     <input type="file" accept="image/*" multiple onChange={(e) => addPhotos(e.target.files)} disabled={!savedId} className="hidden" />
                 </label>
             </div>
@@ -598,7 +865,19 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
 
             {media && media.length > 0 && (
                 <div className="grid grid-cols-2 gap-3 overflow-y-auto pr-1">
-                    {media.map(m => <PhotoThumb key={m.id} mediaId={m.id} filename={m.filename} onAnnotate={(media, url) => setAnnotatingMedia({ media, url })} />)}
+                    {media.map((m, index) => (
+                      <PhotoThumb
+                        key={m.id}
+                        mediaId={m.id}
+                        filename={m.filename}
+                        index={index}
+                        count={media.length}
+                        onAnnotate={(media, url) => setAnnotatingMedia({ media, url })}
+                        onRemove={removePhoto}
+                        onReplace={replacePhoto}
+                        onMove={movePhoto}
+                      />
+                    ))}
                 </div>
             )}
         </div>
@@ -616,6 +895,7 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
       )}
 
       {isPickingLocation && (
+        <React.Suspense fallback={null}>
           <LocationPickerModal 
               initialLat={lat}
               initialLon={lon}
@@ -627,7 +907,30 @@ export default function SpecimenPage(props: { projectId: string; localityId: str
                   setIsPickingLocation(false);
               }}
           />
+        </React.Suspense>
       )}
     </div>
   );
+}
+
+function SectionTitle({
+    icon: Icon,
+    title,
+    detail,
+}: {
+    icon: React.ComponentType<{ className?: string }>;
+    title: string;
+    detail: string;
+}) {
+    return (
+        <div className="flex items-start gap-3 border-t border-gray-100 pt-5 first:border-t-0 first:pt-0 dark:border-gray-700">
+            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
+                <Icon className="h-4 w-4" />
+            </div>
+            <div>
+                <h3 className="m-0 text-sm font-black text-gray-900 dark:text-white">{title}</h3>
+                <p className="mt-0.5 text-xs leading-relaxed text-gray-500 dark:text-gray-400">{detail}</p>
+            </div>
+        </div>
+    );
 }

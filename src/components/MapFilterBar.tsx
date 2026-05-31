@@ -26,6 +26,8 @@ export function MapFilterBar(props: {
   needsKey: boolean;
   mapStyleMode: "streets" | "satellite";
   setMapStyleMode: (v: "streets" | "satellite") => void;
+  colorMode: "status" | "period" | "formation" | "taxon";
+  setColorMode: (v: "status" | "period" | "formation" | "taxon") => void;
 }) {
   return (
     <div className="grid gap-3">
@@ -54,6 +56,19 @@ export function MapFilterBar(props: {
                     className={`px-3 py-1 rounded-md text-sm font-medium transition-all ${props.mapStyleMode === "satellite" ? "bg-white dark:bg-gray-600 shadow-sm text-blue-600 dark:text-blue-300" : "opacity-70 hover:opacity-100"}`}
                  >Satellite</button>
             </div>
+            <label className="grid gap-1 min-w-[150px] ml-0 sm:ml-2">
+            <span className="text-[10px] font-black opacity-60 uppercase tracking-widest ml-1">Colour by</span>
+            <select
+                value={props.colorMode}
+                onChange={(e) => props.setColorMode(e.target.value as any)}
+                className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+            >
+                <option value="status">Status</option>
+                <option value="period">Period</option>
+                <option value="formation">Formation</option>
+                <option value="taxon">Top taxon</option>
+            </select>
+            </label>
             <div className="ml-auto opacity-80 text-sm font-medium bg-gray-50 dark:bg-gray-900 px-2 py-1 rounded border border-gray-200 dark:border-gray-700">
             {props.count} localities
             </div>

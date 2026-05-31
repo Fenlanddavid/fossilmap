@@ -5,10 +5,16 @@ import { captureGPS } from "../services/gps";
 import { useParams, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { SpecimenRow } from "../components/SpecimenRow";
-import { SpecimenModal } from "../components/SpecimenModal";
 import { FieldTripReport } from "../components/FieldTripReport";
-import { LocationPickerModal } from "../components/LocationPickerModal";
 import { SessionFindsList } from "../components/SessionFindsList";
+import { AlertTriangle, CheckCircle2, ClipboardCheck, MapPin, ShieldAlert } from "lucide-react";
+
+const SpecimenModal = React.lazy(() =>
+  import("../components/SpecimenModal").then((mod) => ({ default: mod.SpecimenModal }))
+);
+const LocationPickerModal = React.lazy(() =>
+  import("../components/LocationPickerModal").then((mod) => ({ default: mod.LocationPickerModal }))
+);
 
 const exposureTypes: Locality["exposureType"][] = [
   "beach shingle", "foreshore platform", "cliff fall / landslip debris",
@@ -100,7 +106,11 @@ export default function LocalityPage(props: {
     const info = new Map<string, Media>();
     if (!allMedia || !finds) return info;
     
-    const sortedMedia = [...allMedia].sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""));
+    const sortedMedia = [...allMedia].sort((a, b) => {
+        const aDate = a?.createdAt || "";
+        const bDate = b?.createdAt || "";
+        return aDate.localeCompare(bDate);
+    });
     for (const row of sortedMedia) {
       if (row.specimenId && !info.has(row.specimenId)) {
         info.set(row.specimenId, row);
@@ -253,6 +263,23 @@ export default function LocalityPage(props: {
   } : null;
 
   const isTrip = localityType === 'trip';
+  const completenessItems = [
+    { label: "Name", done: !!name.trim() },
+    { label: "GPS", done: lat != null && lon != null },
+    { label: "Collector", done: !!collector.trim() },
+    { label: "Period", done: !!period.trim() },
+    { label: "Stage", done: !!stage.trim() },
+    { label: "Formation", done: !!formation.trim() },
+    { label: "Lithology", done: !!lithologyPrimary },
+    { label: "Access notes", done: permissionGranted || !!designationNotes.trim() },
+  ];
+  const completenessCount = completenessItems.filter(item => item.done).length;
+  const completenessPercent = Math.round((completenessCount / completenessItems.length) * 100);
+  const accessState = sssi || rigs
+    ? "Protected-site flag present"
+    : permissionGranted
+      ? "Access marked clear"
+      : "Access needs review";
 
   return (
     <div className="max-w-4xl mx-auto pb-20 px-4">
@@ -561,6 +588,51 @@ export default function LocalityPage(props: {
                         </div>
                     </div>
 
+                    <div className="grid gap-3 md:grid-cols-3">
+                        <div className="md:col-span-2 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900 rounded-2xl p-4">
+                            <div className="flex items-start gap-3">
+                                <ClipboardCheck className="w-5 h-5 text-emerald-700 dark:text-emerald-300 shrink-0 mt-0.5" />
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <h4 className="m-0 text-sm font-black text-emerald-950 dark:text-emerald-100">Record completeness</h4>
+                                        <span className="text-xs font-black text-emerald-800 dark:text-emerald-200">{completenessPercent}%</span>
+                                    </div>
+                                    <div className="mt-3 h-2 rounded-full bg-emerald-100 dark:bg-emerald-900 overflow-hidden">
+                                        <div className="h-full rounded-full bg-emerald-600" style={{ width: `${completenessPercent}%` }} />
+                                    </div>
+                                    <div className="mt-3 flex flex-wrap gap-1.5">
+                                        {completenessItems.map(item => (
+                                            <span key={item.label} className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide ${item.done ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-100' : 'bg-white text-gray-500 dark:bg-gray-900 dark:text-gray-400'}`}>
+                                                {item.done ? <CheckCircle2 className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+                                                {item.label}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className={`rounded-2xl p-4 border ${sssi || rigs || !permissionGranted ? 'bg-amber-50 border-amber-100 dark:bg-amber-950/20 dark:border-amber-900' : 'bg-blue-50 border-blue-100 dark:bg-blue-950/20 dark:border-blue-900'}`}>
+                            <div className="flex items-start gap-3">
+                                {sssi || rigs || !permissionGranted ? (
+                                    <ShieldAlert className="w-5 h-5 text-amber-700 dark:text-amber-300 shrink-0 mt-0.5" />
+                                ) : (
+                                    <MapPin className="w-5 h-5 text-blue-700 dark:text-blue-300 shrink-0 mt-0.5" />
+                                )}
+                                <div>
+                                    <h4 className="m-0 text-sm font-black text-gray-900 dark:text-white">{accessState}</h4>
+                                    <p className="mt-1 text-xs leading-relaxed text-gray-600 dark:text-gray-300">
+                                        {sssi || rigs
+                                            ? "Check designation rules and avoid damaging protected exposures."
+                                            : permissionGranted
+                                                ? "Still confirm current local rules before collecting."
+                                                : "Add permission or designation notes before using this as a collecting record."}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div className="grid gap-6">
                             <div>
@@ -732,6 +804,7 @@ export default function LocalityPage(props: {
       )}
 
       {isPickingLocation && (
+        <React.Suspense fallback={null}>
           <LocationPickerModal 
               initialLat={lat}
               initialLon={lon}
@@ -743,8 +816,13 @@ export default function LocalityPage(props: {
                   setIsPickingLocation(false);
               }}
           />
+        </React.Suspense>
       )}
-      {openFindId && <SpecimenModal specimenId={openFindId} onClose={() => setOpenFindId(null)} />}
+      {openFindId && (
+        <React.Suspense fallback={null}>
+          <SpecimenModal specimenId={openFindId} onClose={() => setOpenFindId(null)} />
+        </React.Suspense>
+      )}
     </div>
   );
 }

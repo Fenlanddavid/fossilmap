@@ -1,15 +1,33 @@
-import React, { useEffect, useState, useMemo } from "react";
-import { db, Locality, Session, Specimen, Media } from "../db";
-import { v4 as uuid } from "uuid";
-import { captureGPS } from "../services/gps";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
+import {
+  ArrowLeft,
+  Camera,
+  CheckCircle2,
+  Clock,
+  Compass,
+  FileText,
+  MapPin,
+  Microscope,
+  Plus,
+  Save,
+  ShieldAlert,
+  Square,
+  Upload,
+  Waves,
+} from "lucide-react";
+import { v4 as uuid } from "uuid";
+import { db, Media, Session, Specimen } from "../db";
+import { captureGPS } from "../services/gps";
+import { fileToBlob } from "../services/photos";
 import { SpecimenRow } from "../components/SpecimenRow";
-import { SpecimenModal } from "../components/SpecimenModal";
 
-export default function SessionPage(props: {
-  projectId: string;
-}) {
+const SpecimenModal = React.lazy(() =>
+  import("../components/SpecimenModal").then((mod) => ({ default: mod.SpecimenModal }))
+);
+
+export default function SessionPage(props: { projectId: string }) {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const locationId = searchParams.get("locationId");
@@ -17,23 +35,30 @@ export default function SessionPage(props: {
   const isEdit = !!id;
 
   const [startTime, setStartTime] = useState(new Date().toISOString().slice(0, 16));
-  const [lat, setLat] = useState<number | null>(null);
-  const [lon, setLon] = useState<number | null>(null);
-  const [acc, setAcc] = useState<number | null>(null);
-
   const [notes, setNotes] = useState("");
   const [isFinished, setIsFinished] = useState(false);
-
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(isEdit);
   const [isEditing, setIsEditing] = useState(!isEdit);
-  
   const [openFindId, setOpenFindId] = useState<string | null>(null);
+  const [nowTick, setNowTick] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowTick(Date.now()), 30000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const session = useLiveQuery(async () => (id ? db.sessions.get(id) : null), [id]);
 
   const location = useLiveQuery(
-    async () => (locationId ? db.localities.get(locationId) : (id ? db.sessions.get(id).then(s => s ? db.localities.get(s.localityId) : null) : null)),
-    [locationId, id]
+    async () => {
+      if (locationId) return db.localities.get(locationId);
+      if (!id) return null;
+      const s = await db.sessions.get(id);
+      return s ? db.localities.get(s.localityId) : null;
+    },
+    [locationId, id, session?.localityId]
   );
 
   const finds = useLiveQuery(async () => {
@@ -42,15 +67,25 @@ export default function SessionPage(props: {
   }, [id]);
 
   const allMedia = useLiveQuery(async () => {
-    if (!id || !finds) return [];
-    const ids = finds.map(s => s.id);
+    if (!id || !finds || finds.length === 0) return [];
+    const ids = finds.map((s) => s.id);
     return db.media.where("specimenId").anyOf(ids).toArray();
   }, [id, finds]);
+
+  const localityPhotoCount = useLiveQuery(async () => {
+    const locId = location?.id;
+    if (!locId) return 0;
+    return db.media.where("localityId").equals(locId).count();
+  }, [location?.id]);
 
   const findThumbMedia = useMemo(() => {
     const info = new Map<string, Media>();
     if (!allMedia || !finds) return info;
-    const sortedMedia = [...allMedia].sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""));
+    const sortedMedia = [...allMedia].sort((a, b) => {
+      const aDate = a?.createdAt || "";
+      const bDate = b?.createdAt || "";
+      return aDate.localeCompare(bDate);
+    });
     for (const row of sortedMedia) {
       if (row.specimenId && !info.has(row.specimenId)) info.set(row.specimenId, row);
     }
@@ -59,10 +94,10 @@ export default function SessionPage(props: {
 
   useEffect(() => {
     if (id) {
-      db.sessions.get(id).then(s => {
+      db.sessions.get(id).then((s) => {
         if (s) {
           setStartTime(new Date(s.startTime).toISOString().slice(0, 16));
-          setNotes(s.notes);
+          setNotes(s.notes || "");
           setIsFinished(!!s.isFinished);
         }
         setLoading(false);
@@ -70,22 +105,20 @@ export default function SessionPage(props: {
     }
   }, [id]);
 
-  async function doGPS() {
-    setError(null);
-    try {
-      const fix = await captureGPS();
-      setLat(fix.lat);
-      setLon(fix.lon);
-      setAcc(fix.accuracyM);
-    } catch (e: any) {
-      setError(e?.message ?? "GPS failed");
-    }
-  }
+  const durationLabel = useMemo(() => {
+    const startMs = new Date(startTime).getTime();
+    const endMs = session?.endTime ? new Date(session.endTime).getTime() : nowTick;
+    if (!Number.isFinite(startMs) || endMs < startMs) return "Not started";
+    const mins = Math.max(0, Math.floor((endMs - startMs) / 60000));
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  }, [startTime, session?.endTime, nowTick]);
 
   async function save() {
     if (!locationId && !isEdit) {
-        setError("Missing location ID");
-        return;
+      setError("Missing location ID");
+      return;
     }
     setSaving(true);
     setError(null);
@@ -97,14 +130,14 @@ export default function SessionPage(props: {
       if (isEdit) {
         await db.sessions.update(id, {
           startTime: isoStart,
-          endTime: isFinished ? now : null,
+          endTime: isFinished ? session?.endTime || now : null,
           notes,
           isFinished,
           updatedAt: now,
         });
         setIsEditing(false);
       } else {
-        const session: Session = {
+        const newSession: Session = {
           id: finalId,
           projectId: props.projectId,
           localityId: locationId!,
@@ -115,7 +148,7 @@ export default function SessionPage(props: {
           createdAt: now,
           updatedAt: now,
         };
-        await db.sessions.add(session);
+        await db.sessions.add(newSession);
         setIsEditing(false);
         nav(`/session/${finalId}`, { replace: true });
       }
@@ -126,169 +159,323 @@ export default function SessionPage(props: {
     }
   }
 
-  async function finishSession() {
-    if (id) {
-        const now = new Date().toISOString();
-        await db.sessions.update(id, { isFinished: true, endTime: now });
-        setIsFinished(true);
-    }
-    nav(location ? `/location/${location.id}` : "/");
+  async function saveNotes() {
+    if (!id) return;
+    setSaving(true);
+    await db.sessions.update(id, { notes, updatedAt: new Date().toISOString() });
+    setSaving(false);
   }
 
-  if (loading) return <div className="p-10 text-center opacity-50 font-medium">Loading session...</div>;
+  async function finishSession() {
+    if (!id) return;
+    if (!confirm("Finish this field trip? You can still view and edit the record afterwards.")) return;
+    const now = new Date().toISOString();
+    await db.sessions.update(id, { isFinished: true, endTime: now, updatedAt: now });
+    setIsFinished(true);
+  }
+
+  async function appendGpsNote() {
+    if (!id) return;
+    setError(null);
+    try {
+      const fix = await captureGPS();
+      const accuracy = fix.accuracyM == null ? "unknown accuracy" : `+/-${Math.round(fix.accuracyM)}m`;
+      const line = `[${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}] GPS check: ${fix.lat.toFixed(6)}, ${fix.lon.toFixed(6)} ${accuracy}`;
+      const nextNotes = notes.trim() ? `${notes.trim()}\n${line}` : line;
+      setNotes(nextNotes);
+      await db.sessions.update(id, { notes: nextNotes, updatedAt: new Date().toISOString() });
+    } catch (e: any) {
+      setError(e?.message ?? "GPS failed");
+    }
+  }
+
+  async function addLocalityPhoto(files: FileList | null) {
+    if (!location || !files || files.length === 0) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const file = files[0];
+      const blob = await fileToBlob(file);
+      await db.media.add({
+        id: uuid(),
+        projectId: props.projectId,
+        localityId: location.id,
+        type: "photo",
+        filename: file.name,
+        mime: file.type || "image/jpeg",
+        blob,
+        caption: "Field trip locality photo",
+        scalePresent: false,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (e: any) {
+      setError(e?.message ?? "Photo save failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) return <div className="p-10 text-center font-medium opacity-50">Loading field trip...</div>;
+
+  const findCount = finds?.length ?? 0;
+  const photoCount = allMedia?.length ?? 0;
+  const isLive = isEdit && !isFinished;
 
   return (
-    <div className="max-w-4xl mx-auto pb-20 px-4">
-      <div className="grid gap-8 mt-4">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div className="flex flex-wrap gap-3 items-center">
-                <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100 uppercase tracking-tight">
-                    {isEdit ? "Session Details" : "New Session"}
-                </h2>
-                {isEdit && !isEditing && (
-                    <button 
-                        onClick={() => setIsEditing(true)}
-                        className="text-xs font-bold text-blue-600 hover:text-white hover:bg-blue-600 bg-blue-50 dark:bg-blue-900/20 px-3 py-1 rounded-lg border border-blue-200 dark:border-blue-800 transition-all"
-                    >
-                        ✎ Edit Details
-                    </button>
-                )}
-            </div>
-            <div className="flex gap-2 w-full sm:w-auto">
-                <button onClick={() => nav(location ? `/location/${location.id}` : "/")} className="text-xs sm:text-sm font-medium text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 bg-gray-50 dark:bg-gray-800 px-3 py-1 rounded-lg border border-gray-200 dark:border-gray-700 transition-colors flex-1 sm:flex-none">Back</button>
-            </div>
+    <div className="mx-auto grid max-w-6xl gap-5 pb-12">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-300">
+            {isLive ? "Live field trip" : isFinished ? "Closed field trip" : "New field trip session"}
+          </p>
+          <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950 dark:text-white">
+            {location?.name || "Field Trip"}
+          </h2>
         </div>
-
-        {error && (
-            <div className="border-2 border-red-200 bg-red-50 text-red-800 p-4 rounded-xl shadow-sm flex gap-3 items-center font-medium">
-                <span className="text-xl">⚠️</span> {error}
-            </div>
-        )}
-
-        <div className="grid lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-sm grid gap-6 h-fit">
-                {!isEditing && (
-                  <div className="flex flex-col gap-6">
-                    <div className="flex flex-col sm:flex-row justify-between items-start gap-6">
-                        <div className="min-w-0 flex-1">
-                            <p className="text-blue-600 dark:text-blue-400 font-black text-[10px] uppercase tracking-widest mb-1 truncate">📍 {location?.name || "Unknown Location"}</p>
-                            <div className="flex flex-wrap items-center gap-3">
-                                <h3 className="text-xl sm:text-2xl font-black text-gray-800 dark:text-gray-100 break-words">{new Date(startTime).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h3>
-                                {isFinished && (
-                                    <span className="bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-widest border border-gray-200 dark:border-gray-600 whitespace-nowrap">Session Closed</span>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {!isFinished ? (
-                            <button 
-                                onClick={finishSession}
-                                className="bg-blue-50 dark:bg-blue-950/20 border-2 border-blue-100 dark:border-blue-800 p-6 rounded-2xl flex flex-col items-center justify-center gap-1 group hover:bg-blue-600 hover:border-blue-600 transition-all shadow-sm"
-                            >
-                                <span className="text-2xl group-hover:scale-110 transition-transform">✓</span>
-                                <span className="text-xs font-black uppercase tracking-widest text-blue-700 dark:text-blue-400 group-hover:text-white">Finish Session</span>
-                            </button>
-                        ) : (
-                            <div className="bg-gray-100 dark:bg-gray-800/50 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 flex flex-col items-center justify-center gap-1 opacity-60">
-                                <span className="text-2xl">🔒</span>
-                                <span className="text-[10px] font-black uppercase tracking-widest">Visit Logged</span>
-                            </div>
-                        )}
-
-                        <div className="bg-gray-50 dark:bg-gray-900/50 p-6 rounded-2xl border border-gray-100 dark:border-gray-800 flex flex-col justify-center">
-                            <h4 className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-1">Time Started</h4>
-                            <p className="font-mono font-bold text-gray-700 dark:text-gray-200">{new Date(startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                        </div>
-                    </div>
-
-                    {notes && (
-                        <div className="bg-gray-50 dark:bg-gray-900/50 p-6 rounded-2xl border border-gray-100 dark:border-gray-800">
-                            <h4 className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-2">Session Notes</h4>
-                            <p className="text-sm opacity-80 whitespace-pre-wrap italic">{notes}</p>
-                        </div>
-                    )}
-                  </div>
-                )}
-
-                {isEditing && (
-                  <>
-                    <label className="block">
-                        <div className="mb-2 text-sm font-bold text-gray-700 dark:text-gray-300">Start Date & Time</div>
-                        <input 
-                            type="datetime-local" 
-                            value={startTime} 
-                            onChange={(e) => setStartTime(e.target.value)} 
-                            className="w-full bg-white dark:bg-gray-900 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-3.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"
-                        />
-                    </label>
-
-                    <label className="block">
-                        <div className="mb-2 text-sm font-bold text-gray-700 dark:text-gray-300">Session Notes</div>
-                        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} className="w-full bg-white dark:bg-gray-900 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-3.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium" placeholder="Ground conditions, team members, etc." />
-                    </label>
-
-                    <div className="flex gap-4">
-                        <button onClick={save} disabled={saving} className="mt-4 flex-1 bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-2xl font-black text-xl shadow-xl transition-all disabled:opacity-50">
-                            {saving ? "Saving..." : isEdit ? "Save Details ✓" : "Start Session →"}
-                        </button>
-                        {isEdit && (
-                            <button 
-                                onClick={() => setIsEditing(false)}
-                                className="mt-4 bg-gray-100 dark:bg-gray-800 text-gray-500 px-6 py-4 rounded-2xl font-bold transition-all"
-                            >
-                                Cancel
-                            </button>
-                        )}
-                    </div>
-                  </>
-                )}
-            </div>
-
-            <div className="bg-gray-50 dark:bg-gray-900/30 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-inner h-fit">
-                <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100 m-0">Finds</h3>
-                    <div className="text-xs font-mono bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded font-bold">{finds?.length ?? 0} total</div>
-                </div>
-
-                {!isEdit && (
-                    <div className="text-center py-10 opacity-50 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl italic text-sm px-4">
-                        Save this session first to start recording finds!
-                    </div>
-                )}
-
-                {isEdit && (
-                    <div className="grid gap-3">
-                        {!isFinished && (
-                            <button 
-                                onClick={() => nav(`/specimen?localityId=${location?.id}&sessionId=${id}`)}
-                                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold shadow-md transition-all flex items-center justify-center gap-2 mb-2"
-                            >
-                                Add Find to Session
-                            </button>
-                        )}
-
-                        {finds && finds.length > 0 ? (
-                            finds.map((s) => (
-                                <SpecimenRow 
-                                    key={s.id} 
-                                    specimen={s} 
-                                    thumbMedia={findThumbMedia?.get(s.id) ?? null} 
-                                    onOpen={() => setOpenFindId(s.id)} 
-                                />
-                            ))
-                        ) : (
-                            <div className="text-center py-10 opacity-50 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl italic text-sm">
-                                No finds yet for this session.
-                            </div>
-                        )}
-                    </div>
-                )}
-            </div>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => nav(location ? `/location/${location.id}` : "/")} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">
+            <ArrowLeft className="h-4 w-4" />
+            Location
+          </button>
+          {isEdit && !isEditing && (
+            <button onClick={() => setIsEditing(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">
+              <FileText className="h-4 w-4" />
+              Edit details
+            </button>
+          )}
         </div>
       </div>
-      {openFindId && <SpecimenModal specimenId={openFindId} onClose={() => setOpenFindId(null)} />}
+
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-100">
+          {error}
+        </div>
+      )}
+
+      <section className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="grid gap-4">
+          {!isEditing ? (
+            <>
+              <div className={`rounded-lg border p-5 shadow-sm ${isLive ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/25" : "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"}`}>
+                <div className="grid gap-4 sm:grid-cols-4">
+                  <Metric icon={Clock} label="Duration" value={durationLabel} />
+                  <Metric icon={Microscope} label="Finds" value={String(findCount)} />
+                  <Metric icon={Camera} label="Find photos" value={String(photoCount)} />
+                  <Metric icon={MapPin} label="Site photos" value={String(localityPhotoCount ?? 0)} />
+                </div>
+              </div>
+
+              {isLive ? (
+                <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                  <h3 className="text-lg font-black text-slate-950 dark:text-white">Field controls</h3>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Large actions for use outdoors while the session is active.</p>
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                    <ActionButton icon={Plus} label="Add Find" detail="Record a specimen in this trip" onClick={() => nav(`/specimen?localityId=${location?.id}&sessionId=${id}`)} tone="emerald" />
+                    <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-sky-200 bg-sky-50 p-4 text-left text-sky-950 transition-colors hover:bg-sky-100 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-100">
+                      <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-white/75 dark:bg-slate-950/45">
+                        <Camera className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="font-black">Take Site Photo</p>
+                        <p className="text-xs opacity-70">Exposure, cliff fall, quarry face or context</p>
+                      </div>
+                      <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => addLocalityPhoto(e.target.files)} />
+                    </label>
+                    <ActionButton icon={Compass} label="GPS Note" detail="Append a current GPS fix to notes" onClick={appendGpsNote} tone="slate" />
+                    <ActionButton icon={Waves} label="Check Tides" detail="Open the tide planning tool" onClick={() => nav("/tides")} tone="blue" />
+                    <ActionButton icon={Square} label="Finish Trip" detail="Close this active field session" onClick={finishSession} tone="amber" />
+                    <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 text-left text-slate-950 transition-colors hover:bg-white dark:border-slate-800 dark:bg-slate-950/45 dark:text-white dark:hover:bg-slate-950">
+                      <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-white dark:bg-slate-900">
+                        <Upload className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="font-black">Upload Site Photo</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Add saved camera images to the locality</p>
+                      </div>
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => addLocalityPhoto(e.target.files)} />
+                    </label>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                  <div className="flex gap-3">
+                    <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+                    <div>
+                      <h3 className="font-black text-slate-950 dark:text-white">Visit logged</h3>
+                      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">This session is closed. You can still edit notes or review finds.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-lg font-black text-slate-950 dark:text-white">Session notes</h3>
+                  {isEdit && (
+                    <button onClick={saveNotes} disabled={saving} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black text-white hover:bg-emerald-700 disabled:opacity-50">
+                      <Save className="h-3.5 w-3.5" />
+                      Save notes
+                    </button>
+                  )}
+                </div>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={6}
+                  placeholder="Ground conditions, tide window, team members, productive beds, access notes..."
+                  className="mt-3 w-full rounded-lg border border-slate-200 bg-white p-3 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-200 dark:border-slate-700 dark:bg-slate-950 dark:focus:ring-emerald-900/50"
+                />
+              </div>
+            </>
+          ) : (
+            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <h3 className="text-lg font-black text-slate-950 dark:text-white">{isEdit ? "Session details" : "Start a session"}</h3>
+              <div className="mt-5 grid gap-5">
+                <label className="grid gap-1.5">
+                  <span className="text-sm font-black text-slate-700 dark:text-slate-200">Start date and time</span>
+                  <input
+                    type="datetime-local"
+                    value={startTime}
+                    onChange={(e) => setStartTime(e.target.value)}
+                    className="rounded-lg border border-slate-200 bg-white p-3 text-sm font-medium outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-200 dark:border-slate-700 dark:bg-slate-950 dark:focus:ring-emerald-900/50"
+                  />
+                </label>
+                <label className="grid gap-1.5">
+                  <span className="text-sm font-black text-slate-700 dark:text-slate-200">Session notes</span>
+                  <textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    rows={5}
+                    className="rounded-lg border border-slate-200 bg-white p-3 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-200 dark:border-slate-700 dark:bg-slate-950 dark:focus:ring-emerald-900/50"
+                    placeholder="Ground conditions, team members, access constraints..."
+                  />
+                </label>
+                <label className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/45">
+                  <input type="checkbox" checked={isFinished} onChange={(e) => setIsFinished(e.target.checked)} className="h-5 w-5 rounded border-slate-300 text-emerald-600" />
+                  <span className="text-sm font-black text-slate-700 dark:text-slate-200">Mark this session as finished</span>
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={save} disabled={saving} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-3 text-sm font-black text-white hover:bg-emerald-700 disabled:opacity-50">
+                    <Save className="h-4 w-4" />
+                    {saving ? "Saving..." : isEdit ? "Save details" : "Start session"}
+                  </button>
+                  {isEdit && (
+                    <button onClick={() => setIsEditing(false)} className="rounded-lg border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <aside className="grid content-start gap-4">
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-black text-slate-950 dark:text-white">Finds</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">{findCount} recorded in this trip.</p>
+              </div>
+              {isLive && (
+                <button onClick={() => nav(`/specimen?localityId=${location?.id}&sessionId=${id}`)} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black text-white hover:bg-emerald-700">
+                  <Plus className="h-3.5 w-3.5" />
+                  Add
+                </button>
+              )}
+            </div>
+
+            {!isEdit && (
+              <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950/45 dark:text-slate-400">
+                Save this session first to start recording finds.
+              </div>
+            )}
+
+            {isEdit && (
+              <div className="grid gap-3">
+                {finds && finds.length > 0 ? (
+                  finds.map((s: Specimen) => (
+                    <SpecimenRow
+                      key={s.id}
+                      specimen={s}
+                      thumbMedia={findThumbMedia?.get(s.id) ?? null}
+                      onOpen={() => setOpenFindId(s.id)}
+                    />
+                  ))
+                ) : (
+                  <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950/45 dark:text-slate-400">
+                    No finds yet for this session.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 text-amber-950 shadow-sm dark:border-amber-900 dark:bg-amber-950/25 dark:text-amber-100">
+            <div className="flex gap-3">
+              <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0" />
+              <div>
+                <h3 className="font-black">Field safety context</h3>
+                <ul className="mt-2 grid gap-1.5 text-xs leading-relaxed opacity-80">
+                  <li>{location?.sssi || location?.rigs ? "Protected-site flag present. Check designation notes before collecting." : "No SSSI/RIGS flag recorded on this locality."}</li>
+                  <li>{location?.permissionGranted ? "Permission is marked as granted." : "Permission is not marked as granted."}</li>
+                  <li>Use tide and weather checks for foreshore or cliff-base collecting.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      {openFindId && (
+        <React.Suspense fallback={null}>
+          <SpecimenModal specimenId={openFindId} onClose={() => setOpenFindId(null)} />
+        </React.Suspense>
+      )}
     </div>
+  );
+}
+
+function Metric({ icon: Icon, label, value }: { icon: React.ComponentType<{ className?: string }>; label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-white/50 bg-white/80 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/45">
+      <div className="mb-2 flex items-center justify-between">
+        <Icon className="h-4 w-4 text-emerald-700 dark:text-emerald-300" />
+        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</span>
+      </div>
+      <p className="text-2xl font-black text-slate-950 dark:text-white">{value}</p>
+    </div>
+  );
+}
+
+function ActionButton({
+  icon: Icon,
+  label,
+  detail,
+  onClick,
+  tone,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  detail: string;
+  onClick: () => void;
+  tone: "emerald" | "blue" | "amber" | "slate";
+}) {
+  const tones = {
+    emerald: "border-emerald-200 bg-emerald-50 text-emerald-950 hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100",
+    blue: "border-sky-200 bg-sky-50 text-sky-950 hover:bg-sky-100 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-100",
+    amber: "border-amber-200 bg-amber-50 text-amber-950 hover:bg-amber-100 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100",
+    slate: "border-slate-200 bg-slate-50 text-slate-950 hover:bg-white dark:border-slate-800 dark:bg-slate-950/45 dark:text-white dark:hover:bg-slate-950",
+  };
+  return (
+    <button onClick={onClick} className={`flex items-center gap-3 rounded-lg border p-4 text-left transition-colors ${tones[tone]}`}>
+      <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-white/75 dark:bg-slate-950/45">
+        <Icon className="h-5 w-5" />
+      </div>
+      <div>
+        <p className="font-black">{label}</p>
+        <p className="text-xs opacity-70">{detail}</p>
+      </div>
+    </button>
   );
 }

@@ -1,23 +1,57 @@
 import { db, Media } from "../db";
 
-export async function exportData(): Promise<string> {
+export type ExportOptions = {
+  includeMedia?: boolean;
+};
+
+export type ImportPreview = {
+  projects: number;
+  localities: number;
+  sessions: number;
+  specimens: number;
+  media: number;
+  settings: number;
+  exportedAt?: string;
+  version?: number;
+};
+
+export type ImportConflictPreview = ImportPreview & {
+  conflicts: {
+    overwrittenIds: {
+      projects: number;
+      localities: number;
+      sessions: number;
+      specimens: number;
+      media: number;
+      settings: number;
+    };
+    localityNames: string[];
+    specimenCodes: string[];
+  };
+};
+
+export async function exportData(options: ExportOptions = {}): Promise<string> {
+  const includeMedia = options.includeMedia ?? true;
   const projects = await db.projects.toArray();
   const localities = await db.localities.toArray();
   const sessions = await db.sessions.toArray();
   const specimens = await db.specimens.toArray();
   const settings = await db.settings.toArray();
   
-  const media = await db.media.toArray();
-  const mediaExport = await Promise.all(media.map(async (m) => {
-    return {
-      ...m,
-      blob: await blobToBase64(m.blob)
-    };
-  }));
+  const media = includeMedia ? await db.media.toArray() : [];
+  const mediaExport = includeMedia
+    ? await Promise.all(media.map(async (m) => {
+        return {
+          ...m,
+          blob: await blobToBase64(m.blob)
+        };
+      }))
+    : [];
 
   const data = {
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
+    mediaIncluded: includeMedia,
     projects,
     localities,
     sessions,
@@ -27,6 +61,114 @@ export async function exportData(): Promise<string> {
   };
 
   return JSON.stringify(data, null, 2);
+}
+
+export async function getDataStats() {
+  const [projects, localities, sessions, specimens, media, settings] = await Promise.all([
+    db.projects.count(),
+    db.localities.count(),
+    db.sessions.count(),
+    db.specimens.count(),
+    db.media.count(),
+    db.settings.count(),
+  ]);
+
+  let mediaBytes = 0;
+  const mediaRows = await db.media.toArray();
+  for (const item of mediaRows) mediaBytes += item.blob?.size ?? 0;
+
+  let storageEstimate: { usage?: number; quota?: number } | null = null;
+  try {
+    storageEstimate = navigator.storage?.estimate ? await navigator.storage.estimate() : null;
+  } catch {
+    storageEstimate = null;
+  }
+
+  return {
+    projects,
+    localities,
+    sessions,
+    specimens,
+    media,
+    settings,
+    mediaBytes,
+    storageUsageBytes: storageEstimate?.usage ?? null,
+    storageQuotaBytes: storageEstimate?.quota ?? null,
+  };
+}
+
+function parseImport(json: string) {
+  const data = JSON.parse(json);
+  if (!data.projects || !Array.isArray(data.projects)) throw new Error("Invalid format: missing projects");
+  return data;
+}
+
+function buildPreview(data: any): ImportPreview {
+  return {
+    projects: data.projects?.length ?? 0,
+    localities: data.localities?.length ?? 0,
+    sessions: data.sessions?.length ?? 0,
+    specimens: data.specimens?.length ?? 0,
+    media: data.media?.length ?? 0,
+    settings: data.settings?.length ?? 0,
+    exportedAt: data.exportedAt,
+    version: data.version,
+  };
+}
+
+export function previewImport(json: string): ImportPreview {
+  return buildPreview(parseImport(json));
+}
+
+export async function previewImportConflicts(json: string): Promise<ImportConflictPreview> {
+  const data = parseImport(json);
+  const preview = buildPreview(data);
+
+  const [projects, localities, sessions, specimens, media, settings] = await Promise.all([
+    db.projects.toArray(),
+    db.localities.toArray(),
+    db.sessions.toArray(),
+    db.specimens.toArray(),
+    db.media.toArray(),
+    db.settings.toArray(),
+  ]);
+
+  const idSet = {
+    projects: new Set(projects.map((item) => item.id)),
+    localities: new Set(localities.map((item) => item.id)),
+    sessions: new Set(sessions.map((item) => item.id)),
+    specimens: new Set(specimens.map((item) => item.id)),
+    media: new Set(media.map((item) => item.id)),
+    settings: new Set(settings.map((item) => item.key)),
+  };
+
+  const normalise = (value: unknown) => String(value ?? "").trim().toLowerCase();
+  const currentLocalityNames = new Set(localities.map((item) => normalise(item.name)).filter(Boolean));
+  const currentSpecimenCodes = new Set(specimens.map((item) => normalise(item.specimenCode)).filter(Boolean));
+
+  const localityNames = Array.from(
+    new Set<string>((data.localities ?? []).map((item: any) => String(item.name ?? "").trim()).filter((name: string) => currentLocalityNames.has(normalise(name))))
+  ).slice(0, 10);
+
+  const specimenCodes = Array.from(
+    new Set<string>((data.specimens ?? []).map((item: any) => String(item.specimenCode ?? "").trim()).filter((code: string) => currentSpecimenCodes.has(normalise(code))))
+  ).slice(0, 10);
+
+  return {
+    ...preview,
+    conflicts: {
+      overwrittenIds: {
+        projects: (data.projects ?? []).filter((item: any) => idSet.projects.has(item.id)).length,
+        localities: (data.localities ?? []).filter((item: any) => idSet.localities.has(item.id)).length,
+        sessions: (data.sessions ?? []).filter((item: any) => idSet.sessions.has(item.id)).length,
+        specimens: (data.specimens ?? []).filter((item: any) => idSet.specimens.has(item.id)).length,
+        media: (data.media ?? []).filter((item: any) => idSet.media.has(item.id)).length,
+        settings: (data.settings ?? []).filter((item: any) => idSet.settings.has(item.key)).length,
+      },
+      localityNames,
+      specimenCodes,
+    },
+  };
 }
 
 export async function exportToCSV(): Promise<string> {
@@ -67,9 +209,7 @@ export async function exportToCSV(): Promise<string> {
 }
 
 export async function importData(json: string) {
-  const data = JSON.parse(json);
-  
-  if (!data.projects || !Array.isArray(data.projects)) throw new Error("Invalid format: missing projects");
+  const data = parseImport(json);
 
   await db.transaction("rw", [db.projects, db.localities, db.sessions, db.specimens, db.media, db.settings], async () => {
     await db.projects.bulkPut(data.projects);

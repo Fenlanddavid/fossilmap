@@ -18,7 +18,11 @@ export function SpecimenThumbnail({ specimenId, className, imgClassName }: {
     if (!items || items.length === 0) return null;
     
     // Sort locally by createdAt to find the earliest one
-    return items.sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""))[0];
+    return items.sort((a, b) => {
+        const aDate = a?.createdAt || "";
+        const bDate = b?.createdAt || "";
+        return aDate.localeCompare(bDate);
+    })[0];
   }, [specimenId]);
 
   if (!media) {

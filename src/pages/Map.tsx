@@ -6,12 +6,24 @@ import { db, Specimen, Media } from "../db";
 import { v4 as uuid } from "uuid";
 import { MapFilterBar } from "../components/MapFilterBar";
 import { LocalityPanel } from "../components/LocalityPanel";
-import { SpecimenModal } from "../components/SpecimenModal";
 import { LocalityQuickAddModal } from "../components/LocalityQuickAddModal";
 import { useNavigate } from "react-router-dom";
 
+const SpecimenModal = React.lazy(() =>
+  import("../components/SpecimenModal").then((mod) => ({ default: mod.SpecimenModal }))
+);
+
 const DEFAULT_CENTER: [number, number] = [-2.0, 54.5];
 const DEFAULT_ZOOM = 5;
+const PALETTE = ["#059669", "#2563eb", "#7c3aed", "#d97706", "#dc2626", "#0891b2", "#4f46e5", "#65a30d"];
+
+function hashColor(value: string, fallback = "#64748b") {
+  const key = value.trim();
+  if (!key) return fallback;
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+  return PALETTE[hash % PALETTE.length];
+}
 
 type SelectedLocality = {
   id: string;
@@ -48,12 +60,14 @@ export default function MapPage({ projectId }: { projectId: string }) {
   
   // Map Style
   const [mapStyleMode, setMapStyleMode] = useState<"streets" | "satellite">("streets");
+  const [colorMode, setColorMode] = useState<"status" | "period" | "formation" | "taxon">("status");
 
   // Selection / modals
   const [selected, setSelected] = useState<SelectedLocality | null>(null);
   const [openSpecimenId, setOpenSpecimenId] = useState<string | null>(null);
   const [addingLocalityAt, setAddingLocalityAt] = useState<{ lat: number; lon: number } | null>(null);
   const [highlightedLocalityId, setHighlightedLocalityId] = useState<string | null>(null);
+  const [tileErrorCount, setTileErrorCount] = useState(0);
 
   // Data
   const localities = useLiveQuery(async () => {
@@ -120,6 +134,46 @@ export default function MapPage({ projectId }: { projectId: string }) {
     return map;
   }, [specimens, specimenPassesDateFilter]);
 
+  const dominantTaxonByLocality = useMemo(() => {
+    const counts = new Map<string, Map<string, number>>();
+    for (const s of specimens ?? []) {
+      if (!specimenPassesDateFilter(s)) continue;
+      const taxon = (s.taxon || "Unidentified").trim() || "Unidentified";
+      if (!counts.has(s.localityId)) counts.set(s.localityId, new Map());
+      const taxonCounts = counts.get(s.localityId)!;
+      taxonCounts.set(taxon, (taxonCounts.get(taxon) ?? 0) + 1);
+    }
+    const out = new Map<string, string>();
+    for (const [localityId, taxonCounts] of counts) {
+      const top = Array.from(taxonCounts.entries()).sort((a, b) => b[1] - a[1])[0];
+      if (top) out.set(localityId, top[0]);
+    }
+    return out;
+  }, [specimens, specimenPassesDateFilter]);
+
+  const markerMetaByLocality = useMemo(() => {
+    const out = new Map<string, { markerColor: string; colorLabel: string }>();
+    for (const l of localities ?? []) {
+      if (colorMode === "period") {
+        const label = l.period || "No period";
+        out.set(l.id, { markerColor: hashColor(label, "#64748b"), colorLabel: label });
+      } else if (colorMode === "formation") {
+        const label = l.formation || "No formation";
+        out.set(l.id, { markerColor: hashColor(label, "#64748b"), colorLabel: label });
+      } else if (colorMode === "taxon") {
+        const label = dominantTaxonByLocality.get(l.id) || "No finds";
+        out.set(l.id, { markerColor: hashColor(label, "#64748b"), colorLabel: label });
+      } else {
+        const label = l.sssi || l.rigs ? "Protected flag" : (l.type === "trip" ? "Trip" : "Location");
+        out.set(l.id, {
+          markerColor: l.sssi || l.rigs ? "#d97706" : l.type === "trip" ? "#059669" : "#2563eb",
+          colorLabel: label,
+        });
+      }
+    }
+    return out;
+  }, [localities, colorMode, dominantTaxonByLocality]);
+
   const filteredLocalities = useMemo(() => {
     let out = localities ?? [];
     if (filterFormation.trim()) out = out.filter((l) => (l.formation || "").trim() === filterFormation.trim());
@@ -155,10 +209,24 @@ export default function MapPage({ projectId }: { projectId: string }) {
           formation: l.formation || "",
           lithology: l.lithologyPrimary || "",
           specimenCount: specimenCountByLocality.get(l.id) ?? 0,
+          dominantTaxon: dominantTaxonByLocality.get(l.id) || "",
+          markerColor: markerMetaByLocality.get(l.id)?.markerColor || "#059669",
+          colorLabel: markerMetaByLocality.get(l.id)?.colorLabel || "",
         },
       })),
     };
-  }, [filteredLocalities, specimenCountByLocality]);
+  }, [filteredLocalities, specimenCountByLocality, dominantTaxonByLocality, markerMetaByLocality]);
+
+  const legendItems = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const l of filteredLocalities) {
+      const meta = markerMetaByLocality.get(l.id);
+      if (!meta) continue;
+      map.set(meta.colorLabel, meta.markerColor);
+      if (map.size >= 8) break;
+    }
+    return Array.from(map.entries()).map(([label, color]) => ({ label, color }));
+  }, [filteredLocalities, markerMetaByLocality]);
 
   const selectedSpecimens = useLiveQuery(async () => {
     if (!selected) return [];
@@ -170,7 +238,11 @@ export default function MapPage({ projectId }: { projectId: string }) {
     if (!selectedSpecimens || selectedSpecimens.length === 0) return new Map<string, Media>();
     const ids = selectedSpecimens.map((s) => s.id);
     const mediaRows = await db.media.where("specimenId").anyOf(ids).toArray();
-    mediaRows.sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""));
+    mediaRows.sort((a, b) => {
+        const aDate = a?.createdAt || "";
+        const bDate = b?.createdAt || "";
+        return aDate.localeCompare(bDate);
+    });
     const m = new Map<string, Media>();
     for (const row of mediaRows) {
       if (row.specimenId && !m.has(row.specimenId)) {
@@ -191,6 +263,7 @@ export default function MapPage({ projectId }: { projectId: string }) {
 
     const style: any = {
         version: 8,
+        glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
         sources: {
             "raster-tiles": {
                 type: "raster",
@@ -216,6 +289,7 @@ export default function MapPage({ projectId }: { projectId: string }) {
 
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
     map.addControl(new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: true }), "top-right");
+    map.on("error", () => setTileErrorCount((count) => Math.min(count + 1, 10)));
 
     map.on("load", () => {
       map.addSource("localities", {
@@ -257,11 +331,7 @@ export default function MapPage({ projectId }: { projectId: string }) {
           "circle-radius": ["step", ["get", "specimenCount"], 8, 1, 10, 5, 12, 20, 14],
           "circle-stroke-width": 2,
           "circle-stroke-color": "#ffffff",
-          "circle-color": ["case", 
-            ["==", ["get", "sssi"], 1], "#d97706", 
-            ["==", ["get", "rigs"], 1], "#d97706",
-            "#059669"
-          ],
+          "circle-color": ["get", "markerColor"],
         },
       });
 
@@ -473,10 +543,41 @@ export default function MapPage({ projectId }: { projectId: string }) {
         needsKey={false}
         mapStyleMode={mapStyleMode}
         setMapStyleMode={setMapStyleMode}
+        colorMode={colorMode}
+        setColorMode={setColorMode}
       />
 
       <div className="flex-1 relative border-2 border-gray-100 dark:border-gray-800 rounded-3xl overflow-hidden shadow-inner bg-gray-50 dark:bg-black">
         <div ref={mapDivRef} className="absolute inset-0" />
+        {tileErrorCount >= 3 && (
+          <div className="absolute right-3 top-3 z-10 max-w-xs rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950 shadow-lg dark:border-amber-900 dark:bg-amber-950/80 dark:text-amber-100">
+            <strong className="block font-black">Map tiles are having trouble loading</strong>
+            <span className="mt-1 block leading-relaxed">Your fossil records and filters still work. Check your connection if the base map stays blank.</span>
+          </div>
+        )}
+        {filteredLocalities.length === 0 && (
+          <div className="pointer-events-none absolute inset-0 z-[5] grid place-items-center p-6">
+            <div className="max-w-sm rounded-2xl border border-white/70 bg-white/92 p-5 text-center shadow-xl backdrop-blur dark:border-slate-700 dark:bg-slate-900/92">
+              <h3 className="text-base font-black text-slate-950 dark:text-white">No mapped records yet</h3>
+              <p className="mt-2 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
+                Add GPS to a locality or specimen, then use the filters and colour modes to review patterns.
+              </p>
+            </div>
+          </div>
+        )}
+        <div className="absolute left-3 top-3 z-10 max-w-[calc(100%-1.5rem)] rounded-xl border border-white/70 bg-white/90 p-3 text-xs shadow-lg backdrop-blur dark:border-slate-700 dark:bg-slate-900/90">
+          <div className="mb-2 font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Legend: {colorMode}</div>
+          <div className="flex flex-wrap gap-2">
+            {legendItems.length > 0 ? legendItems.map(item => (
+              <span key={item.label} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2 py-1 font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                {item.label}
+              </span>
+            )) : (
+              <span className="text-slate-500 dark:text-slate-400">No mapped records in this filter.</span>
+            )}
+          </div>
+        </div>
         
         {/* Selection overlay */}
         {selected && (
@@ -500,7 +601,9 @@ export default function MapPage({ projectId }: { projectId: string }) {
       </div>
 
       {openSpecimenId && (
-        <SpecimenModal specimenId={openSpecimenId} onClose={() => setOpenSpecimenId(null)} />
+        <React.Suspense fallback={null}>
+          <SpecimenModal specimenId={openSpecimenId} onClose={() => setOpenSpecimenId(null)} />
+        </React.Suspense>
       )}
 
       {addingLocalityAt && (

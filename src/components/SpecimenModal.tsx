@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, Specimen, Media } from "../db";
 import { Modal } from "./Modal";
@@ -10,10 +11,14 @@ import { ScaledImage } from "./ScaledImage";
 import { PhotoAnnotator } from "./PhotoAnnotator";
 import { captureGPS } from "../services/gps";
 import { uploadSharedFind, deleteSharedFind } from "../services/supabase";
-import { LocationPickerModal } from "./LocationPickerModal";
 import { calculateQualityScore, generateHRID, getQualityColor, getQualityLabel } from "../services/research";
 
+const LocationPickerModal = React.lazy(() =>
+  import("./LocationPickerModal").then((mod) => ({ default: mod.LocationPickerModal }))
+);
+
 export function SpecimenModal(props: { specimenId: string; onClose: () => void }) {
+  const navigate = useNavigate();
   const specimen = useLiveQuery(async () => db.specimens.get(props.specimenId), [props.specimenId]);
   const media = useLiveQuery(async () => db.media.where("specimenId").equals(props.specimenId).toArray(), [props.specimenId]);
   const [draft, setDraft] = useState<Specimen | null>(null);
@@ -275,10 +280,13 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
             </div>
         )}
         <button 
-            onClick={() => setIsEditing(!isEditing)}
-            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all shadow-sm ${isEditing ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'}`}
+            onClick={() => {
+              props.onClose();
+              navigate(`/specimen?id=${draft.id}`);
+            }}
+            className="px-3 py-1 rounded-lg text-xs font-bold transition-all shadow-sm bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200"
         >
-            {isEditing ? "Viewing..." : "Edit Details"}
+            Edit Details
         </button>
     </div>
   );
@@ -656,6 +664,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
       )}
 
       {isPickingLocation && draft && (
+        <React.Suspense fallback={null}>
           <LocationPickerModal 
               initialLat={draft.lat}
               initialLon={draft.lon}
@@ -665,6 +674,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
                   setIsPickingLocation(false);
               }}
           />
+        </React.Suspense>
       )}
     </>
   );

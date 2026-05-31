@@ -14,7 +14,11 @@ export function LocalityThumbnail({ localityId, className, imgClassName, onHasMe
     const hasMedia = items && items.length > 0;
     if (onHasMedia) onHasMedia(hasMedia);
     if (!hasMedia) return null;
-    return items.sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""))[0];
+    return items.sort((a, b) => {
+        const aDate = a?.createdAt || "";
+        const bDate = b?.createdAt || "";
+        return aDate.localeCompare(bDate);
+    })[0];
   }, [localityId]);
 
   if (!media) return null;

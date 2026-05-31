@@ -2,8 +2,11 @@ import React, { useState, useEffect } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../db";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { SpecimenModal } from "../components/SpecimenModal";
 import { SpecimenThumbnail } from "../components/SpecimenThumbnail";
+
+const SpecimenModal = React.lazy(() =>
+  import("../components/SpecimenModal").then((mod) => ({ default: mod.SpecimenModal }))
+);
 
 export default function AllFinds(props: { projectId: string }) {
   const [searchParams] = useSearchParams();
@@ -120,10 +123,12 @@ export default function AllFinds(props: { projectId: string }) {
       )}
 
       {openSpecimenId && (
-        <SpecimenModal 
-          specimenId={openSpecimenId} 
-          onClose={() => setOpenSpecimenId(null)} 
-        />
+        <React.Suspense fallback={null}>
+          <SpecimenModal
+            specimenId={openSpecimenId}
+            onClose={() => setOpenSpecimenId(null)}
+          />
+        </React.Suspense>
       )}
     </div>
   );

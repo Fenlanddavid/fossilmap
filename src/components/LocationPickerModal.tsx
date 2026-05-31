@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import maplibregl from "maplibre-gl";
+import type { Map as MapLibreMap, Marker as MapLibreMarker } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { Modal } from "./Modal";
 
@@ -10,16 +10,21 @@ export function LocationPickerModal(props: {
   onSelect: (lat: number, lon: number) => void;
 }) {
   const mapDivRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<maplibregl.Map | null>(null);
-  const markerRef = useRef<maplibregl.Marker | null>(null);
+  const mapRef = useRef<MapLibreMap | null>(null);
+  const markerRef = useRef<MapLibreMarker | null>(null);
 
-  const [lat, setLat] = useState(props.initialLat || 54.5);
-  const [lon, setLon] = useState(props.initialLon || -2.0);
-  const [zoom] = useState(props.initialLat ? 16 : 6);
+  const [lat, setLat] = useState(props.initialLat ?? 54.5);
+  const [lon, setLon] = useState(props.initialLon ?? -2.0);
+  const [zoom] = useState(props.initialLat != null ? 16 : 6);
   const [mapStyle, setMapStyle] = useState<"streets" | "satellite">("streets");
+  const [mapReady, setMapReady] = useState(false);
+  const [tileErrorCount, setTileErrorCount] = useState(0);
 
   useEffect(() => {
     if (!mapDivRef.current) return;
+    let disposed = false;
+    setMapReady(false);
+    setTileErrorCount(0);
 
     let tiles: string[] = [];
     let attribution = "";
@@ -35,47 +40,62 @@ export function LocationPickerModal(props: {
             break;
     }
 
-    const map = new maplibregl.Map({
-      container: mapDivRef.current,
-      style: {
-        version: 8,
-        sources: {
-          "raster-tiles": {
-            type: "raster",
-            tiles: tiles,
-            tileSize: 256,
-            attribution: attribution
-          }
+    import("maplibre-gl").then(({ default: maplibregl }) => {
+      if (disposed || !mapDivRef.current) return;
+
+      const map = new maplibregl.Map({
+        container: mapDivRef.current,
+        style: {
+          version: 8,
+          glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
+          sources: {
+            "raster-tiles": {
+              type: "raster",
+              tiles,
+              tileSize: 256,
+              attribution,
+            },
+          },
+          layers: [{ id: "simple-tiles", type: "raster", source: "raster-tiles", minzoom: 0, maxzoom: 22 }],
         },
-        layers: [{ id: "simple-tiles", type: "raster", source: "raster-tiles", minzoom: 0, maxzoom: 22 }]
-      },
-      center: [lon, lat],
-      zoom: zoom,
+        center: [lon, lat],
+        zoom,
+      });
+
+      map.addControl(new maplibregl.NavigationControl(), "top-right");
+      map.addControl(new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: true }), "top-right");
+
+      const marker = new maplibregl.Marker({ draggable: true })
+        .setLngLat([lon, lat])
+        .addTo(map);
+
+      marker.on("dragend", () => {
+        const lngLat = marker.getLngLat();
+        setLat(lngLat.lat);
+        setLon(lngLat.lng);
+      });
+
+      map.on("click", (e) => {
+        marker.setLngLat(e.lngLat);
+        setLat(e.lngLat.lat);
+        setLon(e.lngLat.lng);
+      });
+
+      map.on("load", () => setMapReady(true));
+      map.on("error", () => setTileErrorCount((count) => Math.min(count + 1, 10)));
+
+      mapRef.current = map;
+      markerRef.current = marker;
+    }).catch(() => {
+      if (!disposed) setTileErrorCount(10);
     });
 
-    map.addControl(new maplibregl.NavigationControl(), "top-right");
-    map.addControl(new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: true }), "top-right");
-
-    const marker = new maplibregl.Marker({ draggable: true })
-      .setLngLat([lon, lat])
-      .addTo(map);
-
-    marker.on("dragend", () => {
-      const lngLat = marker.getLngLat();
-      setLat(lngLat.lat);
-      setLon(lngLat.lng);
-    });
-
-    map.on("click", (e) => {
-      marker.setLngLat(e.lngLat);
-      setLat(e.lngLat.lat);
-      setLon(e.lngLat.lng);
-    });
-
-    mapRef.current = map;
-    markerRef.current = marker;
-
-    return () => map.remove();
+    return () => {
+      disposed = true;
+      mapRef.current?.remove();
+      mapRef.current = null;
+      markerRef.current = null;
+    };
   }, [mapStyle]);
 
   return (
@@ -83,6 +103,17 @@ export function LocationPickerModal(props: {
       <div className="grid gap-4 no-print">
         <div className="h-[60vh] rounded-2xl overflow-hidden border-2 border-gray-100 dark:border-gray-800 relative shadow-inner bg-gray-50 dark:bg-black">
           <div ref={mapDivRef} className="absolute inset-0" />
+          {!mapReady && tileErrorCount < 3 && (
+            <div className="absolute inset-0 z-[5] grid place-items-center bg-white/70 text-xs font-black text-slate-500 backdrop-blur-sm dark:bg-slate-950/60 dark:text-slate-300">
+              Loading map...
+            </div>
+          )}
+          {tileErrorCount >= 3 && (
+            <div className="absolute right-2 top-14 z-10 max-w-xs rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950 shadow-lg dark:border-amber-900 dark:bg-amber-950/85 dark:text-amber-100">
+              <strong className="block font-black">Base map unavailable</strong>
+              <span className="mt-1 block leading-relaxed">You can still enter coordinates below or confirm the current marker position.</span>
+            </div>
+          )}
           
           <div className="absolute top-2 left-2 z-10 flex gap-1 bg-white/90 dark:bg-gray-900/90 p-1 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
             <button 
