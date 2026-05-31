@@ -645,7 +645,10 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
                   )}
               </div>
               
-              <div className="flex justify-end pt-4">
+              <div className="flex justify-between items-center pt-4">
+                  <button onClick={del} disabled={busy} className="text-red-600 hover:text-red-800 text-sm font-bold transition-colors">
+                    Delete
+                  </button>
                   <button onClick={props.onClose} className="bg-gray-900 dark:bg-gray-100 text-white dark:text-black px-8 py-3 rounded-2xl font-black shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all text-sm">Done</button>
               </div>
             </div>
