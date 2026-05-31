@@ -134,6 +134,8 @@ export type Specimen = {
   isShared?: boolean;
   sharedAt?: string;
 
+  isPending?: boolean;
+
   createdAt: string;
   updatedAt: string;
 };
@@ -258,6 +260,11 @@ export class FossilMapDB extends Dexie {
     // Version 15: Locality photos support
     this.version(15).stores({
         media: "id, projectId, specimenId, localityId, createdAt",
+    });
+
+    // Version 16: isPending flag for Quick Find drafts
+    this.version(16).stores({
+        specimens: "id, projectId, localityId, sessionId, specimenCode, hrid, taxon, period, stage, lat, lon, isShared, isPending, createdAt",
     });
   }
 }

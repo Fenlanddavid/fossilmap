@@ -4,17 +4,14 @@ import {
   ArrowRight,
   Camera,
   ChevronRight,
-  Clock,
+  ClipboardList,
   Compass,
-  Download,
   HardDrive,
   Map as MapIcon,
   MapPin,
   Microscope,
   Plus,
   Search,
-  Settings,
-  Smartphone,
   Upload,
   Zap,
 } from "lucide-react";
@@ -108,91 +105,16 @@ export default function Home(props: {
     };
   }, [props.projectId]);
 
-  const recentFinds = useMemo(() => specimens?.slice(0, 8) ?? [], [specimens]);
+  const pendingFinds = useLiveQuery(
+    async () => db.specimens.where("projectId").equals(props.projectId).filter(s => !!s.isPending).reverse().sortBy("createdAt"),
+    [props.projectId]
+  );
+
+  const recentFinds = useMemo(() => (specimens ?? []).filter(s => !s.isPending).slice(0, 8), [specimens]);
   const visibleLocalities = useMemo(() => localities?.slice(0, searchQuery.trim() ? 24 : 8) ?? [], [localities, searchQuery]);
   const hasAnyData = (dashboard?.locations ?? 0) + (dashboard?.trips ?? 0) + (dashboard?.finds ?? 0) > 0;
+  const hasPendingFinds = (pendingFinds?.length ?? 0) > 0;
 
-  const nextMove = useMemo(() => {
-    if (!dashboard) return null;
-
-    const activeEntry = activeSessions && Array.from(activeSessions.entries())[0];
-    if (activeEntry) {
-      const locality = localities?.find((l) => l.id === activeEntry[0]);
-      return {
-        icon: Clock,
-        tone: "emerald" as const,
-        title: "Resume active field trip",
-        detail: locality?.name ? `Continue recording at ${locality.name}.` : "A field trip is still open.",
-        label: "Add a find",
-        action: () => props.goSpecimen(activeEntry[0]),
-      };
-    }
-
-    if (!dashboard.defaultCollector) {
-      return {
-        icon: Settings,
-        tone: "amber" as const,
-        title: "Set your collector details",
-        detail: "Your name and contact email can be reused on trips, reports and shared finds.",
-        label: "Open settings",
-        action: props.goSettings,
-      };
-    }
-
-    if (!hasAnyData) {
-      return {
-        icon: Compass,
-        tone: "blue" as const,
-        title: "Start with a field trip",
-        detail: "Use a trip for a day out, or create a fixed locality if you revisit the same exposure.",
-        label: "Start field trip",
-        action: props.goFieldTrip,
-      };
-    }
-
-    if (dashboard.finds === 0) {
-      return {
-        icon: Microscope,
-        tone: "emerald" as const,
-        title: "Record your first specimen",
-        detail: "Add taxon, element, GPS, dimensions and photographs while the context is fresh.",
-        label: "Record find",
-        action: () => props.goSpecimen(),
-      };
-    }
-
-    const lastBackupAge = dashboard.lastBackup ? (Date.now() - new Date(dashboard.lastBackup).getTime()) / 86400000 : Infinity;
-    if (lastBackupAge > 30) {
-      return {
-        icon: Download,
-        tone: "amber" as const,
-        title: "Make a fresh backup",
-        detail: "Your fossil photos and records are local to this device.",
-        label: "Open settings",
-        action: props.goSettings,
-      };
-    }
-
-    if (!props.isStandalone) {
-      return {
-        icon: Smartphone,
-        tone: "blue" as const,
-        title: "Install FossilMap",
-        detail: "Use it from your home screen before heading into the field.",
-        label: "Install app",
-        action: () => props.promptInstall(),
-      };
-    }
-
-    return {
-      icon: MapIcon,
-      tone: "slate" as const,
-      title: "Review your distribution map",
-      detail: "Look for clusters by formation, taxon, period or collecting date.",
-      label: "Open map",
-      action: props.goMap,
-    };
-  }, [dashboard, activeSessions, localities, hasAnyData, props]);
 
   async function addLocalityPhoto(localityId: string, files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -233,67 +155,65 @@ export default function Home(props: {
     }
   }
 
-  const statItems = [
-    { label: "Locations", value: dashboard?.locations ?? 0, icon: MapPin },
-    { label: "Trips", value: dashboard?.trips ?? 0, icon: Compass },
-    { label: "Finds", value: dashboard?.finds ?? 0, icon: Microscope },
-    { label: "Photos", value: dashboard?.media ?? 0, icon: Camera },
-  ];
 
   return (
     <div className="mx-auto grid max-w-6xl gap-6 pb-10">
-      <section className="grid gap-4 lg:grid-cols-[1.35fr_0.65fr]">
-        <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-2xl">
-              <p className="mb-2 text-[11px] font-black uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-300">Fossil field records</p>
-              {!hasAnyData ? (
-                <>
-                  <h2 className="text-3xl font-black leading-tight tracking-tight text-slate-950 dark:text-white sm:text-4xl">Record the fossil, the place and the evidence together.</h2>
-                  <p className="mt-3 max-w-xl text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-                    FossilMap is built for field context: locality, stratigraphy, photos, measurements, safe access notes and optional community sharing.
-                  </p>
-                </>
-              ) : (
-                <h2 className="text-xl font-black tracking-tight text-slate-950 dark:text-white sm:text-2xl">Your field book</h2>
-              )}
+
+      {/* Pending finds banner — takes priority over Getting Started */}
+      {hasPendingFinds && (
+        <div className="flex items-center gap-4 p-3 bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800 rounded-2xl shadow-md">
+          <div className="shrink-0 flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-950/40">
+            <ClipboardList className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-black text-slate-800 dark:text-slate-100 text-sm">
+              {pendingFinds!.length} pending {pendingFinds!.length === 1 ? "find" : "finds"}
             </div>
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
-              <PrimaryAction icon={Compass} label="Field Trip" onClick={props.goFieldTrip} />
-              <PrimaryAction icon={Microscope} label="Specimen" onClick={() => props.goSpecimen()} />
-              <SecondaryAction icon={MapPin} label="Location" onClick={props.goNewLocality} />
-              <SecondaryAction icon={MapIcon} label="Map" onClick={props.goMap} />
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+              Quick finds saved in the field — add photos and details to complete them.
             </div>
           </div>
+          <button
+            onClick={props.goAllFinds}
+            className="shrink-0 px-3 py-1.5 text-xs font-black uppercase tracking-wider text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 rounded-lg hover:bg-amber-600 hover:text-white hover:border-amber-600 transition-all"
+          >
+            Review
+          </button>
         </div>
+      )}
 
-        <div className="grid grid-cols-2 gap-3">
-          {statItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <div key={item.label} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                <div className="mb-3 flex items-center justify-between">
-                  <Icon className="h-4 w-4 text-emerald-700 dark:text-emerald-300" />
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{item.label}</span>
-                </div>
-                <div className="text-3xl font-black tracking-tight text-slate-950 dark:text-white">{item.value}</div>
-              </div>
-            );
-          })}
+
+      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <p className="mb-2 text-[11px] font-black uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-300">Fossil field records</p>
+            {!hasAnyData ? (
+              <>
+                <h2 className="text-3xl font-black leading-tight tracking-tight text-slate-950 dark:text-white sm:text-4xl">Record the fossil, the place and the evidence together.</h2>
+                <p className="mt-3 max-w-xl text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+                  FossilMap is built for field context: locality, stratigraphy, photos, measurements, safe access notes and optional community sharing.
+                </p>
+              </>
+            ) : (
+              <h2 className="text-xl font-black tracking-tight text-slate-950 dark:text-white sm:text-2xl">Your field book</h2>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
+            <PrimaryAction icon={Compass} label="Field Trip" onClick={props.goFieldTrip} />
+            <PrimaryAction icon={Microscope} label="Specimen" onClick={() => props.goSpecimen()} />
+            <SecondaryAction icon={MapPin} label="Location" onClick={props.goNewLocality} />
+            <SecondaryAction icon={MapIcon} label="Map" onClick={props.goMap} />
+          </div>
         </div>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
-        {nextMove && <NextMoveCard item={nextMove} />}
-
-        {!hasAnyData && (
-          <div className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:grid-cols-3">
-            <WorkflowStep icon={MapPin} title="Locality" detail="Where and what geology." />
-            <WorkflowStep icon={Compass} title="Trip" detail="The collecting visit." />
-            <WorkflowStep icon={Microscope} title="Specimen" detail="The fossil record." />
-          </div>
-        )}
-      </section>
+      {!hasAnyData && (
+        <section className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:grid-cols-3">
+          <WorkflowStep icon={MapPin} title="Locality" detail="Where and what geology." />
+          <WorkflowStep icon={Compass} title="Trip" detail="The collecting visit." />
+          <WorkflowStep icon={Microscope} title="Specimen" detail="The fossil record." />
+        </section>
+      )}
 
       {!hasAnyData && (
         <section className="rounded-lg border border-emerald-200 bg-emerald-50 p-5 dark:border-emerald-900 dark:bg-emerald-950/30">
@@ -323,29 +243,6 @@ export default function Home(props: {
         </section>
       )}
 
-      <section className="grid gap-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 className="text-lg font-black tracking-tight text-slate-950 dark:text-white">Quick filters</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Jump into common fossil groups without typing.</p>
-          </div>
-          <button onClick={props.goAllFinds} className="inline-flex items-center gap-1.5 self-start rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 sm:self-auto">
-            All finds
-            <ArrowRight className="h-3.5 w-3.5" />
-          </button>
-        </div>
-        <div className="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1 scrollbar-hide">
-          {["Ammonite", "Belemnite", "Ichthyosaur", "Pliosaur", "Plesiosaur", "Dinosaur", "Fish", "Shark Tooth", "Gryphaea", "Brachiopod", "Echinoid", "Trace", "Plant"].map((label) => (
-            <button
-              key={label}
-              onClick={() => props.goFindsWithFilter(label.replace(" Tooth", ""))}
-              className="shrink-0 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-700 shadow-sm transition-colors hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/30"
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </section>
 
       <section className="grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
         <div className="grid gap-4">
@@ -617,35 +514,6 @@ function WorkflowStep({ icon: Icon, title, detail }: { icon: React.ComponentType
   );
 }
 
-function NextMoveCard({ item }: { item: { icon: React.ComponentType<{ className?: string }>; tone: "emerald" | "blue" | "amber" | "slate"; title: string; detail: string; label: string; action: () => void } }) {
-  const Icon = item.icon;
-  const tones = {
-    emerald: "border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100",
-    blue: "border-sky-200 bg-sky-50 text-sky-950 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-100",
-    amber: "border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100",
-    slate: "border-slate-200 bg-white text-slate-950 dark:border-slate-800 dark:bg-slate-900 dark:text-white",
-  };
-  return (
-    <div className={`rounded-lg border p-4 shadow-sm ${tones[item.tone]}`}>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex gap-3">
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-white/75 shadow-sm dark:bg-slate-950/45">
-            <Icon className="h-5 w-5" />
-          </div>
-          <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] opacity-60">Next move</p>
-            <h3 className="mt-1 text-base font-black">{item.title}</h3>
-            <p className="mt-1 text-sm leading-relaxed opacity-75">{item.detail}</p>
-          </div>
-        </div>
-        <button onClick={item.action} className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-slate-950 px-4 py-2.5 text-xs font-black text-white hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200">
-          {item.label}
-          <ArrowRight className="h-3.5 w-3.5" />
-        </button>
-      </div>
-    </div>
-  );
-}
 
 function Pill({ children, muted = false }: { children: React.ReactNode; muted?: boolean }) {
   return (

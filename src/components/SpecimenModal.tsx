@@ -24,6 +24,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
   const [draft, setDraft] = useState<Specimen | null>(null);
   const [busy, setBusy] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [wasPending, setWasPending] = useState(false);
   const [isPickingLocation, setIsPickingLocation] = useState(false);
   const [isCustomElement, setIsCustomElement] = useState(false);
   const [sharing, setSharing] = useState(false);
@@ -55,6 +56,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
   useEffect(() => {
     if (specimen) {
         setDraft(specimen);
+        if (specimen.isPending) { setIsEditing(true); setWasPending(true); }
         if (specimen.element && !commonElements.includes(specimen.element)) {
             setIsCustomElement(true);
         } else {
@@ -188,9 +190,13 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
     if (!draft) return;
     setBusy(true);
     const now = new Date().toISOString();
-    await db.specimens.update(draft.id, { ...draft, updatedAt: now });
+    await db.specimens.update(draft.id, { ...draft, isPending: false, updatedAt: now });
     setBusy(false);
-    setIsEditing(false);
+    if (wasPending) {
+      props.onClose();
+    } else {
+      setIsEditing(false);
+    }
   }
 
   async function del() {
