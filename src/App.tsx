@@ -4,13 +4,10 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import {
   Compass,
-  Download,
   ExternalLink,
   FileDown,
-  FileSpreadsheet,
   HardDrive,
   Home as HomeIcon,
-  Map as MapIcon,
   MapPin,
   Microscope,
   RefreshCw,
@@ -18,13 +15,11 @@ import {
   Settings as SettingsIcon,
   ShieldCheck,
   Smartphone,
-  Upload,
   Wrench,
   X,
 } from "lucide-react";
 import { db } from "./db";
 import { ensureDefaultProject } from "./app/seed";
-import { exportData, exportToCSV, importData, previewImportConflicts } from "./services/data";
 import { UPDATE_NOTES } from "./version";
 import OnboardingFlow from "./components/OnboardingFlow";
 
@@ -139,6 +134,7 @@ function Shell() {
   const project = useLiveQuery(async () => (projectId ? db.projects.get(projectId) : null), [projectId]);
   const settings = useLiveQuery(() => db.settings.toArray());
   const lastBackup = settings?.find((s) => s.key === "lastBackup")?.value;
+  const backupSnoozedUntil = settings?.find((s) => s.key === "backupSnoozedUntil")?.value;
   const theme = settings?.find((s) => s.key === "theme")?.value ?? "dark";
 
   useEffect(() => {
@@ -154,10 +150,15 @@ function Shell() {
     return { locations, finds, media, total: locations + finds + media };
   }, []);
 
+  const lastBackupTime = lastBackup ? new Date(lastBackup).getTime() : null;
+  const backupSnoozedUntilTime = backupSnoozedUntil ? new Date(backupSnoozedUntil).getTime() : null;
+  const isBackupSnoozed = backupSnoozedUntilTime != null && Number.isFinite(backupSnoozedUntilTime) && Date.now() < backupSnoozedUntilTime;
+  const backupIsStale = !lastBackupTime || !Number.isFinite(lastBackupTime) || Date.now() - lastBackupTime > 30 * 24 * 60 * 60 * 1000;
   const showBackupReminder =
     !dismissedBackup &&
     (dataCount?.total ?? 0) > 0 &&
-    (!lastBackup || Date.now() - new Date(lastBackup).getTime() > 30 * 24 * 60 * 60 * 1000);
+    !isBackupSnoozed &&
+    backupIsStale;
 
   const androidIntentUrl = `intent://${window.location.host}${window.location.pathname}#Intent;scheme=https;package=com.android.chrome;end`;
 
@@ -180,8 +181,14 @@ function Shell() {
   }, [installPromptEvent]);
 
   async function handleSnooze() {
-    await db.settings.put({ key: "lastBackup", value: new Date().toISOString() });
+    const snoozedUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    await db.settings.put({ key: "backupSnoozedUntil", value: snoozedUntil });
     setDismissedBackup(true);
+  }
+
+  function openBackupSettings() {
+    setDismissedBackup(true);
+    nav("/settings?tab=backup");
   }
 
   async function handleAppUpdate() {
@@ -193,78 +200,6 @@ function Shell() {
     } catch (e) {
       setUpdatingApp(false);
       alert("Update failed: " + e);
-    }
-  }
-
-  async function handleExport(includeMedia = true) {
-    try {
-      const json = await exportData({ includeMedia });
-      const blob = new Blob([json], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = includeMedia
-        ? `fossilmap-backup-${new Date().toISOString().slice(0, 10)}.json`
-        : `fossilmap-records-only-${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-
-      if (includeMedia) {
-        await db.settings.put({ key: "lastBackup", value: new Date().toISOString() });
-        setDismissedBackup(true);
-      }
-    } catch (e) {
-      alert("Export failed: " + e);
-    }
-  }
-
-  async function handleCSVExport() {
-    try {
-      const csv = await exportToCSV();
-      const blob = new Blob([csv], { type: "text/csv" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `fossilmap-records-${new Date().toISOString().slice(0, 10)}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      alert("CSV export failed: " + e);
-    }
-  }
-
-  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-
-    try {
-      const text = await file.text();
-      const preview = await previewImportConflicts(text);
-      const exportedAt = preview.exportedAt ? new Date(preview.exportedAt).toLocaleString() : "unknown date";
-      const overwritten = preview.conflicts.overwrittenIds;
-      const overwriteCount = Object.values(overwritten).reduce((sum, count) => sum + count, 0);
-      const conflictLines = [
-        overwriteCount > 0 ? `${overwriteCount} records have matching IDs and will be updated.` : "",
-        preview.conflicts.localityNames.length > 0 ? `Matching locality names: ${preview.conflicts.localityNames.join(", ")}` : "",
-        preview.conflicts.specimenCodes.length > 0 ? `Matching specimen codes: ${preview.conflicts.specimenCodes.join(", ")}` : "",
-      ].filter(Boolean);
-      const ok = confirm(
-        `Import preview from ${exportedAt}:\n\n` +
-          `${preview.localities} locations/trips\n` +
-          `${preview.sessions} sessions\n` +
-          `${preview.specimens} specimens\n` +
-          `${preview.media} photos\n` +
-          `${preview.settings} settings\n\n` +
-          (conflictLines.length > 0 ? `Potential conflicts:\n${conflictLines.join("\n")}\n\n` : "No matching IDs, locality names or specimen codes found.\n\n") +
-          "Continue with merge?"
-      );
-      if (!ok) return;
-      await importData(text);
-      alert("Import successful. FossilMap will reload now.");
-      window.location.reload();
-    } catch (err) {
-      alert("Import failed: " + err);
     }
   }
 
@@ -435,9 +370,9 @@ function Shell() {
                     <RotateCcw className="h-3.5 w-3.5" />
                     Later
                   </button>
-                  <button onClick={() => handleExport(true)} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-amber-600 px-3 py-2 text-xs font-black text-white hover:bg-amber-700">
+                  <button onClick={openBackupSettings} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-amber-600 px-3 py-2 text-xs font-black text-white hover:bg-amber-700">
                     <FileDown className="h-3.5 w-3.5" />
-                    Backup now
+                    Open backup
                   </button>
                 </div>
               </div>

@@ -63,7 +63,7 @@ try {
   assert(await page.getByText("Record the fossil, the place and the evidence together.").isVisible(), "Home dashboard did not render");
 
   await page.getByRole("link", { name: /Settings/i }).click();
-  await page.getByText("Profile, storage and quick start.").waitFor();
+  await page.getByText("Backup, profile and app settings.").waitFor();
 
   await page.goto(`${baseUrl.replace(/\/$/, "")}/location`, { waitUntil: "domcontentloaded" });
   await page.getByPlaceholder(/Charmouth|Lyme Regis/i).fill("Smoke Test Locality");
@@ -74,8 +74,8 @@ try {
   await page.goto(`${baseUrl.replace(/\/$/, "")}/specimen`, { waitUntil: "domcontentloaded" });
   await page.getByPlaceholder(/Charmouth|Lyme Regis/i).fill("Smoke Test Locality");
   await page.getByPlaceholder(/Dactylioceras/i).fill("Ammonite");
-  await page.getByRole("button", { name: /Save Specimen Draft|Record Find/i }).click();
-  await page.getByText(/Find Recorded|Record find first to unlock photos/i).waitFor({ timeout: 6000 });
+  await page.getByRole("button", { name: /Save & Next|Save Specimen Draft|Record Find/i }).click();
+  await page.getByText(/Photograph|Find Recorded|Record find first to unlock photos/i).waitFor({ timeout: 6000 });
 
   const specimens = await getStoreRows(page, "specimens");
   assert(specimens.length > 0, "Specimen was not written to IndexedDB");
@@ -103,12 +103,13 @@ try {
   await page.getByText(/Recent finds/i).waitFor();
 
   await page.goto(`${baseUrl.replace(/\/$/, "")}/settings`, { waitUntil: "domcontentloaded" });
-  await page.getByText("Profile, storage and quick start.").waitFor();
+  await page.getByText("Backup, profile and app settings.").waitFor();
   const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: /Records only/i }).click();
+  await page.getByRole("button", { name: /Records-only JSON/i }).click();
   const download = await downloadPromise;
   assert(download.suggestedFilename().includes("records-only"), "Records-only backup did not start");
 
+  await page.getByRole("button", { name: /App/i }).click();
   await page.getByRole("button", { name: /Show quick start/i }).click();
   await page.getByText(/FossilMap quick start/i).waitFor({ timeout: 6000 });
 
