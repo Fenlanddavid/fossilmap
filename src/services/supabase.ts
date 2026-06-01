@@ -43,10 +43,11 @@ export async function uploadSharedFind(payload: any) {
 }
 
 export async function deleteSharedFind(fossilmapId: string) {
+  // Soft delete — preserves the record for research provenance
   const { error } = await supabase
     .from('shared_finds')
-    .delete()
+    .update({ is_deleted: true, deleted_at: new Date().toISOString() })
     .eq('fossilmap_id', fossilmapId)
-  
+
   if (error) throw error
 }

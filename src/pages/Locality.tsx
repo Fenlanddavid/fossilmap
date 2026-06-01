@@ -2,12 +2,13 @@ import React, { useEffect, useState, useMemo } from "react";
 import { db, Locality, Specimen, Media } from "../db";
 import { v4 as uuid } from "uuid";
 import { captureGPS } from "../services/gps";
+import { lookupBGSGeology, BGSResult } from "../services/bgs";
 import { useParams, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { SpecimenRow } from "../components/SpecimenRow";
 import { FieldTripReport } from "../components/FieldTripReport";
 import { SessionFindsList } from "../components/SessionFindsList";
-import { AlertTriangle, CheckCircle2, ClipboardCheck, MapPin, ShieldAlert } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ClipboardCheck, FlaskConical, MapPin, ShieldAlert } from "lucide-react";
 
 const SpecimenModal = React.lazy(() =>
   import("../components/SpecimenModal").then((mod) => ({ default: mod.SpecimenModal }))
@@ -64,7 +65,10 @@ export default function LocalityPage(props: {
   const [loading, setLoading] = useState(isEdit);
   const [isEditing, setIsEditing] = useState(!isEdit);
   const [isPickingLocation, setIsPickingLocation] = useState(false);
-  
+  const [bgsLoading, setBgsLoading] = useState(false);
+  const [bgsResult, setBgsResult] = useState<BGSResult | null>(null);
+  const [bgsError, setBgsError] = useState<string | null>(null);
+
   const [openFindId, setOpenFindId] = useState<string | null>(null);
 
   const defaultCollector = useLiveQuery(async () => {
@@ -158,6 +162,37 @@ export default function LocalityPage(props: {
     } catch (e: any) {
       setError(e?.message ?? "GPS failed");
     }
+  }
+
+  async function doBGSLookup() {
+    if (!lat || !lon) return;
+    setBgsLoading(true);
+    setBgsError(null);
+    setBgsResult(null);
+    try {
+      const result = await lookupBGSGeology(lat, lon);
+      setBgsResult(result);
+    } catch (e: any) {
+      setBgsError(e?.message ?? "BGS lookup failed");
+    } finally {
+      setBgsLoading(false);
+    }
+  }
+
+  function applyBGSResult() {
+    if (!bgsResult) return;
+    if (bgsResult.formation && !formation) setFormation(bgsResult.formation);
+    if (bgsResult.period && !period) setPeriod(bgsResult.period);
+    if (bgsResult.stage && !stage) setStage(bgsResult.stage);
+    setBgsResult(null);
+  }
+
+  function applyBGSResultOverwrite() {
+    if (!bgsResult) return;
+    if (bgsResult.formation) setFormation(bgsResult.formation);
+    if (bgsResult.period) setPeriod(bgsResult.period);
+    if (bgsResult.stage) setStage(bgsResult.stage);
+    setBgsResult(null);
   }
 
   async function handleDelete() {
@@ -421,6 +456,89 @@ export default function LocalityPage(props: {
                             </label>
                         </div>
                     </div>
+
+                    {/* BGS Geology Auto-populate */}
+                    {lat && lon && (
+                      <div className="rounded-xl border border-purple-200 dark:border-purple-800/40 bg-purple-50 dark:bg-purple-900/10 p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-[10px] font-black uppercase tracking-widest text-purple-600 dark:text-purple-400">BGS Bedrock Geology</div>
+                            <div className="mt-0.5 text-xs text-gray-600 dark:text-gray-400">Auto-fill formation and period from British Geological Survey data</div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={doBGSLookup}
+                            disabled={bgsLoading}
+                            className="shrink-0 flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition-all"
+                          >
+                            <FlaskConical className="w-3.5 h-3.5" />
+                            {bgsLoading ? "Looking up…" : "Look up BGS"}
+                          </button>
+                        </div>
+
+                        {bgsError && (
+                          <div className="mt-3 flex items-start gap-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 p-3 text-xs text-red-700 dark:text-red-400">
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                            <span>{bgsError}</span>
+                          </div>
+                        )}
+
+                        {bgsResult && (
+                          <div className="mt-3 rounded-lg border border-purple-300 dark:border-purple-700/40 bg-white dark:bg-gray-900/50 p-4">
+                            <div className="text-[10px] font-black uppercase tracking-widest text-purple-600 dark:text-purple-400 mb-3">BGS result — confirm to apply</div>
+                            <div className="grid grid-cols-2 gap-3 text-xs">
+                              {bgsResult.formation && (
+                                <div>
+                                  <div className="font-black uppercase text-[9px] text-gray-400 tracking-wider">Formation</div>
+                                  <div className="font-bold text-gray-800 dark:text-gray-200">{bgsResult.formation}</div>
+                                </div>
+                              )}
+                              {bgsResult.period && (
+                                <div>
+                                  <div className="font-black uppercase text-[9px] text-gray-400 tracking-wider">Period</div>
+                                  <div className="font-bold text-gray-800 dark:text-gray-200">{bgsResult.period}</div>
+                                </div>
+                              )}
+                              {bgsResult.stage && (
+                                <div>
+                                  <div className="font-black uppercase text-[9px] text-gray-400 tracking-wider">Stage</div>
+                                  <div className="font-bold text-gray-800 dark:text-gray-200">{bgsResult.stage}</div>
+                                </div>
+                              )}
+                              {bgsResult.description && (
+                                <div className="col-span-2">
+                                  <div className="font-black uppercase text-[9px] text-gray-400 tracking-wider">Description</div>
+                                  <div className="text-gray-600 dark:text-gray-400 italic">{bgsResult.description}</div>
+                                </div>
+                              )}
+                            </div>
+                            <div className="mt-4 flex gap-2">
+                              <button
+                                type="button"
+                                onClick={applyBGSResult}
+                                className="flex-1 bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-lg text-xs font-black transition-all"
+                              >
+                                Apply (keep existing)
+                              </button>
+                              <button
+                                type="button"
+                                onClick={applyBGSResultOverwrite}
+                                className="flex-1 border border-purple-300 dark:border-purple-700 text-purple-600 dark:text-purple-400 px-3 py-2 rounded-lg text-xs font-black hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all"
+                              >
+                                Apply (overwrite all)
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setBgsResult(null)}
+                                className="border border-gray-200 dark:border-gray-700 text-gray-500 px-3 py-2 rounded-lg text-xs font-black hover:bg-gray-50 transition-all"
+                              >
+                                Dismiss
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <label className="block">
