@@ -125,6 +125,10 @@ export type Specimen = {
   storageLocation: string;
   notes: string;
 
+  formation?: string;
+  member?: string;
+  bed?: string;
+
   // Research Grade Fields
   hrid?: string;
   repository?: string;

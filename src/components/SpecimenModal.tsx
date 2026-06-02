@@ -139,9 +139,10 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
         element: draft.element,
         period: (draft.period || locality?.period || "Unknown").trim(),
         stage: cleanStage,
-        formation: (draft as any).formation || locality?.formation || "",
-        member: (draft as any).member || locality?.member || "",
-        bed: (draft as any).bed || locality?.bed || "",
+        formation: draft.formation || locality?.formation || "",
+        member: draft.member || locality?.member || "",
+        bed: draft.bed || locality?.bed || "",
+        verification_status: 'community' as const,
         locationName: locality?.name || "Unknown Location",
         latitude: draft.lat,
         longitude: draft.lon,
@@ -160,20 +161,18 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
         sharedAt: new Date().toISOString()
       };
 
-      console.log("SHARING PAYLOAD:", payload);
-
       // Use Supabase Service
       await uploadSharedFind(payload);
 
-      await db.specimens.update(draft.id, { 
-        isShared: true, 
+      await db.specimens.update(draft.id, {
+        isShared: true,
         sharedAt: payload.sharedAt,
         hrid: hrid,
         qualityScore: qualityScore
       });
       await notify({
         title: "Find shared",
-        message: `Shared with the community as ${hrid}.`,
+        message: `Shared as ${hrid}. View it at https://fenlanddavid.github.io/fossilmapped/?find=${encodeURIComponent(hrid)}`,
         tone: "success",
       });
     } catch (e: any) {
