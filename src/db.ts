@@ -129,6 +129,8 @@ export type Specimen = {
   member?: string;
   bed?: string;
 
+  dateCollected?: string; // ISO date string — when the fossil was found (not when the record was created)
+
   // Research Grade Fields
   hrid?: string;
   repository?: string;
@@ -270,6 +272,9 @@ export class FossilMapDB extends Dexie {
     this.version(16).stores({
         specimens: "id, projectId, localityId, sessionId, specimenCode, hrid, taxon, period, stage, lat, lon, isShared, isPending, createdAt",
     });
+
+    // Version 17: dateCollected field (optional, no index needed)
+    this.version(17).stores({});
   }
 }
 

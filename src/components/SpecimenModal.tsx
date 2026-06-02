@@ -5,7 +5,7 @@ import { db, Specimen, Media } from "../db";
 import { Modal } from "./Modal";
 import { v4 as uuid } from "uuid";
 import { Globe, Check, Loader2 } from "lucide-react";
-import { fileToBlob } from "../services/photos";
+import { fileToBlob, compressForShare } from "../services/photos";
 import { ScaleCalibrationModal } from "./ScaleCalibrationModal";
 import { ScaledImage } from "./ScaledImage";
 import { PhotoAnnotator } from "./PhotoAnnotator";
@@ -99,6 +99,16 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
       return;
     }
 
+    if (qualityScore < 50) {
+      const proceed = await confirmAction({
+        title: "Low quality record",
+        message: `This record scores ${qualityScore}%. Adding stratigraphy, GPS, photos and measurements improves its research value. Share anyway?`,
+        confirmLabel: "Share anyway",
+        tone: "warning",
+      });
+      if (!proceed) return;
+    }
+
     const ok = await confirmAction({
       title: "Share with FossilMapped?",
       message: "This find will be visible on the public community map. Your collector name and contact email, if set in settings, will also be shared with the find.",
@@ -112,14 +122,14 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
       const hrid = draft.hrid || generateHRID();
       const repository = draft.repository || "Private";
 
-      // Prepare the payload
+      // Prepare the payload — cap at 2 photos, compress for share
       const photos: string[] = [];
-      for (const m of media || []) {
-        // Convert blob to base64 for the payload
+      for (const m of (media || []).slice(0, 2)) {
+        const compressed = await compressForShare(m.blob);
         const reader = new FileReader();
         const base64Promise = new Promise<string>((resolve) => {
           reader.onloadend = () => resolve(reader.result as string);
-          reader.readAsDataURL(m.blob);
+          reader.readAsDataURL(compressed);
         });
         photos.push(await base64Promise);
       }
@@ -146,7 +156,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
         locationName: locality?.name || "Unknown Location",
         latitude: draft.lat,
         longitude: draft.lon,
-        dateCollected: draft.createdAt,
+        dateCollected: draft.dateCollected ?? draft.createdAt,
         photos: photos,
         measurements: {
           length: draft.lengthMm,

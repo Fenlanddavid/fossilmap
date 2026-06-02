@@ -88,6 +88,7 @@ export default function SpecimenPage(props: {
   const [bagBoxId, setBagBoxId] = useState("");
   const [storageLocation, setStorageLocation] = useState("");
   const [notes, setNotes] = useState("");
+  const [dateCollected, setDateCollected] = useState(() => new Date().toISOString().slice(0, 10));
 
   // ── UI state ─────────────────────────────────────────────────────────────
   const [error, setError] = useState<string | null>(null);
@@ -161,6 +162,7 @@ export default function SpecimenPage(props: {
       setStorageLocation(specimen.storageLocation || "");
       setNotes(specimen.notes || "");
       setIsCustomElement(!!specimen.element && !commonElements.includes(specimen.element));
+      setDateCollected(specimen.dateCollected || specimen.createdAt?.slice(0, 10) || new Date().toISOString().slice(0, 10));
     }
 
     load().catch((e) => { if (active) setError(e?.message ?? "Load failed."); });
@@ -263,6 +265,7 @@ export default function SpecimenPage(props: {
       qualityScore: existing?.qualityScore,
       isShared: existing?.isShared,
       sharedAt: existing?.sharedAt,
+      dateCollected: dateCollected || undefined,
       isPending,
       createdAt: existing?.createdAt || now,
       updatedAt: now,
@@ -546,6 +549,7 @@ export default function SpecimenPage(props: {
           bagBoxId={bagBoxId} setBagBoxId={setBagBoxId}
           storageLocation={storageLocation} setStorageLocation={setStorageLocation}
           notes={notes} setNotes={setNotes}
+          dateCollected={dateCollected} setDateCollected={setDateCollected}
           media={media ?? []}
           addPhotos={addPhotos}
           removePhoto={removePhoto}
@@ -618,6 +622,17 @@ export default function SpecimenPage(props: {
 
             <SectionTitle icon={MapPin} title="3. Find spot" detail="Capture GPS now if possible. You can correct it on the map later." />
             <GpsBlock lat={lat} lon={lon} doGPS={doGPS} setIsPickingLocation={setIsPickingLocation} setLat={setLat} setLon={setLon} setAcc={setAcc} />
+
+            <label className="block">
+              <div className="mb-2 text-sm font-bold text-gray-700 dark:text-gray-300">Date collected</div>
+              <input
+                type="date"
+                value={dateCollected}
+                onChange={(e) => setDateCollected(e.target.value)}
+                max={new Date().toISOString().slice(0, 10)}
+                className="w-full bg-white dark:bg-gray-900 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-3.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-bold"
+              />
+            </label>
 
             <SectionTitle icon={Ruler} title="4. Measure and describe" detail="Measurements, element, preservation, context and field observations." />
             <MeasurementFields weightG={weightG} setWeightG={setWeightG} lengthMm={lengthMm} setLengthMm={setLengthMm} widthMm={widthMm} setWidthMm={setWidthMm} thicknessMm={thicknessMm} setThicknessMm={setThicknessMm} />
@@ -708,6 +723,7 @@ type WizardProps = {
   bagBoxId: string; setBagBoxId: (v: string) => void;
   storageLocation: string; setStorageLocation: (v: string) => void;
   notes: string; setNotes: (v: string) => void;
+  dateCollected: string; setDateCollected: (v: string) => void;
   media: Media[];
   addPhotos: (files: FileList | null, photoType?: Media["photoType"]) => void;
   removePhoto: (id: string) => void;
@@ -832,6 +848,17 @@ function MobileWizard(p: WizardProps) {
 
             <SectionTitle icon={MapPin} title="GPS" detail="Tap while standing on the find. You can update this later." />
             <GpsBlock lat={p.lat} lon={p.lon} doGPS={p.doGPS} setIsPickingLocation={p.setIsPickingLocation} setLat={p.setLat} setLon={p.setLon} setAcc={p.setAcc} compact />
+
+            <label className="block">
+              <div className="mb-2 text-sm font-bold text-gray-700 dark:text-gray-300">Date collected</div>
+              <input
+                type="date"
+                value={p.dateCollected}
+                onChange={(e) => p.setDateCollected(e.target.value)}
+                max={new Date().toISOString().slice(0, 10)}
+                className="w-full bg-white dark:bg-gray-900 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-3.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-bold"
+              />
+            </label>
           </>
         )}
 
