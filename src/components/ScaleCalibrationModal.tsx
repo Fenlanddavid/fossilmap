@@ -2,6 +2,7 @@ import React, { useState, useRef } from "react";
 import { Modal } from "./Modal";
 import { Media, db } from "../db";
 import { ScaleBar } from "./ScaleBar";
+import { CoachTip } from "./CoachTip";
 
 export function ScaleCalibrationModal(props: { media: Media; url: string; onClose: () => void }) {
   const [points, setPoints] = useState<{ x: number; y: number }[]>([]);
@@ -45,6 +46,9 @@ export function ScaleCalibrationModal(props: { media: Media; url: string; onClos
     <Modal onClose={props.onClose} title="Calibrate Digital Scale">
       <div className="grid gap-4">
         <p className="text-sm opacity-75 text-gray-700 dark:text-gray-300">Tap two points on the photo that represent a known distance (e.g. 10mm on a ruler or the diameter of a coin).</p>
+        <CoachTip storageKey="fm_tip_scale_calibration" title="Scale calibration" tone="sky">
+          Pick points on the same flat scale object and enter the real distance between them. Re-tap the image to restart the two-point line.
+        </CoachTip>
         
         <div className="relative cursor-crosshair border-2 border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-black flex items-center justify-center min-h-[300px]">
           <div className="relative inline-block">

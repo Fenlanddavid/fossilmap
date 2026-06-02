@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Media, db } from "../db";
 import { Modal } from "./Modal";
+import { useConfirmDialog } from "./ConfirmModal";
 
 type Point = { x: number; y: number }; // Normalized 0-1
 type Annotation = {
@@ -11,6 +12,7 @@ type Annotation = {
 };
 
 export function PhotoAnnotator(props: { media: Media; url: string; onClose: () => void }) {
+  const { confirm: confirmAction, dialog } = useConfirmDialog();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [currentAnnotation, setCurrentAnnotation] = useState<Annotation | null>(null);
@@ -140,10 +142,21 @@ export function PhotoAnnotator(props: { media: Media; url: string; onClose: () =
     props.onClose();
   }
 
+  async function clearAnnotations() {
+    const ok = await confirmAction({
+      title: "Clear annotations?",
+      message: "This removes all arrows and circles from this photo annotation.",
+      confirmLabel: "Clear",
+      danger: true,
+    });
+    if (ok) setAnnotations([]);
+  }
+
   return (
-    <Modal onClose={props.onClose} title="Annotate Photo">
-      <div className="flex flex-col gap-4 items-center max-h-[85vh] overflow-y-auto pr-1 pb-4">
-        <div className="flex flex-wrap gap-2 justify-center w-full bg-gray-50 dark:bg-gray-900 p-3 rounded-xl border border-gray-100 dark:border-gray-800 shadow-inner sticky top-0 z-20">
+    <>
+      <Modal onClose={props.onClose} title="Annotate Photo">
+        <div className="flex flex-col gap-4 items-center max-h-[85vh] overflow-y-auto pr-1 pb-4">
+          <div className="flex flex-wrap gap-2 justify-center w-full bg-gray-50 dark:bg-gray-900 p-3 rounded-xl border border-gray-100 dark:border-gray-800 shadow-inner sticky top-0 z-20">
           <button 
             onClick={() => setMode("arrow")} 
             className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${mode === 'arrow' ? 'bg-blue-600 text-white shadow-md' : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700'}`}
@@ -167,7 +180,7 @@ export function PhotoAnnotator(props: { media: Media; url: string; onClose: () =
           ))}
           <div className="w-px h-8 bg-gray-200 dark:bg-gray-700 mx-1" />
           <button onClick={() => setAnnotations(annotations.slice(0, -1))} className="px-3 py-2 rounded-lg text-xs font-bold bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">↶ Undo</button>
-          <button onClick={() => confirm("Clear all?") && setAnnotations([])} className="px-3 py-2 rounded-lg text-xs font-bold bg-red-50 text-red-600 border border-red-100">🗑️ Clear</button>
+          <button onClick={clearAnnotations} className="px-3 py-2 rounded-lg text-xs font-bold bg-red-50 text-red-600 border border-red-100">🗑️ Clear</button>
         </div>
 
         <div className="relative border-4 border-white dark:border-gray-800 shadow-2xl rounded-sm cursor-crosshair touch-none overflow-hidden bg-black flex items-center justify-center mx-auto">
@@ -191,7 +204,9 @@ export function PhotoAnnotator(props: { media: Media; url: string; onClose: () =
           <button onClick={props.onClose} className="flex-1 px-6 py-3 rounded-xl font-bold bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors">Cancel</button>
           <button onClick={save} className="flex-1 px-6 py-3 rounded-xl font-black bg-blue-600 text-white shadow-lg hover:bg-blue-700 transition-all active:scale-[0.98]">Save Annotations</button>
         </div>
-      </div>
-    </Modal>
+        </div>
+      </Modal>
+      {dialog}
+    </>
   );
 }

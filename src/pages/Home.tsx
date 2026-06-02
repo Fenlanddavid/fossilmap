@@ -15,15 +15,15 @@ import {
   Search,
   ShieldAlert,
   Upload,
-  Zap,
+  X,
 } from "lucide-react";
-import { QuickFindSheet } from "../components/QuickFindSheet";
 import { v4 as uuid } from "uuid";
 import { db, Media } from "../db";
 import { SpecimenThumbnail } from "../components/SpecimenThumbnail";
 import { LocalityThumbnail } from "../components/LocalityThumbnail";
 import { LocalityFindsList } from "../components/LocalityFindsList";
 import { fileToBlob } from "../services/photos";
+import { useConfirmDialog } from "../components/ConfirmModal";
 
 const SpecimenModal = React.lazy(() =>
   import("../components/SpecimenModal").then((mod) => ({ default: mod.SpecimenModal }))
@@ -39,15 +39,24 @@ export default function Home(props: {
   goLocalityEdit: (id: string, type?: "location" | "trip") => void;
   goSpecimen: (localityId?: string) => void;
   goAllFinds: () => void;
+  goPendingFinds: () => void;
   goFindsWithFilter: (query: string) => void;
   goMap: () => void;
   goSettings: () => void;
+  goBackupSettings: () => void;
+  goSession: (id: string) => void;
 }) {
+  const { confirm: confirmAction, notify, dialog } = useConfirmDialog();
   const [searchQuery, setSearchQuery] = useState("");
   const [openSpecimenId, setOpenSpecimenId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [showQuickFind, setShowQuickFind] = useState(false);
-  const [quickFindLocalityId, setQuickFindLocalityId] = useState<string | null>(null);
+  const [dismissedNextMoveKey, setDismissedNextMoveKey] = useState(() => {
+    try {
+      return localStorage.getItem("fm_home_next_move_dismissed") ?? "";
+    } catch {
+      return "";
+    }
+  });
 
   const activeSessions = useLiveQuery(async () => {
     const sessions = await db.sessions.toCollection().filter((s) => !s.isFinished).toArray();
@@ -78,6 +87,11 @@ export default function Home(props: {
 
   const specimens = useLiveQuery(
     async () => db.specimens.where("projectId").equals(props.projectId).reverse().sortBy("createdAt"),
+    [props.projectId]
+  );
+
+  const media = useLiveQuery(
+    async () => db.media.where("projectId").equals(props.projectId).toArray(),
     [props.projectId]
   );
 
@@ -123,8 +137,136 @@ export default function Home(props: {
   }, [specimens]);
   const visibleLocalities = useMemo(() => localities?.slice(0, searchQuery.trim() ? 24 : 8) ?? [], [localities, searchQuery]);
   const hasAnyData = (dashboard?.locations ?? 0) + (dashboard?.trips ?? 0) + (dashboard?.finds ?? 0) > 0;
-  const hasPendingFinds = (pendingFinds?.length ?? 0) > 0;
 
+  const nextMoves = useMemo(() => {
+    if (!hasAnyData) return [];
+
+    const moves: Array<{
+      key: string;
+      icon: React.ComponentType<{ className?: string }>;
+      title: string;
+      detail: string;
+      actionLabel: string;
+      tone: "emerald" | "amber" | "sky" | "slate" | "red";
+      onAction: () => void;
+    }> = [];
+
+    const allLocalities = localities ?? [];
+    const activeEntry = activeSessions
+      ? Array.from(activeSessions.entries()).find(([localityId]) => allLocalities.some((locality) => locality.id === localityId))
+      : null;
+    if (activeEntry) {
+      const [localityId, session] = activeEntry;
+      const locality = allLocalities.find((item) => item.id === localityId);
+      moves.push({
+        key: "active-trip",
+        icon: Compass,
+        title: "Resume active field trip",
+        detail: locality?.name ? `${locality.name} is still open.` : "A field trip session is still open.",
+        actionLabel: "Resume",
+        tone: "emerald",
+        onAction: () => props.goSession(session.id),
+      });
+    }
+
+    if ((pendingFinds?.length ?? 0) > 0) {
+      moves.push({
+        key: "pending-finds",
+        icon: ClipboardList,
+        title: `${pendingFinds!.length} pending ${pendingFinds!.length === 1 ? "find" : "finds"} to finish`,
+        detail: "Add photos, stratigraphy and storage details before they drift.",
+        actionLabel: "Review",
+        tone: "amber",
+        onAction: props.goPendingFinds,
+      });
+    }
+
+    const photoSpecimenIds = new Set((media ?? []).map((item) => item.specimenId).filter(Boolean));
+    const completeSpecimens = (specimens ?? []).filter((specimen) => !specimen.isPending);
+    const missingPhotoCount = completeSpecimens.filter((specimen) => !photoSpecimenIds.has(specimen.id)).length;
+    const missingGpsCount = completeSpecimens.filter((specimen) => specimen.lat == null || specimen.lon == null).length;
+    if (missingPhotoCount > 0 || missingGpsCount > 0) {
+      const parts = [
+        missingPhotoCount > 0 ? `${missingPhotoCount} without photos` : "",
+        missingGpsCount > 0 ? `${missingGpsCount} without GPS` : "",
+      ].filter(Boolean);
+      moves.push({
+        key: "find-evidence",
+        icon: Camera,
+        title: "Complete find evidence",
+        detail: parts.join(" and ") + ".",
+        actionLabel: "Open finds",
+        tone: "sky",
+        onAction: props.goAllFinds,
+      });
+    }
+
+    const stratGap = allLocalities.filter((locality) => !locality.formation?.trim() || !locality.period?.trim());
+    if (stratGap.length > 0) {
+      moves.push({
+        key: "stratigraphy",
+        icon: MapPin,
+        title: `${stratGap.length} ${stratGap.length === 1 ? "locality" : "localities"} missing stratigraphy`,
+        detail: "Formation and period make reports and searches much more useful.",
+        actionLabel: "Fix first",
+        tone: "slate",
+        onAction: () => props.goLocalityEdit(stratGap[0].id, stratGap[0].type),
+      });
+    }
+
+    const accessReview = allLocalities.filter((locality) => {
+      const notesMissing = !locality.designationNotes?.trim();
+      return notesMissing && (locality.sssi || locality.rigs || !locality.permissionGranted);
+    });
+    if (accessReview.length > 0) {
+      moves.push({
+        key: "access",
+        icon: ShieldAlert,
+        title: "Review protected-site and access notes",
+        detail: `${accessReview.length} ${accessReview.length === 1 ? "record needs" : "records need"} clearer collection constraints.`,
+        actionLabel: "Review",
+        tone: "red",
+        onAction: () => props.goLocalityEdit(accessReview[0].id, accessReview[0].type),
+      });
+    }
+
+    if (isBackupStale(dashboard?.lastBackup)) {
+      moves.push({
+        key: "backup",
+        icon: HardDrive,
+        title: "Backup is due",
+        detail: "Your field book and photos are local to this device.",
+        actionLabel: "Back up",
+        tone: "amber",
+        onAction: props.goBackupSettings,
+      });
+    }
+
+    if (moves.length === 0) {
+      moves.push({
+        key: "map-review",
+        icon: MapIcon,
+        title: "Review your field map",
+        detail: "Check how finds, trips and localities sit together geographically.",
+        actionLabel: "Open map",
+        tone: "emerald",
+        onAction: props.goMap,
+      });
+    }
+
+    return moves.slice(0, 5);
+  }, [activeSessions, dashboard?.lastBackup, hasAnyData, localities, media, pendingFinds, props, specimens]);
+
+  const activeNextMoveKey = nextMoves[0]?.key ?? "";
+  const showNextMovePanel = hasAnyData && nextMoves.length > 0 && dismissedNextMoveKey !== activeNextMoveKey;
+
+  function dismissNextMove(key: string) {
+    if (!key) return;
+    setDismissedNextMoveKey(key);
+    try {
+      localStorage.setItem("fm_home_next_move_dismissed", key);
+    } catch {}
+  }
 
   async function addLocalityPhoto(localityId: string, files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -147,14 +289,24 @@ export default function Home(props: {
       await db.media.add(item);
     } catch (e) {
       console.error("Locality photo failed:", e);
-      alert("Failed to save photo.");
+      await notify({
+        title: "Photo not saved",
+        message: "FossilMap could not save that locality photo. Try again with a smaller image or after freeing device storage.",
+        tone: "danger",
+      });
     } finally {
       setBusy(false);
     }
   }
 
   async function finishTrip(localityId: string) {
-    if (!confirm("Finish this field trip? This records the end time and stops the active visit.")) return;
+    const ok = await confirmAction({
+      title: "Finish field trip?",
+      message: "This records the end time and stops the active visit. You can still review and edit the field trip afterwards.",
+      confirmLabel: "Finish trip",
+      tone: "warning",
+    });
+    if (!ok) return;
     const session = activeSessions?.get(localityId);
     if (session) {
       await db.sessions.update(session.id, {
@@ -169,29 +321,9 @@ export default function Home(props: {
   return (
     <div className="mx-auto grid max-w-6xl gap-6 pb-10">
 
-      {/* Pending finds banner — takes priority over Getting Started */}
-      {hasPendingFinds && (
-        <div className="flex items-center gap-4 p-3 bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800 rounded-2xl shadow-md">
-          <div className="shrink-0 flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-950/40">
-            <ClipboardList className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="font-black text-slate-800 dark:text-slate-100 text-sm">
-              {pendingFinds!.length} pending {pendingFinds!.length === 1 ? "find" : "finds"}
-            </div>
-            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-              Quick finds saved in the field — add photos and details to complete them.
-            </div>
-          </div>
-          <button
-            onClick={props.goAllFinds}
-            className="shrink-0 px-3 py-1.5 text-xs font-black uppercase tracking-wider text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 rounded-lg hover:bg-amber-600 hover:text-white hover:border-amber-600 transition-all"
-          >
-            Review
-          </button>
-        </div>
+      {showNextMovePanel && (
+        <NextMovePanel moves={nextMoves} onDismiss={() => dismissNextMove(activeNextMoveKey)} />
       )}
-
 
       <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
@@ -216,6 +348,8 @@ export default function Home(props: {
           </div>
         </div>
       </section>
+
+      <FossilMappedPanel />
 
       {!hasAnyData && (
         <section className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:grid-cols-3">
@@ -449,67 +583,100 @@ export default function Home(props: {
         </aside>
       </section>
 
-      <a
-        href={import.meta.env.VITE_COMMUNITY_URL || "/fossilmapped/"}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center gap-4 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-md hover:shadow-lg hover:scale-[1.008] hover:-translate-y-px transition-all duration-200 ease-out cursor-pointer group no-underline"
-      >
-        <svg width="40" height="40" viewBox="0 0 512 512" fill="none" className="shrink-0">
-          <defs>
-            <linearGradient id="fm-banner-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#34d399" />
-              <stop offset="50%" stopColor="#059669" />
-              <stop offset="100%" stopColor="#0d9488" />
-            </linearGradient>
-          </defs>
-          <rect width="512" height="512" rx="112" fill="url(#fm-banner-grad)" opacity="0.15" />
-          <circle cx="256" cy="256" r="160" stroke="url(#fm-banner-grad)" strokeWidth="24" fill="none" />
-          <circle cx="256" cy="256" r="80" fill="url(#fm-banner-grad)" opacity="0.5" />
-          <circle cx="256" cy="256" r="30" fill="url(#fm-banner-grad)" />
-          <path d="M256 96 L256 176 M256 336 L256 416 M96 256 L176 256 M336 256 L416 256" stroke="url(#fm-banner-grad)" strokeWidth="20" strokeLinecap="round" opacity="0.35" />
-        </svg>
-        <div className="flex-1 min-w-0">
-          <div className="font-black text-slate-800 dark:text-slate-100 text-sm group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">FossilMapped</div>
-          <div className="text-[11px] text-slate-500/80 dark:text-slate-400/80 mt-0.5 leading-snug">See what the community is finding across the UK</div>
-        </div>
-        <span className="shrink-0 px-3 py-1.5 text-xs font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg group-hover:bg-emerald-600 group-hover:text-white group-hover:border-emerald-600 transition-all">
-          Open
-        </span>
-      </a>
-
-      {/* Quick Find FAB — only show when user has data */}
-      {hasAnyData && (
-        <button
-          onClick={() => {
-            const active = activeSessions && Array.from(activeSessions.entries())[0];
-            setQuickFindLocalityId(active ? active[0] : null);
-            setShowQuickFind(true);
-          }}
-          className="fixed bottom-20 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-600 shadow-xl transition-all hover:bg-emerald-700 hover:shadow-2xl active:scale-95"
-          aria-label="Quick Find"
-        >
-          <Zap className="h-6 w-6 text-white" />
-        </button>
-      )}
-
-      {showQuickFind && (
-        <QuickFindSheet
-          projectId={props.projectId}
-          localityId={quickFindLocalityId}
-          onClose={() => setShowQuickFind(false)}
-          onSaved={() => {
-            // Find saved — sheet resets itself for next entry
-          }}
-        />
-      )}
-
       {openSpecimenId && (
         <React.Suspense fallback={null}>
           <SpecimenModal specimenId={openSpecimenId} onClose={() => setOpenSpecimenId(null)} />
         </React.Suspense>
       )}
+      {dialog}
     </div>
+  );
+}
+
+function NextMovePanel(props: {
+  moves: Array<{
+    key: string;
+    icon: React.ComponentType<{ className?: string }>;
+    title: string;
+    detail: string;
+    actionLabel: string;
+    tone: "emerald" | "amber" | "sky" | "slate" | "red";
+    onAction: () => void;
+  }>;
+  onDismiss: () => void;
+}) {
+  const [primary] = props.moves;
+  const toneClasses = {
+    emerald: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/25 dark:text-emerald-200",
+    amber: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/25 dark:text-amber-200",
+    sky: "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900 dark:bg-sky-950/25 dark:text-sky-200",
+    slate: "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-200",
+    red: "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/25 dark:text-red-200",
+  };
+  const PrimaryIcon = primary.icon;
+
+  return (
+    <section className={`relative flex min-h-16 items-center justify-between gap-4 rounded-2xl border p-3 pr-10 shadow-sm ${toneClasses[primary.tone]}`}>
+      <button
+        type="button"
+        onClick={props.onDismiss}
+        className="absolute right-1.5 top-1.5 grid h-7 w-7 place-items-center rounded-lg text-red-500 transition-colors hover:bg-red-500/10 hover:text-red-600"
+        aria-label="Dismiss next move"
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
+      <div className="flex min-w-0 flex-1 items-center gap-4">
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/80 shadow-sm dark:bg-slate-950/45">
+          <PrimaryIcon className="h-5 w-5" />
+        </div>
+        <div className="min-w-0">
+          <p className="mb-0.5 text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-300">Your next move</p>
+          <p className="truncate text-sm font-black leading-snug text-slate-900 dark:text-slate-100">{primary.title}</p>
+          <p className="mt-0.5 hidden truncate text-[11px] leading-snug text-slate-500 dark:text-slate-400 sm:block">{primary.detail}</p>
+        </div>
+      </div>
+      <div className="flex shrink-0">
+        <button
+          onClick={primary.onAction}
+          className="min-h-9 whitespace-nowrap rounded-xl bg-emerald-600 px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-white shadow-sm shadow-emerald-600/20 transition-all hover:bg-emerald-500"
+        >
+          {primary.actionLabel}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function FossilMappedPanel() {
+  return (
+    <a
+      href={import.meta.env.VITE_COMMUNITY_URL || "/fossilmapped/"}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition-all duration-200 ease-out hover:-translate-y-px hover:shadow-md dark:border-slate-700 dark:bg-slate-900 group no-underline"
+    >
+      <svg width="40" height="40" viewBox="0 0 512 512" fill="none" className="shrink-0">
+        <defs>
+          <linearGradient id="fm-banner-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#34d399" />
+            <stop offset="50%" stopColor="#059669" />
+            <stop offset="100%" stopColor="#0d9488" />
+          </linearGradient>
+        </defs>
+        <rect width="512" height="512" rx="112" fill="url(#fm-banner-grad)" opacity="0.15" />
+        <circle cx="256" cy="256" r="160" stroke="url(#fm-banner-grad)" strokeWidth="24" fill="none" />
+        <circle cx="256" cy="256" r="80" fill="url(#fm-banner-grad)" opacity="0.5" />
+        <circle cx="256" cy="256" r="30" fill="url(#fm-banner-grad)" />
+        <path d="M256 96 L256 176 M256 336 L256 416 M96 256 L176 256 M336 256 L416 256" stroke="url(#fm-banner-grad)" strokeWidth="20" strokeLinecap="round" opacity="0.35" />
+      </svg>
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-black text-slate-800 transition-colors group-hover:text-emerald-600 dark:text-slate-100 dark:group-hover:text-emerald-400">FossilMapped</div>
+        <div className="mt-0.5 text-[11px] leading-snug text-slate-500/80 dark:text-slate-400/80">See what the community is finding across the UK</div>
+      </div>
+      <span className="shrink-0 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-black uppercase tracking-wider text-emerald-700 transition-all group-hover:border-emerald-600 group-hover:bg-emerald-600 group-hover:text-white dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400">
+        Open
+      </span>
+    </a>
   );
 }
 
@@ -552,6 +719,13 @@ function Pill({ children, muted = false }: { children: React.ReactNode; muted?: 
       {children}
     </span>
   );
+}
+
+function isBackupStale(value: string | undefined) {
+  if (!value) return true;
+  const backupTime = new Date(value).getTime();
+  if (!Number.isFinite(backupTime)) return true;
+  return Date.now() - backupTime > 30 * 24 * 60 * 60 * 1000;
 }
 
 function EmptyState({ icon: Icon, title, detail, actionLabel, onAction }: { icon: React.ComponentType<{ className?: string }>; title: string; detail: string; actionLabel: string; onAction: () => void }) {

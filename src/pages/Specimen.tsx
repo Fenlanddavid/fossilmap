@@ -7,6 +7,8 @@ import { fileToBlob } from "../services/photos";
 import { ScaledImage } from "../components/ScaledImage";
 import { PhotoAnnotator } from "../components/PhotoAnnotator";
 import { captureGPS } from "../services/gps";
+import { useConfirmDialog } from "../components/ConfirmModal";
+import { CoachTip } from "../components/CoachTip";
 import {
   ArrowDown, ArrowUp, Camera, CheckCircle2, ClipboardList,
   MapPin, Microscope, RefreshCw, Ruler, Trash2, Warehouse,
@@ -57,6 +59,7 @@ export default function SpecimenPage(props: {
   const [searchParams] = useSearchParams();
   const editId = searchParams.get("id");
   const isEditingExisting = !!editId;
+  const { confirm: confirmAction, dialog } = useConfirmDialog();
 
   const localities = useLiveQuery(
     async () => db.localities.where("projectId").equals(props.projectId).reverse().sortBy("createdAt"),
@@ -401,7 +404,13 @@ export default function SpecimenPage(props: {
   }
 
   async function removePhoto(mediaId: string) {
-    if (!confirm("Remove this photo from the find?")) return;
+    const ok = await confirmAction({
+      title: "Remove photo?",
+      message: "This removes the photo from this find on this device.",
+      confirmLabel: "Remove",
+      danger: true,
+    });
+    if (!ok) return;
     try { await db.media.delete(mediaId); }
     catch (e: any) { setError(e?.message ?? "Photo remove failed"); }
   }
@@ -501,6 +510,10 @@ export default function SpecimenPage(props: {
           ))}
         </div>
       </div>
+
+      <CoachTip storageKey="fm_tip_specimen_wizard" title="Specimen workflow">
+        Save the core place and ID first, then add photos, measurements, context and storage details as the record becomes steadier.
+      </CoachTip>
 
       {/* ── MOBILE WIZARD ─────────────────────────────────────────────────── */}
       {isMobileWizard && !isEditingExisting && (
@@ -659,6 +672,7 @@ export default function SpecimenPage(props: {
           />
         </React.Suspense>
       )}
+      {dialog}
     </div>
   );
 }

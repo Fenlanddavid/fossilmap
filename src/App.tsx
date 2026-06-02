@@ -22,6 +22,8 @@ import { db } from "./db";
 import { ensureDefaultProject } from "./app/seed";
 import { UPDATE_NOTES } from "./version";
 import OnboardingFlow from "./components/OnboardingFlow";
+import { useConfirmDialog } from "./components/ConfirmModal";
+import GlobalQuickFind from "./components/GlobalQuickFind";
 
 import Home from "./pages/Home";
 
@@ -65,6 +67,7 @@ export function Logo() {
 
 function Shell() {
   const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW();
+  const { confirm: confirmAction, notify, dialog } = useConfirmDialog();
   const [projectId, setProjectId] = useState<string | null>(null);
   const [dismissedBackup, setDismissedBackup] = useState(false);
   const [showInstallHelp, setShowInstallHelp] = useState(false);
@@ -192,14 +195,23 @@ function Shell() {
   }
 
   async function handleAppUpdate() {
-    const ok = confirm("Update FossilMap now? The app will reload, so finish any unsaved form entry first.");
+    const ok = await confirmAction({
+      title: "Update FossilMap?",
+      message: "The app will reload. Finish any unsaved form entry before continuing.",
+      confirmLabel: "Update",
+      tone: "warning",
+    });
     if (!ok) return;
     setUpdatingApp(true);
     try {
       await updateServiceWorker(true);
     } catch (e) {
       setUpdatingApp(false);
-      alert("Update failed: " + e);
+      await notify({
+        title: "Update failed",
+        message: String(e),
+        tone: "danger",
+      });
     }
   }
 
@@ -434,7 +446,9 @@ function Shell() {
         })}
       </nav>
 
+      <GlobalQuickFind projectId={projectId} />
       <OnboardingFlow />
+      {dialog}
     </div>
   );
 }
@@ -481,9 +495,12 @@ function HomeRouter({ projectId, isStandalone, promptInstall }: { projectId: str
         }
       }}
       goAllFinds={() => nav("/finds")}
+      goPendingFinds={() => nav("/finds?view=pending")}
       goFindsWithFilter={(query: string) => nav(`/finds?q=${encodeURIComponent(query)}`)}
       goMap={() => nav("/map")}
       goSettings={() => nav("/settings")}
+      goBackupSettings={() => nav("/settings?tab=backup")}
+      goSession={(id: string) => nav(`/session/${id}`)}
     />
   );
 }

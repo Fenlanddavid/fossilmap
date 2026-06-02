@@ -22,6 +22,7 @@ import { db, Media, Session, Specimen } from "../db";
 import { captureGPS } from "../services/gps";
 import { fileToBlob } from "../services/photos";
 import { SpecimenRow } from "../components/SpecimenRow";
+import { useConfirmDialog } from "../components/ConfirmModal";
 
 const SpecimenModal = React.lazy(() =>
   import("../components/SpecimenModal").then((mod) => ({ default: mod.SpecimenModal }))
@@ -33,6 +34,7 @@ export default function SessionPage(props: { projectId: string }) {
   const locationId = searchParams.get("locationId");
   const nav = useNavigate();
   const isEdit = !!id;
+  const { confirm: confirmAction, dialog } = useConfirmDialog();
 
   const [startTime, setStartTime] = useState(new Date().toISOString().slice(0, 16));
   const [notes, setNotes] = useState("");
@@ -168,7 +170,13 @@ export default function SessionPage(props: { projectId: string }) {
 
   async function finishSession() {
     if (!id) return;
-    if (!confirm("Finish this field trip? You can still view and edit the record afterwards.")) return;
+    const ok = await confirmAction({
+      title: "Finish field trip?",
+      message: "This closes the active session and records the end time. You can still view and edit the record afterwards.",
+      confirmLabel: "Finish trip",
+      tone: "warning",
+    });
+    if (!ok) return;
     const now = new Date().toISOString();
     await db.sessions.update(id, { isFinished: true, endTime: now, updatedAt: now });
     setIsFinished(true);
@@ -432,6 +440,7 @@ export default function SessionPage(props: { projectId: string }) {
           <SpecimenModal specimenId={openFindId} onClose={() => setOpenFindId(null)} />
         </React.Suspense>
       )}
+      {dialog}
     </div>
   );
 }

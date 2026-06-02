@@ -81,6 +81,16 @@ button:disabled { cursor: not-allowed; }
 }
 
 @media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
+  html,
+  body {
+    background: white !important;
+  }
+
   body * {
     visibility: hidden;
   }
@@ -92,6 +102,16 @@ button:disabled { cursor: not-allowed; }
     left: 0;
     top: 0;
     width: 100%;
+  }
+  .report-container section,
+  .report-container article,
+  .report-container figure {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .report-container img,
+  .report-container svg {
+    max-width: 100%;
   }
   .no-print {
     display: none !important;

@@ -8,6 +8,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { SpecimenRow } from "../components/SpecimenRow";
 import { FieldTripReport } from "../components/FieldTripReport";
 import { SessionFindsList } from "../components/SessionFindsList";
+import { useConfirmDialog } from "../components/ConfirmModal";
 import { AlertTriangle, CheckCircle2, ClipboardCheck, FlaskConical, MapPin, ShieldAlert } from "lucide-react";
 
 const SpecimenModal = React.lazy(() =>
@@ -37,6 +38,7 @@ export default function LocalityPage(props: {
   const { id } = useParams();
   const nav = useNavigate();
   const isEdit = !!id;
+  const { confirm: confirmAction, notify, dialog } = useConfirmDialog();
 
   const [localityType, setLocalityType] = useState<"location" | "trip">(props.type || "location");
   const [name, setName] = useState("");
@@ -198,7 +200,13 @@ export default function LocalityPage(props: {
   async function handleDelete() {
     if (!id) return;
     const term = localityType === 'location' ? 'location' : 'field trip';
-    if (!confirm(`Are you sure? This will permanently delete this ${term}, all sessions, and all finds recorded during it.`)) return;
+    const ok = await confirmAction({
+      title: `Delete this ${term}?`,
+      message: `This will permanently delete the ${term}, all sessions, all finds recorded during it, and their photos.`,
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
     
     setSaving(true);
     try {
@@ -254,7 +262,11 @@ export default function LocalityPage(props: {
       if (isEdit) {
         await db.localities.update(id, locality);
         setIsEditing(false);
-        alert(`${localityType === 'location' ? 'Location' : 'Field trip'} updated!`);
+        void notify({
+          title: `${localityType === 'location' ? 'Location' : 'Field trip'} updated`,
+          message: "The record has been saved to your local FossilMap field book.",
+          tone: "success",
+        });
       } else {
         (locality as any).createdAt = now;
         await db.localities.add(locality);
@@ -941,6 +953,7 @@ export default function LocalityPage(props: {
           <SpecimenModal specimenId={openFindId} onClose={() => setOpenFindId(null)} />
         </React.Suspense>
       )}
+      {dialog}
     </div>
   );
 }

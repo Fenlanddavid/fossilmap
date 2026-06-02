@@ -31,6 +31,7 @@ import {
   previewImportConflicts,
   type ImportConflictPreview,
 } from "../services/data";
+import { CoachTip } from "../components/CoachTip";
 
 const IMPORT_CONFIRMATION = "IMPORT";
 
@@ -386,6 +387,12 @@ export default function Settings() {
               <InfoRow icon={Database} label="Local records" value={`${dataStats?.localities ?? 0} places, ${dataStats?.specimens ?? 0} finds, ${dataStats?.media ?? 0} photos`} />
               <InfoRow icon={HardDrive} label="Photo payload" value={`${mediaMb} MB stored in FossilMap photos`} />
               <InfoRow icon={HardDrive} label="Browser storage" value={storageUsageMb && storageQuotaMb ? `${storageUsageMb} MB used of about ${storageQuotaMb} MB` : "Browser estimate unavailable"} />
+            </div>
+
+            <div className="mt-5">
+              <CoachTip storageKey="fm_tip_backup_import" title="Backup and import" tone="amber">
+                Use full backup before changing phone or clearing browser data. Import updates matching records and leaves records not in the backup alone.
+              </CoachTip>
             </div>
 
             {dataStatus && (

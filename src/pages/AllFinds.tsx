@@ -21,6 +21,7 @@ export default function AllFinds(props: { projectId: string }) {
   useEffect(() => {
     const q = searchParams.get("q");
     if (q) setSearchQuery(q);
+    if (searchParams.get("view") === "pending") setView("pending");
   }, [searchParams]);
 
   const specimens = useLiveQuery(

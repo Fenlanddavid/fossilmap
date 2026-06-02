@@ -10,6 +10,7 @@ import {
   Shield,
   SlidersHorizontal,
 } from "lucide-react";
+import { CoachTip } from "./CoachTip";
 
 type DateFilterMode = "all" | "7d" | "30d" | "custom";
 
@@ -77,6 +78,10 @@ export function MapFilterBar(props: {
           <span><strong>Map needs an API key.</strong> Create <code>.env</code> with <code>VITE_MAPTILER_KEY=YOUR_KEY</code> then restart.</span>
         </div>
       )}
+
+      <CoachTip storageKey="fm_tip_map_filters" title="Map filters" tone="sky">
+        Use colour mode first, then narrow by formation, taxon, protected status, find count or date when the map gets crowded.
+      </CoachTip>
 
       <div className="rounded-xl border border-slate-200 bg-white/95 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/95">
         <div className="flex flex-wrap items-center gap-2 p-2">

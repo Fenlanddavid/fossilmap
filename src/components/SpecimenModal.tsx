@@ -12,6 +12,7 @@ import { PhotoAnnotator } from "./PhotoAnnotator";
 import { captureGPS } from "../services/gps";
 import { uploadSharedFind, deleteSharedFind } from "../services/supabase";
 import { calculateQualityScore, generateHRID, getQualityColor, getQualityLabel } from "../services/research";
+import { useConfirmDialog } from "./ConfirmModal";
 
 const LocationPickerModal = React.lazy(() =>
   import("./LocationPickerModal").then((mod) => ({ default: mod.LocationPickerModal }))
@@ -19,6 +20,7 @@ const LocationPickerModal = React.lazy(() =>
 
 export function SpecimenModal(props: { specimenId: string; onClose: () => void }) {
   const navigate = useNavigate();
+  const { confirm: confirmAction, notify, dialog } = useConfirmDialog();
   const specimen = useLiveQuery(async () => db.specimens.get(props.specimenId), [props.specimenId]);
   const media = useLiveQuery(async () => db.media.where("specimenId").equals(props.specimenId).toArray(), [props.specimenId]);
   const [draft, setDraft] = useState<Specimen | null>(null);
@@ -80,18 +82,30 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
     };
   }, [imageUrls]);
 
-  if (!draft) return <Modal onClose={props.onClose} title="Loading…"><div>Loading data...</div></Modal>;
+  if (!draft) return (
+    <>
+      <Modal onClose={props.onClose} title="Loading..."><div>Loading data...</div></Modal>
+      {dialog}
+    </>
+  );
 
   async function shareToCommunity() {
     if (!draft || !draft.lat || !draft.lon) {
-      alert("GPS coordinates are required to share with the community.");
+      await notify({
+        title: "GPS required",
+        message: "Add GPS coordinates before sharing this find with the FossilMapped community map.",
+        tone: "warning",
+      });
       return;
     }
 
-    const shareMsg = "Share this find with FossilMapped? It will be visible to everyone on the global map.\n\n" + 
-                   "Note: Your collector name and contact email (if set in settings) will be shared with the find.";
-    
-    if (!confirm(shareMsg)) return;
+    const ok = await confirmAction({
+      title: "Share with FossilMapped?",
+      message: "This find will be visible on the public community map. Your collector name and contact email, if set in settings, will also be shared with the find.",
+      confirmLabel: "Share find",
+      tone: "warning",
+    });
+    if (!ok) return;
 
     setSharing(true);
     try {
@@ -157,13 +171,21 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
         hrid: hrid,
         qualityScore: qualityScore
       });
-      alert(`Shared with community as ${hrid}! 🌍`);
+      await notify({
+        title: "Find shared",
+        message: `Shared with the community as ${hrid}.`,
+        tone: "success",
+      });
     } catch (e: any) {
       console.error(e);
       let errorMsg = "Sharing failed. ";
       if (e?.message) errorMsg += e.message;
       if (e?.status === 413) errorMsg += " Photos might be too large.";
-      alert(errorMsg);
+      await notify({
+        title: "Sharing failed",
+        message: errorMsg,
+        tone: "danger",
+      });
     } finally {
       setSharing(false);
     }
@@ -171,16 +193,30 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
 
   async function unshareFromCommunity() {
     if (!draft || !draft.isShared) return;
-    if (!confirm("Remove this find from the public FossilMapped database?")) return;
+    const ok = await confirmAction({
+      title: "Remove community share?",
+      message: "This removes the find from the public FossilMapped database. Your local FossilMap record will stay on this device.",
+      confirmLabel: "Remove share",
+      danger: true,
+    });
+    if (!ok) return;
 
     setSharing(true);
     try {
       await deleteSharedFind(draft.id);
       await db.specimens.update(draft.id, { isShared: false, sharedAt: undefined });
-      alert("Successfully removed from the community database. 🗑️");
+      await notify({
+        title: "Share removed",
+        message: "The find has been removed from the community database.",
+        tone: "success",
+      });
     } catch (e: any) {
       console.error(e);
-      alert("Removal failed: " + (e?.message || "Check your internet connection"));
+      await notify({
+        title: "Removal failed",
+        message: e?.message || "Check your internet connection and try again.",
+        tone: "danger",
+      });
     } finally {
       setSharing(false);
     }
@@ -201,7 +237,13 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
 
   async function del() {
     if (!draft) return;
-    if (!confirm("Delete this find?")) return;
+    const ok = await confirmAction({
+      title: "Delete this find?",
+      message: "This will permanently delete the find and its photos from this device.",
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
     setBusy(true);
     await db.media.where("specimenId").equals(draft.id).delete();
     await db.specimens.delete(draft.id);
@@ -244,7 +286,13 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
   }
 
   async function removePhoto(mediaId: string) {
-    if (!confirm("Remove this photo?")) return;
+    const ok = await confirmAction({
+      title: "Remove photo?",
+      message: "This removes the photo from this find on this device.",
+      confirmLabel: "Remove",
+      danger: true,
+    });
+    if (!ok) return;
     setBusy(true);
     await db.media.delete(mediaId);
     setBusy(false);
@@ -256,7 +304,11 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
       const fix = await captureGPS();
       setDraft(prev => prev ? { ...prev, lat: fix.lat, lon: fix.lon, gpsAccuracyM: fix.accuracyM } : null);
     } catch (e: any) {
-      alert(e?.message ?? "GPS failed");
+      await notify({
+        title: "GPS failed",
+        message: e?.message ?? "FossilMap could not get a GPS fix.",
+        tone: "danger",
+      });
     } finally {
       setBusy(false);
     }
@@ -685,6 +737,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
           />
         </React.Suspense>
       )}
+      {dialog}
     </>
   );
 }
