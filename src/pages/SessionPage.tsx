@@ -14,7 +14,6 @@ import {
   Save,
   ShieldAlert,
   Square,
-  Upload,
   Waves,
 } from "lucide-react";
 import { v4 as uuid } from "uuid";
@@ -28,6 +27,11 @@ const SpecimenModal = React.lazy(() =>
   import("../components/SpecimenModal").then((mod) => ({ default: mod.SpecimenModal }))
 );
 
+function toDateTimeLocalValue(value: Date | string) {
+  const date = value instanceof Date ? value : new Date(value);
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
 export default function SessionPage(props: { projectId: string }) {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
@@ -36,7 +40,7 @@ export default function SessionPage(props: { projectId: string }) {
   const isEdit = !!id;
   const { confirm: confirmAction, dialog } = useConfirmDialog();
 
-  const [startTime, setStartTime] = useState(new Date().toISOString().slice(0, 16));
+  const [startTime, setStartTime] = useState(() => toDateTimeLocalValue(new Date()));
   const [notes, setNotes] = useState("");
   const [isFinished, setIsFinished] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -98,7 +102,7 @@ export default function SessionPage(props: { projectId: string }) {
     if (id) {
       db.sessions.get(id).then((s) => {
         if (s) {
-          setStartTime(new Date(s.startTime).toISOString().slice(0, 16));
+          setStartTime(toDateTimeLocalValue(s.startTime));
           setNotes(s.notes || "");
           setIsFinished(!!s.isFinished);
         }
@@ -144,9 +148,9 @@ export default function SessionPage(props: { projectId: string }) {
           projectId: props.projectId,
           localityId: locationId!,
           startTime: isoStart,
-          endTime: isFinished ? now : null,
+          endTime: null,
           notes,
-          isFinished,
+          isFinished: false,
           createdAt: now,
           updatedAt: now,
         };
@@ -284,24 +288,14 @@ export default function SessionPage(props: { projectId: string }) {
                         <Camera className="h-5 w-5" />
                       </div>
                       <div>
-                        <p className="font-black">Take Site Photo</p>
-                        <p className="text-xs opacity-70">Exposure, cliff fall, quarry face or context</p>
+                        <p className="font-black">Site Photo</p>
+                        <p className="text-xs opacity-70">Take or choose exposure, cliff, quarry or context images</p>
                       </div>
-                      <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => addLocalityPhoto(e.target.files)} />
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => addLocalityPhoto(e.target.files)} />
                     </label>
                     <ActionButton icon={Compass} label="GPS Note" detail="Append a current GPS fix to notes" onClick={appendGpsNote} tone="slate" />
                     <ActionButton icon={Waves} label="Check Tides" detail="Open the tide planning tool" onClick={() => nav("/tides")} tone="blue" />
                     <ActionButton icon={Square} label="Finish Trip" detail="Close this active field session" onClick={finishSession} tone="amber" />
-                    <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 text-left text-slate-950 transition-colors hover:bg-white dark:border-slate-800 dark:bg-slate-950/45 dark:text-white dark:hover:bg-slate-950">
-                      <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-white dark:bg-slate-900">
-                        <Upload className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <p className="font-black">Upload Site Photo</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">Add saved camera images to the locality</p>
-                      </div>
-                      <input type="file" accept="image/*" className="hidden" onChange={(e) => addLocalityPhoto(e.target.files)} />
-                    </label>
                   </div>
                 </div>
               ) : (
@@ -358,10 +352,12 @@ export default function SessionPage(props: { projectId: string }) {
                     placeholder="Ground conditions, team members, access constraints..."
                   />
                 </label>
-                <label className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/45">
-                  <input type="checkbox" checked={isFinished} onChange={(e) => setIsFinished(e.target.checked)} className="h-5 w-5 rounded border-slate-300 text-emerald-600" />
-                  <span className="text-sm font-black text-slate-700 dark:text-slate-200">Mark this session as finished</span>
-                </label>
+                {isEdit && (
+                  <label className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/45">
+                    <input type="checkbox" checked={isFinished} onChange={(e) => setIsFinished(e.target.checked)} className="h-5 w-5 rounded border-slate-300 text-emerald-600" />
+                    <span className="text-sm font-black text-slate-700 dark:text-slate-200">Mark this session as finished</span>
+                  </label>
+                )}
                 <div className="flex flex-wrap gap-2">
                   <button onClick={save} disabled={saving} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-3 text-sm font-black text-white hover:bg-emerald-700 disabled:opacity-50">
                     <Save className="h-4 w-4" />
