@@ -100,10 +100,19 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
     }
 
     if (qualityScore < 50) {
+      const missing: string[] = [];
+      if (!draft.formation) missing.push("formation");
+      if (!draft.stage) missing.push("stage");
+      if (!draft.lengthMm && !draft.widthMm && !draft.weightG) missing.push("measurements");
+      if (!media || media.length === 0) missing.push("at least one photo");
+      const nudge = missing.length
+        ? `This record scores ${qualityScore}%. Adding ${missing.join(", ")} will improve its research value before sharing.`
+        : `This record scores ${qualityScore}%. Consider completing the record before sharing.`;
       const proceed = await confirmAction({
-        title: "Low quality record",
-        message: `This record scores ${qualityScore}%. Adding stratigraphy, GPS, photos and measurements improves its research value. Share anyway?`,
+        title: "Record is incomplete",
+        message: nudge,
         confirmLabel: "Share anyway",
+        cancelLabel: "Go back and improve",
         tone: "warning",
       });
       if (!proceed) return;
