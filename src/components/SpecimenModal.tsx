@@ -10,6 +10,7 @@ import { ScaleCalibrationModal } from "./ScaleCalibrationModal";
 import { ScaledImage } from "./ScaledImage";
 import { PhotoAnnotator } from "./PhotoAnnotator";
 import { captureGPS } from "../services/gps";
+import { formatCoords, getFiniteCoords } from "../services/coords";
 import { uploadSharedFind, deleteSharedFind } from "../services/supabase";
 import { calculateQualityScore, generateHRID, getQualityColor, getQualityLabel } from "../services/research";
 import { useConfirmDialog } from "./ConfirmModal";
@@ -90,7 +91,8 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
   );
 
   async function shareToCommunity() {
-    if (!draft || !draft.lat || !draft.lon) {
+    const coords = getFiniteCoords(draft?.lat, draft?.lon);
+    if (!draft || !coords) {
       await notify({
         title: "GPS required",
         message: "Add GPS coordinates before sharing this find with the FossilMapped community map.",
@@ -128,7 +130,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
 
     setSharing(true);
     try {
-      const hrid = draft.hrid || generateHRID();
+      let hrid = draft.hrid || generateHRID();
       const repository = draft.repository || "Private";
 
       // Prepare the payload — cap at 2 photos, compress for share
@@ -149,7 +151,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
 
       const cleanStage = (draft.stage || locality?.stage || "").replace(/^Unknown$/i, "").trim();
 
-      const payload = {
+      const buildPayload = () => ({
         id: draft.id,
         hrid: hrid,
         collectorName: defaultCollector,
@@ -163,8 +165,8 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
         bed: draft.bed || locality?.bed || "",
         verification_status: 'community' as const,
         locationName: locality?.name || "Unknown Location",
-        latitude: draft.lat,
-        longitude: draft.lon,
+        latitude: coords.lat,
+        longitude: coords.lon,
         dateCollected: draft.dateCollected ?? draft.createdAt,
         photos: photos,
         measurements: {
@@ -178,10 +180,19 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
         quality_score: qualityScore,
         notes: draft.notes,
         sharedAt: new Date().toISOString()
-      };
+      });
 
-      // Use Supabase Service
-      await uploadSharedFind(payload);
+      let payload = buildPayload();
+      for (let attempt = 0; attempt < 5; attempt++) {
+        payload = buildPayload();
+        try {
+          await uploadSharedFind(payload);
+          break;
+        } catch (error) {
+          if (draft.hrid || attempt === 4 || !isUniqueConflict(error)) throw error;
+          hrid = generateHRID();
+        }
+      }
 
       await db.specimens.update(draft.id, {
         isShared: true,
@@ -366,6 +377,8 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
         </button>
     </div>
   );
+  const draftCoords = getFiniteCoords(draft.lat, draft.lon);
+  const draftCoordsLabel = formatCoords(draft.lat, draft.lon);
 
   return (
     <>
@@ -514,7 +527,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
                       <div className="flex flex-col gap-1 w-full text-xs">
                           <div className="font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest">GPS Find spot</div>
                           <div className="font-mono mt-0.5 font-bold text-gray-800 dark:text-gray-100">
-                              {draft.lat && draft.lon ? `${draft.lat.toFixed(6)}, ${draft.lon?.toFixed(6)}` : "Not set"}
+                              {draftCoordsLabel ?? "Not set"}
                           </div>
                       </div>
                       <div className="flex gap-2 w-full sm:w-auto">
@@ -665,10 +678,10 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
                       </div>
                   </div>
 
-                  {draft.lat && (
+                  {draftCoords && (
                     <div className="mt-4 flex items-center justify-between bg-blue-50/50 dark:bg-blue-900/10 px-4 py-2 rounded-xl border border-blue-100 dark:border-blue-900/30">
-                        <div className="text-[10px] font-mono font-bold text-blue-600">📍 {draft.lat.toFixed(6)}, {draft.lon?.toFixed(6)}</div>
-                        <button onClick={() => window.open(`https://www.google.com/maps?q=${draft.lat},${draft.lon}`, "_blank")} className="text-[9px] font-black text-blue-500 hover:underline uppercase">View Map ↗</button>
+                        <div className="text-[10px] font-mono font-bold text-blue-600">📍 {draftCoordsLabel}</div>
+                        <button onClick={() => window.open(`https://www.google.com/maps?q=${draftCoords.lat},${draftCoords.lon}`, "_blank")} className="text-[9px] font-black text-blue-500 hover:underline uppercase">View Map ↗</button>
                     </div>
                   )}
               </div>
@@ -758,4 +771,11 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
       {dialog}
     </>
   );
+}
+
+function isUniqueConflict(error: unknown): boolean {
+  const e = error as { code?: string; message?: string; details?: string; hint?: string };
+  if (e?.code === "23505") return true;
+  const text = [e?.message, e?.details, e?.hint].filter(Boolean).join(" ");
+  return /duplicate key|unique constraint|shared_finds_hrid|hrid/i.test(text);
 }

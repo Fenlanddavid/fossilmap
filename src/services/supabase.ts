@@ -32,7 +32,8 @@ export async function uploadSharedFind(payload: any) {
         measurements: payload.measurements,
         repository: payload.repository || "Private",
         accession_id: payload.accession_id,
-        quality_score: payload.quality_score || 0,
+        quality_score: payload.quality_score ?? 0,
+        verification_status: payload.verification_status || 'community',
         notes: payload.notes,
         shared_at: payload.sharedAt
     }], { onConflict: 'fossilmap_id' })

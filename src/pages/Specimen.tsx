@@ -7,6 +7,7 @@ import { fileToBlob } from "../services/photos";
 import { ScaledImage } from "../components/ScaledImage";
 import { PhotoAnnotator } from "../components/PhotoAnnotator";
 import { captureGPS } from "../services/gps";
+import { formatCoords } from "../services/coords";
 import { useConfirmDialog } from "../components/ConfirmModal";
 import { CoachTip } from "../components/CoachTip";
 import {
@@ -1050,13 +1051,14 @@ function GpsBlock({ lat, lon, doGPS, setIsPickingLocation, setLat, setLon, setAc
   setAcc: (v: number | null) => void;
   compact?: boolean;
 }) {
+  const coordsLabel = formatCoords(lat, lon);
   return (
     <div className="bg-blue-50/50 dark:bg-blue-900/20 p-5 rounded-2xl border-2 border-blue-100/50 dark:border-blue-800/30 flex flex-col gap-4">
       <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
         <div className="flex flex-col gap-1 w-full">
           <div className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">GPS Find spot</div>
           <div className="text-sm sm:text-lg font-mono font-bold text-gray-800 dark:text-gray-100 break-all">
-            {lat && lon ? `${lat.toFixed(6)}, ${lon.toFixed(6)}` : <span className="opacity-40 italic text-sm">Coordinates not set</span>}
+            {coordsLabel ?? <span className="opacity-40 italic text-sm">Coordinates not set</span>}
           </div>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
@@ -1074,7 +1076,7 @@ function GpsBlock({ lat, lon, doGPS, setIsPickingLocation, setLat, setLon, setAc
             onClick={doGPS}
             className="flex-1 sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-md transition-all flex items-center justify-center gap-2 whitespace-nowrap text-sm"
           >
-            📍 {lat ? "Update GPS" : "Get GPS"}
+            📍 {coordsLabel ? "Update GPS" : "Get GPS"}
           </button>
         </div>
       </div>

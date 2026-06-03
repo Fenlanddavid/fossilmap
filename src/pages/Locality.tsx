@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { db, Locality, Specimen, Media } from "../db";
 import { v4 as uuid } from "uuid";
 import { captureGPS } from "../services/gps";
+import { formatCoords, getFiniteCoords } from "../services/coords";
 import { lookupBGSGeology, BGSResult } from "../services/bgs";
 import { useParams, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -167,12 +168,13 @@ export default function LocalityPage(props: {
   }
 
   async function doBGSLookup() {
-    if (!lat || !lon) return;
+    const coords = getFiniteCoords(lat, lon);
+    if (!coords) return;
     setBgsLoading(true);
     setBgsError(null);
     setBgsResult(null);
     try {
-      const result = await lookupBGSGeology(lat, lon);
+      const result = await lookupBGSGeology(coords.lat, coords.lon);
       setBgsResult(result);
     } catch (e: any) {
       setBgsError(e?.message ?? "BGS lookup failed");
@@ -310,9 +312,11 @@ export default function LocalityPage(props: {
   } : null;
 
   const isTrip = localityType === 'trip';
+  const coords = getFiniteCoords(lat, lon);
+  const coordsLabel = formatCoords(lat, lon);
   const completenessItems = [
     { label: "Name", done: !!name.trim() },
-    { label: "GPS", done: lat != null && lon != null },
+    { label: "GPS", done: !!coords },
     { label: "Collector", done: !!collector.trim() },
     { label: "Period", done: !!period.trim() },
     { label: "Stage", done: !!stage.trim() },
@@ -415,10 +419,10 @@ export default function LocalityPage(props: {
                             <div className="flex flex-col gap-1 w-full">
                                 <div className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">GPS Location</div>
                                 <div className="text-sm sm:text-lg font-mono font-bold text-gray-800 dark:text-gray-100">
-                                    {lat && lon ? (
+                                    {coords ? (
                                     <div className="flex items-center gap-2">
-                                        {lat.toFixed(6)}, {lon.toFixed(6)}
-                                        {acc ? <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded-full">±{Math.round(acc)}m</span> : ""}
+                                        {coordsLabel}
+                                        {typeof acc === "number" ? <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded-full">±{Math.round(acc)}m</span> : ""}
                                     </div>
                                     ) : (
                                     <span className="opacity-40 italic">Coordinates not set</span>
@@ -438,7 +442,7 @@ export default function LocalityPage(props: {
                                     onClick={doGPS} 
                                     className="flex-1 sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-md transition-all flex items-center justify-center gap-2 whitespace-nowrap"
                                 >
-                                    📍 {lat ? "Update GPS" : "Get Current GPS"}
+                                    📍 {coords ? "Update GPS" : "Get Current GPS"}
                                 </button>
                             </div>
                         </div>
@@ -470,7 +474,7 @@ export default function LocalityPage(props: {
                     </div>
 
                     {/* BGS Geology Auto-populate */}
-                    {lat && lon && (
+                    {coords && (
                       <div className="rounded-xl border border-purple-200 dark:border-purple-800/40 bg-purple-50 dark:bg-purple-900/10 p-4">
                         <div className="flex items-center justify-between gap-3">
                           <div className="min-w-0">
@@ -797,11 +801,11 @@ export default function LocalityPage(props: {
                             </div>
                             <div>
                                 <h4 className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-1">Location</h4>
-                                {lat && lon ? (
+                                {coords ? (
                                     <div className="flex flex-col gap-1">
-                                        <p className="font-mono font-bold text-blue-600">{lat.toFixed(6)}, {lon.toFixed(6)}</p>
+                                        <p className="font-mono font-bold text-blue-600">{coordsLabel}</p>
                                         <button 
-                                            onClick={() => window.open(`https://www.google.com/maps?q=${lat},${lon}`, "_blank")}
+                                            onClick={() => window.open(`https://www.google.com/maps?q=${coords.lat},${coords.lon}`, "_blank")}
                                             className="text-[10px] font-bold text-gray-400 hover:text-blue-600 transition-colors flex items-center gap-1"
                                         >
                                             View on Google Maps ↗

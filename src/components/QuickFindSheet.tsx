@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { db, Specimen } from "../db";
 import { v4 as uuid } from "uuid";
 import { captureGPS } from "../services/gps";
+import { hasCoords } from "../services/coords";
 import { X, MapPin, Loader2, CheckCircle2, Zap } from "lucide-react";
 
 const COMMON_TAXA = [
@@ -109,7 +110,7 @@ export function QuickFindSheet({ projectId, localityId, onClose, onSaved }: Quic
               <Zap className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
               <h2 className="text-base font-black text-slate-950 dark:text-white">Quick Find</h2>
               {gpsLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />}
-              {lat && lon && !gpsLoading && (
+              {hasCoords(lat, lon) && !gpsLoading && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-black text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
                   <MapPin className="h-2.5 w-2.5" />
                   GPS
