@@ -27,6 +27,10 @@ export async function uploadSharedFind(payload: any) {
         location_name: payload.locationName,
         latitude: payload.latitude,
         longitude: payload.longitude,
+        public_latitude: payload.publicLatitude,
+        public_longitude: payload.publicLongitude,
+        location_precision: payload.locationPrecision,
+        precision_locked: payload.precisionLocked,
         date_collected: payload.dateCollected,
         photos: payload.photos,
         measurements: payload.measurements,
@@ -48,6 +52,28 @@ export async function deleteSharedFind(fossilmapId: string) {
   const { error } = await supabase
     .from('shared_finds')
     .update({ is_deleted: true, deleted_at: new Date().toISOString() })
+    .eq('fossilmap_id', fossilmapId)
+
+  if (error) throw error
+}
+
+export async function updateSharedFindPrecision(
+  fossilmapId: string,
+  unlock: boolean,
+  publicLatitude: number,
+  publicLongitude: number
+) {
+  if (supabaseUrl.includes('YOUR_PROJECT_ID')) {
+    throw new Error("Supabase configuration is missing. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.");
+  }
+
+  const { error } = await supabase
+    .from('shared_finds')
+    .update({
+      precision_locked: !unlock,
+      public_latitude: publicLatitude,
+      public_longitude: publicLongitude,
+    })
     .eq('fossilmap_id', fossilmapId)
 
   if (error) throw error

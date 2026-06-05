@@ -139,6 +139,10 @@ export type Specimen = {
 
   isShared?: boolean;
   sharedAt?: string;
+  locationPrecision?: "exact" | "100m" | "1km" | "locality";
+  precisionLocked?: boolean;
+  publicLat?: number | null;
+  publicLon?: number | null;
 
   isPending?: boolean;
 

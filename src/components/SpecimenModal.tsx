@@ -4,20 +4,60 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db, Specimen, Media } from "../db";
 import { Modal } from "./Modal";
 import { v4 as uuid } from "uuid";
-import { Globe, Check, Loader2 } from "lucide-react";
+import { Globe, Check, Loader2, Lock, ShieldCheck, Unlock } from "lucide-react";
 import { fileToBlob, compressForShare } from "../services/photos";
 import { ScaleCalibrationModal } from "./ScaleCalibrationModal";
 import { ScaledImage } from "./ScaledImage";
 import { PhotoAnnotator } from "./PhotoAnnotator";
 import { captureGPS } from "../services/gps";
 import { formatCoords, getFiniteCoords } from "../services/coords";
-import { uploadSharedFind, deleteSharedFind } from "../services/supabase";
+import { uploadSharedFind, deleteSharedFind, updateSharedFindPrecision } from "../services/supabase";
 import { calculateQualityScore, generateHRID, getQualityColor, getQualityLabel } from "../services/research";
 import { useConfirmDialog } from "./ConfirmModal";
 
 const LocationPickerModal = React.lazy(() =>
   import("./LocationPickerModal").then((mod) => ({ default: mod.LocationPickerModal }))
 );
+
+type PrecisionLevel = "exact" | "100m" | "1km" | "locality";
+
+const precisionOptions: ReadonlyArray<{ value: PrecisionLevel; label: string; sub: string }> = [
+  { value: "exact", label: "Exact GPS", sub: "Full coordinates shared" },
+  { value: "100m", label: "~100m area", sub: "Rounded to nearest 100m - recommended" },
+  { value: "1km", label: "~1km area", sub: "General area only" },
+  { value: "locality", label: "Locality name", sub: "No map pin - name only" },
+];
+
+function applyPrecision(
+  lat: number,
+  lon: number,
+  level: PrecisionLevel
+): { lat: number; lon: number } {
+  if (level === "exact") return { lat, lon };
+  if (level === "100m") {
+    return {
+      lat: Math.round(lat * 1000) / 1000,
+      lon: Math.round(lon * 1000) / 1000,
+    };
+  }
+  if (level === "1km") {
+    return {
+      lat: Math.round(lat * 100) / 100,
+      lon: Math.round(lon * 100) / 100,
+    };
+  }
+  return { lat: 0, lon: 0 };
+}
+
+function isPrecisionLevel(value: unknown): value is PrecisionLevel {
+  return value === "exact" || value === "100m" || value === "1km" || value === "locality";
+}
+
+function precisionLabel(level: PrecisionLevel): string {
+  if (level === "exact") return "exact GPS";
+  if (level === "locality") return "locality name only";
+  return `~${level} area`;
+}
 
 export function SpecimenModal(props: { specimenId: string; onClose: () => void }) {
   const navigate = useNavigate();
@@ -31,6 +71,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
   const [isPickingLocation, setIsPickingLocation] = useState(false);
   const [isCustomElement, setIsCustomElement] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [sharePrec, setSharePrec] = useState<PrecisionLevel>("100m");
   
   const qualityScore = useMemo(() => {
     if (!draft) return 0;
@@ -64,6 +105,11 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
             setIsCustomElement(true);
         } else {
             setIsCustomElement(false);
+        }
+        if (isPrecisionLevel(specimen.locationPrecision)) {
+            setSharePrec(specimen.locationPrecision);
+        } else if (!specimen.isShared) {
+            setSharePrec("100m");
         }
     }
   }, [specimen]);
@@ -100,6 +146,8 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
       });
       return;
     }
+    const chosenPrecision = sharePrec;
+    const publicCoords = applyPrecision(coords.lat, coords.lon, chosenPrecision);
 
     if (qualityScore < 50) {
       const missing: string[] = [];
@@ -122,7 +170,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
 
     const ok = await confirmAction({
       title: "Share with FossilMapped?",
-      message: "This find will be visible on the public community map. Your collector name and contact email, if set in settings, will also be shared with the find.",
+      message: `This find will be visible on the public community map. Public location: ${precisionLabel(chosenPrecision)}. Your collector name and contact email, if set in settings, will also be shared with the find.`,
       confirmLabel: "Share find",
       tone: "warning",
     });
@@ -167,6 +215,10 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
         locationName: locality?.name || "Unknown Location",
         latitude: coords.lat,
         longitude: coords.lon,
+        publicLatitude: publicCoords.lat,
+        publicLongitude: publicCoords.lon,
+        locationPrecision: chosenPrecision,
+        precisionLocked: chosenPrecision !== "exact",
         dateCollected: draft.dateCollected ?? draft.createdAt,
         photos: photos,
         measurements: {
@@ -198,8 +250,23 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
         isShared: true,
         sharedAt: payload.sharedAt,
         hrid: hrid,
-        qualityScore: qualityScore
+        qualityScore: qualityScore,
+        publicLat: payload.publicLatitude,
+        publicLon: payload.publicLongitude,
+        locationPrecision: payload.locationPrecision,
+        precisionLocked: payload.precisionLocked
       });
+      setDraft(prev => prev ? {
+        ...prev,
+        isShared: true,
+        sharedAt: payload.sharedAt,
+        hrid,
+        qualityScore,
+        publicLat: payload.publicLatitude,
+        publicLon: payload.publicLongitude,
+        locationPrecision: payload.locationPrecision,
+        precisionLocked: payload.precisionLocked
+      } : prev);
       await notify({
         title: "Find shared",
         message: `Shared as ${hrid}. View it at https://fenlanddavid.github.io/fossilmapped/?find=${encodeURIComponent(hrid)}`,
@@ -233,7 +300,23 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
     setSharing(true);
     try {
       await deleteSharedFind(draft.id);
-      await db.specimens.update(draft.id, { isShared: false, sharedAt: undefined });
+      await db.specimens.update(draft.id, {
+        isShared: false,
+        sharedAt: undefined,
+        publicLat: undefined,
+        publicLon: undefined,
+        locationPrecision: undefined,
+        precisionLocked: undefined,
+      });
+      setDraft(prev => prev ? {
+        ...prev,
+        isShared: false,
+        sharedAt: undefined,
+        publicLat: undefined,
+        publicLon: undefined,
+        locationPrecision: undefined,
+        precisionLocked: undefined,
+      } : prev);
       await notify({
         title: "Share removed",
         message: "The find has been removed from the community database.",
@@ -243,6 +326,73 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
       console.error(e);
       await notify({
         title: "Removal failed",
+        message: e?.message || "Check your internet connection and try again.",
+        tone: "danger",
+      });
+    } finally {
+      setSharing(false);
+    }
+  }
+
+  async function handleTogglePrecision() {
+    if (!draft || !draft.isShared) return;
+    const coords = getFiniteCoords(draft.lat, draft.lon);
+    if (!coords) {
+      await notify({
+        title: "GPS required",
+        message: "Exact coordinates are missing from this local record.",
+        tone: "warning",
+      });
+      return;
+    }
+
+    const currentPrecision = isPrecisionLevel(draft.locationPrecision) ? draft.locationPrecision : "exact";
+    if (currentPrecision === "exact") return;
+
+    const currentlyLocked = draft.precisionLocked ?? true;
+    const unlock = currentlyLocked;
+    const ok = await confirmAction({
+      title: unlock ? "Share exact location?" : "Hide exact location?",
+      message: unlock
+        ? "Exact GPS coordinates will be visible to all FossilMapped users."
+        : "Location will return to the approximate area you chose when sharing.",
+      confirmLabel: unlock ? "Unlock" : "Relock",
+      tone: "warning",
+    });
+    if (!ok) return;
+
+    setSharing(true);
+    try {
+      const nextPublicCoords = unlock
+        ? coords
+        : applyPrecision(coords.lat, coords.lon, currentPrecision);
+
+      await updateSharedFindPrecision(
+        draft.id,
+        unlock,
+        nextPublicCoords.lat,
+        nextPublicCoords.lon
+      );
+
+      const patch = {
+        precisionLocked: !unlock,
+        publicLat: nextPublicCoords.lat,
+        publicLon: nextPublicCoords.lon,
+        locationPrecision: currentPrecision,
+      };
+      await db.specimens.update(draft.id, patch);
+      setDraft(prev => prev ? { ...prev, ...patch } : prev);
+      await notify({
+        title: unlock ? "Exact location shared" : "Location relocked",
+        message: unlock
+          ? "FossilMapped will show the exact GPS coordinates for this find."
+          : `FossilMapped will show ${precisionLabel(currentPrecision)} publicly.`,
+        tone: "success",
+      });
+    } catch (e: any) {
+      console.error(e);
+      await notify({
+        title: "Precision update failed",
         message: e?.message || "Check your internet connection and try again.",
         tone: "danger",
       });
@@ -379,6 +529,13 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
   );
   const draftCoords = getFiniteCoords(draft.lat, draft.lon);
   const draftCoordsLabel = formatCoords(draft.lat, draft.lon);
+  const currentPrecision = isPrecisionLevel(draft.locationPrecision)
+    ? draft.locationPrecision
+    : draft.isShared
+      ? "exact"
+      : sharePrec;
+  const currentPrecisionLocked = draft.precisionLocked ?? currentPrecision !== "exact";
+  const canToggleSharedPrecision = draft.isShared && currentPrecision !== "exact";
 
   return (
     <>
@@ -685,6 +842,68 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
                     </div>
                   )}
               </div>
+
+              {!draft.isShared && (
+                <div className="rounded-2xl border border-amber-100 bg-amber-50/60 p-4 dark:border-amber-900/40 dark:bg-amber-900/10">
+                  <div className="mb-3 flex items-start gap-3">
+                    <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+                    <div>
+                      <div className="text-sm font-black text-gray-900 dark:text-white">Location precision</div>
+                      <div className="mt-0.5 text-xs font-medium leading-relaxed text-gray-600 dark:text-gray-300">
+                        Choose how precisely your find location is shared publicly. You can unlock exact coordinates later from this record.
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {precisionOptions.map(opt => (
+                      <label
+                        key={opt.value}
+                        className={`flex cursor-pointer gap-3 rounded-xl border p-3 transition-colors ${sharePrec === opt.value ? "border-amber-300 bg-white text-amber-900 shadow-sm dark:border-amber-700 dark:bg-gray-900 dark:text-amber-100" : "border-amber-100 bg-white/60 text-gray-700 hover:bg-white dark:border-amber-900/40 dark:bg-gray-900/30 dark:text-gray-300"}`}
+                      >
+                        <input
+                          type="radio"
+                          name="sharePrecision"
+                          checked={sharePrec === opt.value}
+                          disabled={sharing}
+                          onChange={() => setSharePrec(opt.value)}
+                          className="mt-1 accent-amber-600"
+                        />
+                        <span className="min-w-0">
+                          <span className="block text-xs font-black">{opt.label}</span>
+                          <span className="mt-0.5 block text-[10px] font-semibold leading-snug opacity-70">{opt.sub}</span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {draft.isShared && (
+                <div className="flex flex-col gap-3 rounded-2xl border border-green-100 bg-green-50/60 p-4 dark:border-green-900/40 dark:bg-green-900/10 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-start gap-3">
+                    <Lock className="mt-0.5 h-5 w-5 shrink-0 text-green-600 dark:text-green-400" />
+                    <div>
+                      <div className="text-sm font-black text-gray-900 dark:text-white">Shared location precision</div>
+                      <div className="mt-0.5 text-xs font-semibold leading-relaxed text-gray-600 dark:text-gray-300">
+                        {currentPrecisionLocked
+                          ? `Showing ${precisionLabel(currentPrecision)} publicly`
+                          : "Exact coordinates shared publicly"}
+                      </div>
+                    </div>
+                  </div>
+                  {canToggleSharedPrecision && (
+                    <button
+                      type="button"
+                      onClick={handleTogglePrecision}
+                      disabled={sharing}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-green-200 bg-white px-4 py-2 text-xs font-black text-green-700 shadow-sm transition-colors hover:bg-green-600 hover:text-white disabled:cursor-wait disabled:opacity-60 dark:border-green-800 dark:bg-gray-900 dark:text-green-300"
+                    >
+                      {sharing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : currentPrecisionLocked ? <Unlock className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
+                      {currentPrecisionLocked ? "Unlock exact" : "Relock location"}
+                    </button>
+                  )}
+                </div>
+              )}
 
               {draft.notes && (
                   <div className="px-2">
