@@ -4,7 +4,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db, Specimen, Media } from "../db";
 import { Modal } from "./Modal";
 import { v4 as uuid } from "uuid";
-import { Globe, Check, Loader2, Lock, ShieldCheck, Unlock } from "lucide-react";
+import { ChevronDown, Globe, Check, Loader2, Lock, ShieldCheck, Unlock } from "lucide-react";
 import { fileToBlob, compressForShare } from "../services/photos";
 import { ScaleCalibrationModal } from "./ScaleCalibrationModal";
 import { ScaledImage } from "./ScaledImage";
@@ -72,6 +72,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
   const [isCustomElement, setIsCustomElement] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [sharePrec, setSharePrec] = useState<PrecisionLevel>("100m");
+  const [showPrecisionDetails, setShowPrecisionDetails] = useState(false);
   
   const qualityScore = useMemo(() => {
     if (!draft) return 0;
@@ -845,36 +846,47 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
 
               {!draft.isShared && (
                 <div className="rounded-2xl border border-amber-100 bg-amber-50/60 p-4 dark:border-amber-900/40 dark:bg-amber-900/10">
-                  <div className="mb-3 flex items-start gap-3">
-                    <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
-                    <div>
-                      <div className="text-sm font-black text-gray-900 dark:text-white">Location precision</div>
-                      <div className="mt-0.5 text-xs font-medium leading-relaxed text-gray-600 dark:text-gray-300">
-                        Choose how precisely your find location is shared publicly. You can unlock exact coordinates later from this record.
-                      </div>
-                    </div>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {precisionOptions.map(opt => (
-                      <label
-                        key={opt.value}
-                        className={`flex cursor-pointer gap-3 rounded-xl border p-3 transition-colors ${sharePrec === opt.value ? "border-amber-300 bg-white text-amber-900 shadow-sm dark:border-amber-700 dark:bg-gray-900 dark:text-amber-100" : "border-amber-100 bg-white/60 text-gray-700 hover:bg-white dark:border-amber-900/40 dark:bg-gray-900/30 dark:text-gray-300"}`}
-                      >
-                        <input
-                          type="radio"
-                          name="sharePrecision"
-                          checked={sharePrec === opt.value}
-                          disabled={sharing}
-                          onChange={() => setSharePrec(opt.value)}
-                          className="mt-1 accent-amber-600"
-                        />
-                        <span className="min-w-0">
-                          <span className="block text-xs font-black">{opt.label}</span>
-                          <span className="mt-0.5 block text-[10px] font-semibold leading-snug opacity-70">{opt.sub}</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowPrecisionDetails(prev => !prev)}
+                    className="flex w-full items-start justify-between gap-3 text-left"
+                    aria-expanded={showPrecisionDetails}
+                  >
+                    <span className="flex min-w-0 items-start gap-3">
+                      <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-black text-gray-900 dark:text-white">Location precision</span>
+                        <span className="mt-0.5 block text-xs font-medium leading-relaxed text-gray-600 dark:text-gray-300">
+                          Sets public location detail if shared on FossilMapped.
                         </span>
-                      </label>
-                    ))}
-                  </div>
+                      </span>
+                    </span>
+                    <ChevronDown className={`mt-0.5 h-4 w-4 shrink-0 text-amber-600 transition-transform dark:text-amber-400 ${showPrecisionDetails ? "rotate-180" : ""}`} />
+                  </button>
+
+                  {showPrecisionDetails && (
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {precisionOptions.map(opt => (
+                        <label
+                          key={opt.value}
+                          className={`flex cursor-pointer gap-3 rounded-xl border p-3 transition-colors ${sharePrec === opt.value ? "border-amber-300 bg-white text-amber-900 shadow-sm dark:border-amber-700 dark:bg-gray-900 dark:text-amber-100" : "border-amber-100 bg-white/60 text-gray-700 hover:bg-white dark:border-amber-900/40 dark:bg-gray-900/30 dark:text-gray-300"}`}
+                        >
+                          <input
+                            type="radio"
+                            name="sharePrecision"
+                            checked={sharePrec === opt.value}
+                            disabled={sharing}
+                            onChange={() => setSharePrec(opt.value)}
+                            className="mt-1 accent-amber-600"
+                          />
+                          <span className="min-w-0">
+                            <span className="block text-xs font-black">{opt.label}</span>
+                            <span className="mt-0.5 block text-[10px] font-semibold leading-snug opacity-70">{opt.sub}</span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
