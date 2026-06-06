@@ -13,6 +13,7 @@ import { captureGPS } from "../services/gps";
 import { formatCoords, getFiniteCoords } from "../services/coords";
 import { uploadSharedFind, deleteSharedFind, updateSharedFindPrecision } from "../services/supabase";
 import { calculateQualityScore, generateHRID, getQualityColor, getQualityLabel } from "../services/research";
+import { getCommunityUrl } from "../services/community";
 import { useConfirmDialog } from "./ConfirmModal";
 
 const LocationPickerModal = React.lazy(() =>
@@ -270,7 +271,19 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
       } : prev);
       await notify({
         title: "Find shared",
-        message: `Shared as ${hrid}. View it at https://fenlanddavid.github.io/fossilmapped/?find=${encodeURIComponent(hrid)}`,
+        message: (
+          <span>
+            Shared as <strong>{hrid}</strong>.{' '}
+            <a
+              href={getCommunityUrl(hrid)}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: 'inherit', textDecoration: 'underline' }}
+            >
+              View on FossilMapped →
+            </a>
+          </span>
+        ),
         tone: "success",
       });
     } catch (e: any) {

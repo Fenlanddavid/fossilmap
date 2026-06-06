@@ -1275,7 +1275,7 @@ function PhotoPanel({ savedId, media, addPhotos, removePhoto, replacePhoto, move
           <h2 className="text-xl font-black text-gray-800 dark:text-gray-100 uppercase tracking-tight m-0 flex items-center gap-2">
             <Camera className="w-5 h-5" /> Photos
           </h2>
-          {savedId && <span className="text-[10px] font-mono font-bold bg-white dark:bg-gray-800 px-2 py-1 rounded shadow-sm">{media.length} / 4</span>}
+          {savedId && <span className="text-[10px] font-mono font-bold bg-white dark:bg-gray-800 px-2 py-1 rounded shadow-sm">{media.length} {media.length === 1 ? 'photo' : 'photos'}</span>}
         </div>
         <div className="rounded-2xl border border-amber-100 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-100">
           Take at least one context photo and one scale/detail photo before cleaning or trimming matrix.

@@ -32,6 +32,7 @@ import {
   type ImportConflictPreview,
 } from "../services/data";
 import { CoachTip } from "../components/CoachTip";
+import { getCommunityUrl } from "../services/community";
 
 const IMPORT_CONFIRMATION = "IMPORT";
 
@@ -647,7 +648,7 @@ export default function Settings() {
                 All FossilMap records stay on this device unless you choose to share an individual find with FossilMapped.
               </p>
               <a
-                href={import.meta.env.VITE_COMMUNITY_URL || "https://Fenlanddavid.github.io/fossilmapped/"}
+                href={getCommunityUrl()}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-3 inline-flex items-center gap-1.5 text-xs font-black text-emerald-700 no-underline hover:text-emerald-600 dark:text-emerald-300"

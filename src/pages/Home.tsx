@@ -22,6 +22,7 @@ import { db, Media } from "../db";
 import { SpecimenThumbnail } from "../components/SpecimenThumbnail";
 import { LocalityThumbnail } from "../components/LocalityThumbnail";
 import { LocalityFindsList } from "../components/LocalityFindsList";
+import { getCommunityUrl } from "../services/community";
 import { fileToBlob } from "../services/photos";
 import { useConfirmDialog } from "../components/ConfirmModal";
 
@@ -650,7 +651,7 @@ function NextMovePanel(props: {
 function FossilMappedPanel() {
   return (
     <a
-      href={import.meta.env.VITE_COMMUNITY_URL || "/fossilmapped/"}
+      href={getCommunityUrl()}
       target="_blank"
       rel="noopener noreferrer"
       className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition-all duration-200 ease-out hover:-translate-y-px hover:shadow-md dark:border-slate-700 dark:bg-slate-900 group no-underline"

@@ -1,5 +1,6 @@
 import React from "react";
 import { Waves, BookOpen } from "lucide-react";
+import { getCommunityUrl } from "../services/community";
 
 const TidePage = React.lazy(() => import("./TidePage"));
 
@@ -55,7 +56,7 @@ export default function ToolsPage() {
 
       {activeTool === "tides" && (
         <a
-          href={import.meta.env.VITE_COMMUNITY_URL || "/fossilmapped/"}
+          href={getCommunityUrl()}
           target="_blank"
           rel="noopener noreferrer"
           className="mt-6 flex items-center gap-4 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-md hover:shadow-lg hover:scale-[1.008] hover:-translate-y-px transition-all duration-200 ease-out cursor-pointer group no-underline"
