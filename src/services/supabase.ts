@@ -36,12 +36,14 @@ export interface SharedFindPayload {
   sharedAt: string;
 }
 
-export async function uploadSharedFind(payload: SharedFindPayload) {
+export async function uploadSharedFind(payload: SharedFindPayload): Promise<void> {
   if (supabaseUrl.includes('YOUR_PROJECT_ID')) {
     throw new Error("Supabase configuration is missing. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.");
   }
 
-  const { data, error } = await supabase
+  // upsert without .select() — avoids a TypeError if RLS blocks the read-back.
+  // The write itself is what matters; callers don't use the returned row.
+  const { error } = await supabase
     .from('shared_finds')
     .upsert([{
         fossilmap_id: payload.id,
@@ -72,10 +74,8 @@ export async function uploadSharedFind(payload: SharedFindPayload) {
         notes: payload.notes,
         shared_at: payload.sharedAt
     }], { onConflict: 'fossilmap_id' })
-    .select()
-  
+
   if (error) throw error
-  return data[0]
 }
 
 export async function deleteSharedFind(fossilmapId: string) {
