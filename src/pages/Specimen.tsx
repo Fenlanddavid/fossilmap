@@ -93,6 +93,7 @@ export default function SpecimenPage(props: {
 
   // ── UI state ─────────────────────────────────────────────────────────────
   const [error, setError] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [isPickingLocation, setIsPickingLocation] = useState(false);
@@ -115,6 +116,12 @@ export default function SpecimenPage(props: {
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
   }, []);
+
+  useEffect(() => {
+    if (!saveMessage) return;
+    const timer = window.setTimeout(() => setSaveMessage(null), 2600);
+    return () => window.clearTimeout(timer);
+  }, [saveMessage]);
 
   // ── Load locality default ─────────────────────────────────────────────────
   useEffect(() => {
@@ -280,6 +287,7 @@ export default function SpecimenPage(props: {
   // Full save (desktop / edit mode)
   async function saveSpecimen() {
     setError(null);
+    setSaveMessage(null);
     setSaving(true);
     try {
       if (!locationName.trim()) throw new Error("Enter a location name first.");
@@ -290,6 +298,7 @@ export default function SpecimenPage(props: {
       if (editId) await db.specimens.put(record);
       else await db.specimens.add(record);
       setSavedId(id);
+      setSaveMessage(editId ? "Changes saved to this find." : "Find recorded.");
     } catch (e: any) {
       setError(e?.message ?? "Save failed");
     } finally {
@@ -494,6 +503,12 @@ export default function SpecimenPage(props: {
         </div>
       )}
 
+      {saveMessage && (
+        <div className="border-2 border-green-200 bg-green-50 text-green-800 p-4 rounded-xl shadow-sm font-bold">
+          {saveMessage}
+        </div>
+      )}
+
       {/* Quality bar */}
       <div className="min-w-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-4 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -652,7 +667,7 @@ export default function SpecimenPage(props: {
               disabled={saving || !locationName.trim()}
               className={`mt-4 w-full px-8 py-5 rounded-2xl font-black text-2xl shadow-xl transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:transform-none ${savedId && !isEditingExisting ? "bg-green-600 text-white" : "bg-blue-600 hover:bg-blue-700 text-white"}`}
             >
-              {saving ? "Saving…" : isEditingExisting ? "Save Changes" : savedId ? "Find Recorded" : "Save Specimen Draft"}
+              {saving ? "Saving…" : saveMessage ? "Saved" : isEditingExisting ? "Save Changes" : savedId ? "Find Recorded" : "Save Specimen Draft"}
             </button>
           </div>
 

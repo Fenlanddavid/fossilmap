@@ -4,7 +4,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db, Specimen, Media } from "../db";
 import { Modal } from "./Modal";
 import { v4 as uuid } from "uuid";
-import { ChevronDown, Globe, Check, Loader2, Lock, ShieldCheck, Unlock } from "lucide-react";
+import { ChevronDown, Globe, Check, Loader2, Lock, ShieldCheck, Unlock, Trash2, ExternalLink } from "lucide-react";
 import { fileToBlob, compressForShare } from "../services/photos";
 import { ScaleCalibrationModal } from "./ScaleCalibrationModal";
 import { ScaledImage } from "./ScaledImage";
@@ -26,7 +26,7 @@ const precisionOptions: ReadonlyArray<{ value: PrecisionLevel; label: string; su
   { value: "exact", label: "Exact GPS", sub: "Full coordinates shared" },
   { value: "100m", label: "~100m area", sub: "Rounded to nearest 100m - recommended" },
   { value: "1km", label: "~1km area", sub: "General area only" },
-  { value: "locality", label: "Locality name", sub: "No map pin - name only" },
+  { value: "locality", label: "Locality area", sub: "Very coarse map marker" },
 ];
 
 function applyPrecision(
@@ -41,13 +41,13 @@ function applyPrecision(
       lon: Math.round(lon * 1000) / 1000,
     };
   }
-  if (level === "1km") {
+  if (level === "1km" || level === "locality") {
     return {
       lat: Math.round(lat * 100) / 100,
       lon: Math.round(lon * 100) / 100,
     };
   }
-  return { lat: 0, lon: 0 };
+  return { lat, lon };
 }
 
 function isPrecisionLevel(value: unknown): value is PrecisionLevel {
@@ -56,7 +56,7 @@ function isPrecisionLevel(value: unknown): value is PrecisionLevel {
 
 function precisionLabel(level: PrecisionLevel): string {
   if (level === "exact") return "exact GPS";
-  if (level === "locality") return "locality name only";
+  if (level === "locality") return "locality area";
   return `~${level} area`;
 }
 
@@ -74,6 +74,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
   const [sharing, setSharing] = useState(false);
   const [sharePrec, setSharePrec] = useState<PrecisionLevel>("100m");
   const [showPrecisionDetails, setShowPrecisionDetails] = useState(false);
+  const [saveNotice, setSaveNotice] = useState<string | null>(null);
   
   const qualityScore = useMemo(() => {
     if (!draft) return 0;
@@ -115,6 +116,12 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
         }
     }
   }, [specimen]);
+
+  useEffect(() => {
+    if (!saveNotice) return;
+    const timer = window.setTimeout(() => setSaveNotice(null), 2600);
+    return () => window.clearTimeout(timer);
+  }, [saveNotice]);
 
   const imageUrls = useMemo(() => {
     const urls: { id: string; url: string; filename: string; media: Media }[] = [];
@@ -428,13 +435,25 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
   async function save() {
     if (!draft) return;
     setBusy(true);
-    const now = new Date().toISOString();
-    await db.specimens.update(draft.id, { ...draft, isPending: false, updatedAt: now });
-    setBusy(false);
-    if (wasPending) {
-      props.onClose();
-    } else {
-      setIsEditing(false);
+    setSaveNotice(null);
+    try {
+      const now = new Date().toISOString();
+      await db.specimens.update(draft.id, { ...draft, isPending: false, updatedAt: now });
+      setSaveNotice("Changes saved to this find.");
+      if (wasPending) {
+        props.onClose();
+      } else {
+        setIsEditing(false);
+      }
+    } catch (e: any) {
+      console.error(e);
+      await notify({
+        title: "Save failed",
+        message: e?.message || "The changes could not be saved on this device.",
+        tone: "danger",
+      });
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -519,27 +538,6 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
 
   const headerActions = (
     <div className="flex gap-2 items-center">
-        {!isEditing && (
-            <div className="flex gap-1 items-center">
-                <button 
-                    onClick={shareToCommunity}
-                    disabled={sharing || draft.isShared}
-                    className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-black transition-all shadow-sm ${draft.isShared ? 'bg-green-100 text-green-700 cursor-default' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'}`}
-                >
-                    {sharing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : draft.isShared ? <Check className="w-3.5 h-3.5" /> : <Globe className="w-3.5 h-3.5" />}
-                    {sharing ? "Sharing..." : draft.isShared ? "Shared" : "Share"}
-                </button>
-                {draft.isShared && !sharing && (
-                    <button 
-                        onClick={unshareFromCommunity}
-                        title="Remove from Community"
-                        className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                    >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-                    </button>
-                )}
-            </div>
-        )}
         <button 
             onClick={() => {
               props.onClose();
@@ -560,6 +558,87 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
       : sharePrec;
   const currentPrecisionLocked = draft.precisionLocked ?? currentPrecision !== "exact";
   const canToggleSharedPrecision = draft.isShared && currentPrecision !== "exact";
+  const publicPrecisionLabel = draft.isShared
+    ? currentPrecisionLocked
+      ? precisionLabel(currentPrecision)
+      : "exact GPS"
+    : precisionLabel(sharePrec);
+  const communityUrl = getCommunityUrl(draft.hrid);
+  const communityShareBanner = (
+    <section className="flex min-w-0 flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:flex-row sm:items-center">
+      <svg width="48" height="48" viewBox="0 0 512 512" fill="none" className="shrink-0">
+        <defs>
+          <linearGradient id={`fm-specimen-grad-${draft.id}`} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#34d399" />
+            <stop offset="50%" stopColor="#059669" />
+            <stop offset="100%" stopColor="#0d9488" />
+          </linearGradient>
+        </defs>
+        <rect width="512" height="512" rx="112" fill={`url(#fm-specimen-grad-${draft.id})`} opacity="0.15" />
+        <circle cx="256" cy="256" r="160" stroke={`url(#fm-specimen-grad-${draft.id})`} strokeWidth="24" fill="none" />
+        <circle cx="256" cy="256" r="80" fill={`url(#fm-specimen-grad-${draft.id})`} opacity="0.5" />
+        <circle cx="256" cy="256" r="30" fill={`url(#fm-specimen-grad-${draft.id})`} />
+        <path d="M256 96 L256 176 M256 336 L256 416 M96 256 L176 256 M336 256 L416 256" stroke={`url(#fm-specimen-grad-${draft.id})`} strokeWidth="20" strokeLinecap="round" opacity="0.35" />
+      </svg>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="text-sm font-black text-slate-900 dark:text-white">FossilMapped</div>
+          {draft.isShared && (
+            <span className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300">
+              <Check className="h-3 w-3" />
+              Shared
+            </span>
+          )}
+        </div>
+        <div className="mt-0.5 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+          {draft.isShared
+            ? `This find is on the public community map with ${publicPrecisionLabel} location detail.`
+            : `Add this find to the public community map using ${publicPrecisionLabel} location detail.`}
+        </div>
+        {draft.isShared && draft.hrid && (
+          <div className="mt-1 truncate font-mono text-[10px] font-bold text-slate-400 dark:text-slate-500">
+            {draft.hrid}
+          </div>
+        )}
+      </div>
+
+      <div className="flex shrink-0 flex-col gap-2 sm:min-w-32">
+        {draft.isShared ? (
+          <>
+            <a
+              href={communityUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-black uppercase tracking-wider text-emerald-700 transition-colors hover:bg-emerald-600 hover:text-white dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              View
+            </a>
+            <button
+              type="button"
+              onClick={unshareFromCommunity}
+              disabled={sharing}
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-red-600 transition-colors hover:bg-red-600 hover:text-white disabled:cursor-wait disabled:opacity-60 dark:border-red-900/60 dark:bg-slate-950/30 dark:text-red-300"
+            >
+              {sharing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              Delete Share
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={shareToCommunity}
+            disabled={sharing}
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black uppercase tracking-wider text-white shadow-sm shadow-emerald-600/20 transition-colors hover:bg-emerald-500 disabled:cursor-wait disabled:opacity-60"
+          >
+            {sharing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Globe className="h-3.5 w-3.5" />}
+            {sharing ? "Sharing..." : "Share Find"}
+          </button>
+        )}
+      </div>
+    </section>
+  );
 
   return (
     <>
@@ -830,12 +909,22 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
                 </button>
                 <div className="flex gap-3">
                   <button onClick={() => setIsEditing(false)} className="px-4 py-2 rounded-xl text-gray-500 font-bold text-sm">Cancel</button>
-                  <button onClick={save} disabled={busy} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl shadow-md font-bold text-sm">Save Changes</button>
+                  <button onClick={save} disabled={busy} className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl shadow-md font-bold text-sm disabled:cursor-wait disabled:opacity-70">
+                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                    {busy ? "Saving..." : "Save Changes"}
+                  </button>
                 </div>
               </div>
             </div>
           ) : (
             <div className="grid gap-6">
+              {saveNotice && (
+                <div className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700 shadow-sm dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-200">
+                  <Check className="h-4 w-4 shrink-0" />
+                  {saveNotice}
+                </div>
+              )}
+
               <div className="bg-gray-50 dark:bg-gray-900/50 p-6 rounded-2xl border border-gray-100 dark:border-gray-800">
                   <div className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-1">Find Details</div>
                   <div className="text-2xl font-black text-gray-900 dark:text-white leading-tight mb-2">{draft.taxon || "(Unknown)"}</div>
@@ -876,6 +965,8 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
                     </div>
                   )}
               </div>
+
+              {communityShareBanner}
 
               {!draft.isShared && (
                 <div className="rounded-2xl border border-amber-100 bg-amber-50/60 p-4 dark:border-amber-900/40 dark:bg-amber-900/10">
