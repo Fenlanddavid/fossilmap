@@ -155,6 +155,14 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
       });
       return;
     }
+    if (!draft.taxon?.trim()) {
+      await notify({
+        title: "Taxon required",
+        message: "A taxon name is required before sharing — it is used as the primary identifier on FossilMapped.",
+        tone: "warning",
+      });
+      return;
+    }
     const chosenPrecision = sharePrec;
     const publicCoords = applyPrecision(coords.lat, coords.lon, chosenPrecision);
 

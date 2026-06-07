@@ -47,6 +47,7 @@ export async function uploadSharedFind(payload: SharedFindPayload): Promise<void
     .from('shared_finds')
     .upsert([{
         fossilmap_id: payload.id,
+        is_deleted: false,
         hrid: payload.hrid,
         collector_name: payload.collectorName,
         collector_email: payload.collectorEmail,
