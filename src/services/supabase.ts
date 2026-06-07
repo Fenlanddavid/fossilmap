@@ -91,7 +91,8 @@ export async function deleteSharedFind(fossilmapId: string) {
 
 export async function updateSharedFindPrecision(
   fossilmapId: string,
-  unlock: boolean,
+  locationPrecision: SharedFindPayload['locationPrecision'],
+  precisionLocked: boolean,
   publicLatitude: number,
   publicLongitude: number
 ) {
@@ -102,7 +103,8 @@ export async function updateSharedFindPrecision(
   const { error } = await supabase
     .from('shared_finds')
     .update({
-      precision_locked: !unlock,
+      location_precision: locationPrecision,
+      precision_locked: precisionLocked,
       public_latitude: publicLatitude,
       public_longitude: publicLongitude,
     })

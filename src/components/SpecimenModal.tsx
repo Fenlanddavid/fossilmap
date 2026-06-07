@@ -4,7 +4,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db, Specimen, Media } from "../db";
 import { Modal } from "./Modal";
 import { v4 as uuid } from "uuid";
-import { ChevronDown, Globe, Check, Loader2, Lock, ShieldCheck, Unlock, Trash2, ExternalLink } from "lucide-react";
+import { Globe, Check, Loader2, Lock, ShieldCheck, Trash2, ExternalLink } from "lucide-react";
 import { fileToBlob, compressForShare } from "../services/photos";
 import { ScaleCalibrationModal } from "./ScaleCalibrationModal";
 import { ScaledImage } from "./ScaledImage";
@@ -21,13 +21,6 @@ const LocationPickerModal = React.lazy(() =>
 );
 
 type PrecisionLevel = "exact" | "100m" | "1km" | "locality";
-
-const precisionOptions: ReadonlyArray<{ value: PrecisionLevel; label: string; sub: string }> = [
-  { value: "exact", label: "Exact GPS", sub: "Full coordinates shared" },
-  { value: "100m", label: "~100m area", sub: "Rounded to nearest 100m - recommended" },
-  { value: "1km", label: "~1km area", sub: "General area only" },
-  { value: "locality", label: "Locality area", sub: "Very coarse map marker" },
-];
 
 function applyPrecision(
   lat: number,
@@ -73,7 +66,6 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
   const [isCustomElement, setIsCustomElement] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [sharePrec, setSharePrec] = useState<PrecisionLevel>("100m");
-  const [showPrecisionDetails, setShowPrecisionDetails] = useState(false);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
   
   const qualityScore = useMemo(() => {
@@ -386,46 +378,47 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
     }
 
     const currentPrecision = isPrecisionLevel(draft.locationPrecision) ? draft.locationPrecision : "exact";
-    if (currentPrecision === "exact") return;
-
-    const currentlyLocked = draft.precisionLocked ?? true;
-    const unlock = currentlyLocked;
+    const currentlyLocked = draft.precisionLocked ?? currentPrecision !== "exact";
+    const shareExact = currentlyLocked;
+    const nextPrecision: PrecisionLevel = shareExact ? "exact" : "100m";
+    const nextPrecisionLocked = nextPrecision !== "exact";
     const ok = await confirmAction({
-      title: unlock ? "Share exact location?" : "Hide exact location?",
-      message: unlock
+      title: shareExact ? "Share exact location?" : "Hide exact location?",
+      message: shareExact
         ? "Exact GPS coordinates will be visible to all FossilMapped users."
-        : "Location will return to the approximate area you chose when sharing.",
-      confirmLabel: unlock ? "Unlock" : "Relock",
+        : "FossilMapped will return to an approximate ~100m public marker.",
+      confirmLabel: shareExact ? "Share exact" : "Use approximate",
       tone: "warning",
     });
     if (!ok) return;
 
     setSharing(true);
     try {
-      const nextPublicCoords = unlock
+      const nextPublicCoords = shareExact
         ? coords
-        : applyPrecision(coords.lat, coords.lon, currentPrecision);
+        : applyPrecision(coords.lat, coords.lon, "100m");
 
       await updateSharedFindPrecision(
         draft.id,
-        unlock,
+        nextPrecision,
+        nextPrecisionLocked,
         nextPublicCoords.lat,
         nextPublicCoords.lon
       );
 
       const patch = {
-        precisionLocked: !unlock,
+        precisionLocked: nextPrecisionLocked,
         publicLat: nextPublicCoords.lat,
         publicLon: nextPublicCoords.lon,
-        locationPrecision: currentPrecision,
+        locationPrecision: nextPrecision,
       };
       await db.specimens.update(draft.id, patch);
       setDraft(prev => prev ? { ...prev, ...patch } : prev);
       await notify({
-        title: unlock ? "Exact location shared" : "Location relocked",
-        message: unlock
+        title: shareExact ? "Exact location shared" : "Approximate location restored",
+        message: shareExact
           ? "FossilMapped will show the exact GPS coordinates for this find."
-          : `FossilMapped will show ${precisionLabel(currentPrecision)} publicly.`,
+          : "FossilMapped will show an approximate ~100m public marker.",
         tone: "success",
       });
     } catch (e: any) {
@@ -565,7 +558,8 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
       ? "exact"
       : sharePrec;
   const currentPrecisionLocked = draft.precisionLocked ?? currentPrecision !== "exact";
-  const canToggleSharedPrecision = draft.isShared && currentPrecision !== "exact";
+  const shareExactLocation = sharePrec === "exact";
+  const sharedExactLocation = draft.isShared && !currentPrecisionLocked;
   const publicPrecisionLabel = draft.isShared
     ? currentPrecisionLocked
       ? precisionLabel(currentPrecision)
@@ -573,52 +567,32 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
     : precisionLabel(sharePrec);
   const communityUrl = getCommunityUrl(draft.hrid);
   const communityShareBanner = (
-    <section className="flex min-w-0 flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:flex-row sm:items-center">
-      <svg width="48" height="48" viewBox="0 0 512 512" fill="none" className="shrink-0">
-        <defs>
-          <linearGradient id={`fm-specimen-grad-${draft.id}`} x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#34d399" />
-            <stop offset="50%" stopColor="#059669" />
-            <stop offset="100%" stopColor="#0d9488" />
-          </linearGradient>
-        </defs>
-        <rect width="512" height="512" rx="112" fill={`url(#fm-specimen-grad-${draft.id})`} opacity="0.15" />
-        <circle cx="256" cy="256" r="160" stroke={`url(#fm-specimen-grad-${draft.id})`} strokeWidth="24" fill="none" />
-        <circle cx="256" cy="256" r="80" fill={`url(#fm-specimen-grad-${draft.id})`} opacity="0.5" />
-        <circle cx="256" cy="256" r="30" fill={`url(#fm-specimen-grad-${draft.id})`} />
-        <path d="M256 96 L256 176 M256 336 L256 416 M96 256 L176 256 M336 256 L416 256" stroke={`url(#fm-specimen-grad-${draft.id})`} strokeWidth="20" strokeLinecap="round" opacity="0.35" />
-      </svg>
-
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="text-sm font-black text-slate-900 dark:text-white">FossilMapped</div>
+    <section className="flex min-w-0 items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+      <div className="flex min-w-0 flex-1 items-center gap-2 text-xs">
+        <div className="min-w-0 flex flex-1 items-center gap-2 overflow-hidden">
+          <span className="shrink-0 font-black text-slate-900 dark:text-white">FossilMapped</span>
           {draft.isShared && (
-            <span className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300">
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300">
               <Check className="h-3 w-3" />
               Shared
             </span>
           )}
+          <span className="hidden min-w-0 truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400 sm:inline">
+            {draft.isShared
+              ? `${publicPrecisionLabel} public location${draft.hrid ? ` · ${draft.hrid}` : ""}`
+              : `${publicPrecisionLabel} public location when shared`}
+          </span>
         </div>
-        <div className="mt-0.5 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-          {draft.isShared
-            ? `This find is on the public community map with ${publicPrecisionLabel} location detail.`
-            : `Add this find to the public community map using ${publicPrecisionLabel} location detail.`}
-        </div>
-        {draft.isShared && draft.hrid && (
-          <div className="mt-1 truncate font-mono text-[10px] font-bold text-slate-400 dark:text-slate-500">
-            {draft.hrid}
-          </div>
-        )}
       </div>
 
-      <div className="flex shrink-0 flex-col gap-2 sm:min-w-32">
+      <div className="flex shrink-0 flex-wrap gap-2 sm:flex-nowrap">
         {draft.isShared ? (
           <>
             <a
               href={communityUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-black uppercase tracking-wider text-emerald-700 transition-colors hover:bg-emerald-600 hover:text-white dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300"
+              className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-700 transition-colors hover:bg-emerald-600 hover:text-white dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300"
             >
               <ExternalLink className="h-3.5 w-3.5" />
               View
@@ -627,10 +601,10 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
               type="button"
               onClick={unshareFromCommunity}
               disabled={sharing}
-              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-red-600 transition-colors hover:bg-red-600 hover:text-white disabled:cursor-wait disabled:opacity-60 dark:border-red-900/60 dark:bg-slate-950/30 dark:text-red-300"
+              className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-red-600 transition-colors hover:bg-red-600 hover:text-white disabled:cursor-wait disabled:opacity-60 dark:border-red-900/60 dark:bg-slate-950/30 dark:text-red-300"
             >
               {sharing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-              Delete Share
+              Delete
             </button>
           </>
         ) : (
@@ -638,10 +612,10 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
             type="button"
             onClick={shareToCommunity}
             disabled={sharing}
-            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black uppercase tracking-wider text-white shadow-sm shadow-emerald-600/20 transition-colors hover:bg-emerald-500 disabled:cursor-wait disabled:opacity-60"
+            className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-white shadow-sm shadow-emerald-600/20 transition-colors hover:bg-emerald-500 disabled:cursor-wait disabled:opacity-60"
           >
             {sharing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Globe className="h-3.5 w-3.5" />}
-            {sharing ? "Sharing..." : "Share Find"}
+            {sharing ? "Sharing..." : "Share"}
           </button>
         )}
       </div>
@@ -977,48 +951,27 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
               {communityShareBanner}
 
               {!draft.isShared && (
-                <div className="rounded-2xl border border-amber-100 bg-amber-50/60 p-4 dark:border-amber-900/40 dark:bg-amber-900/10">
-                  <button
-                    type="button"
-                    onClick={() => setShowPrecisionDetails(prev => !prev)}
-                    className="flex w-full items-start justify-between gap-3 text-left"
-                    aria-expanded={showPrecisionDetails}
-                  >
-                    <span className="flex min-w-0 items-start gap-3">
-                      <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
-                      <span className="min-w-0">
-                        <span className="block text-sm font-black text-gray-900 dark:text-white">Location precision</span>
-                        <span className="mt-0.5 block text-xs font-medium leading-relaxed text-gray-600 dark:text-gray-300">
-                          Sets public location detail if shared on FossilMapped.
-                        </span>
-                      </span>
-                    </span>
-                    <ChevronDown className={`mt-0.5 h-4 w-4 shrink-0 text-amber-600 transition-transform dark:text-amber-400 ${showPrecisionDetails ? "rotate-180" : ""}`} />
-                  </button>
-
-                  {showPrecisionDetails && (
-                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                      {precisionOptions.map(opt => (
-                        <label
-                          key={opt.value}
-                          className={`flex cursor-pointer gap-3 rounded-xl border p-3 transition-colors ${sharePrec === opt.value ? "border-amber-300 bg-white text-amber-900 shadow-sm dark:border-amber-700 dark:bg-gray-900 dark:text-amber-100" : "border-amber-100 bg-white/60 text-gray-700 hover:bg-white dark:border-amber-900/40 dark:bg-gray-900/30 dark:text-gray-300"}`}
-                        >
-                          <input
-                            type="radio"
-                            name="sharePrecision"
-                            checked={sharePrec === opt.value}
-                            disabled={sharing}
-                            onChange={() => setSharePrec(opt.value)}
-                            className="mt-1 accent-amber-600"
-                          />
-                          <span className="min-w-0">
-                            <span className="block text-xs font-black">{opt.label}</span>
-                            <span className="mt-0.5 block text-[10px] font-semibold leading-snug opacity-70">{opt.sub}</span>
-                          </span>
-                        </label>
-                      ))}
+                <div className="flex flex-col gap-3 rounded-2xl border border-amber-100 bg-amber-50/60 p-4 dark:border-amber-900/40 dark:bg-amber-900/10 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-start gap-3">
+                    <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+                    <div>
+                      <div className="text-sm font-black text-gray-900 dark:text-white">Share exact location</div>
+                      <div className="mt-0.5 text-xs font-semibold leading-relaxed text-gray-600 dark:text-gray-300">
+                        {shareExactLocation ? "Exact GPS will be public." : "FossilMapped will use an approximate ~100m public marker."}
+                      </div>
                     </div>
-                  )}
+                  </div>
+                  <label className="inline-flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs font-black text-amber-800 shadow-sm dark:border-amber-800 dark:bg-gray-900 dark:text-amber-200 sm:min-w-36">
+                    <span>{shareExactLocation ? "On" : "Off"}</span>
+                    <input
+                      type="checkbox"
+                      checked={shareExactLocation}
+                      disabled={sharing}
+                      onChange={(event) => setSharePrec(event.target.checked ? "exact" : "100m")}
+                      className="peer sr-only"
+                    />
+                    <span className="relative h-5 w-9 rounded-full bg-gray-300 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-transform peer-checked:bg-amber-600 peer-checked:after:translate-x-4 peer-disabled:opacity-60 dark:bg-gray-700" />
+                  </label>
                 </div>
               )}
 
@@ -1027,25 +980,29 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
                   <div className="flex items-start gap-3">
                     <Lock className="mt-0.5 h-5 w-5 shrink-0 text-green-600 dark:text-green-400" />
                     <div>
-                      <div className="text-sm font-black text-gray-900 dark:text-white">Shared location precision</div>
+                      <div className="text-sm font-black text-gray-900 dark:text-white">Share exact location</div>
                       <div className="mt-0.5 text-xs font-semibold leading-relaxed text-gray-600 dark:text-gray-300">
-                        {currentPrecisionLocked
-                          ? `Showing ${precisionLabel(currentPrecision)} publicly`
-                          : "Exact coordinates shared publicly"}
+                        {sharedExactLocation
+                          ? "Exact GPS is visible on FossilMapped."
+                          : "FossilMapped is using an approximate ~100m public marker."}
                       </div>
                     </div>
                   </div>
-                  {canToggleSharedPrecision && (
-                    <button
-                      type="button"
-                      onClick={handleTogglePrecision}
+                  <label className="inline-flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-green-200 bg-white px-3 py-2 text-xs font-black text-green-700 shadow-sm dark:border-green-800 dark:bg-gray-900 dark:text-green-300 sm:min-w-36">
+                    <span>{sharing ? "Updating" : sharedExactLocation ? "On" : "Off"}</span>
+                    <input
+                      type="checkbox"
+                      checked={sharedExactLocation}
                       disabled={sharing}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-green-200 bg-white px-4 py-2 text-xs font-black text-green-700 shadow-sm transition-colors hover:bg-green-600 hover:text-white disabled:cursor-wait disabled:opacity-60 dark:border-green-800 dark:bg-gray-900 dark:text-green-300"
-                    >
-                      {sharing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : currentPrecisionLocked ? <Unlock className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
-                      {currentPrecisionLocked ? "Unlock exact" : "Relock location"}
-                    </button>
-                  )}
+                      onChange={handleTogglePrecision}
+                      className="peer sr-only"
+                    />
+                    {sharing ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <span className="relative h-5 w-9 rounded-full bg-gray-300 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-transform peer-checked:bg-green-600 peer-checked:after:translate-x-4 peer-disabled:opacity-60 dark:bg-gray-700" />
+                    )}
+                  </label>
                 </div>
               )}
 

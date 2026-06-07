@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, Media, Specimen } from "../db";
@@ -8,6 +8,7 @@ import { ScaledImage } from "../components/ScaledImage";
 import { PhotoAnnotator } from "../components/PhotoAnnotator";
 import { captureGPS } from "../services/gps";
 import { formatCoords } from "../services/coords";
+import { calculateQualityScore } from "../services/research";
 import { useConfirmDialog } from "../components/ConfirmModal";
 import { CoachTip } from "../components/CoachTip";
 import {
@@ -38,6 +39,13 @@ function makeSpecimenCode(): string {
   const year = new Date().getFullYear();
   const rand = Math.floor(Math.random() * 900000) + 100000;
   return `UK-${year}-${rand}`;
+}
+
+function numberFromInput(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const next = Number(trimmed);
+  return Number.isFinite(next) ? next : null;
 }
 
 // ─── Wizard step config ────────────────────────────────────────────────────
@@ -184,18 +192,30 @@ export default function SpecimenPage(props: {
   const formLocked = !!savedId && !isEditingExisting && !isMobileWizard;
 
   // ── Quality bar ───────────────────────────────────────────────────────────
+  const qualitySpecimen = useMemo<Partial<Specimen>>(() => ({
+    lat,
+    lon,
+    gpsAccuracyM: acc,
+    period: period.trim(),
+    stage: stage.trim(),
+    element,
+    weightG: numberFromInput(weightG),
+    lengthMm: numberFromInput(lengthMm),
+    widthMm: numberFromInput(widthMm),
+    thicknessMm: numberFromInput(thicknessMm),
+  }), [acc, element, lat, lengthMm, lon, period, stage, thicknessMm, weightG, widthMm]);
+  const qualityPercent = calculateQualityScore(qualitySpecimen, media || []);
   const qualityItems = [
-    { label: "Taxon", done: !!taxon.trim() },
-    { label: "Location", done: !!locationName.trim() },
     { label: "GPS", done: lat != null && lon != null },
-    { label: "Period", done: !!period.trim() },
+    { label: "Accuracy", done: typeof acc === "number" && acc < 30 },
+    { label: "Period", done: !!period.trim() && period.trim() !== "Unknown" },
+    { label: "Stage", done: !!stage.trim() && stage.trim() !== "Unknown" },
     { label: "Element", done: !!element.trim() },
-    { label: "Context", done: !!findContext.trim() || !!notes.trim() },
-    { label: "Measurements", done: !!lengthMm || !!widthMm || !!thicknessMm || !!weightG },
+    { label: "Weight", done: !!numberFromInput(weightG) },
+    { label: "Dimensions", done: !!numberFromInput(lengthMm) && !!numberFromInput(widthMm) && !!numberFromInput(thicknessMm) },
     { label: "Photos", done: (media?.length ?? 0) > 0 },
+    { label: "Photo set", done: (media?.length ?? 0) >= 2 },
   ];
-  const qualityDone = qualityItems.filter((i) => i.done).length;
-  const qualityPercent = Math.round((qualityDone / qualityItems.length) * 100);
 
   // ── GPS ───────────────────────────────────────────────────────────────────
   async function doGPS() {
