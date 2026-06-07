@@ -65,7 +65,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
   const [isPickingLocation, setIsPickingLocation] = useState(false);
   const [isCustomElement, setIsCustomElement] = useState(false);
   const [sharing, setSharing] = useState(false);
-  const [sharePrec, setSharePrec] = useState<PrecisionLevel>("100m");
+  const [sharePrec, setSharePrec] = useState<PrecisionLevel>("1km");
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
   
   const qualityScore = useMemo(() => {
@@ -104,7 +104,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
         if (isPrecisionLevel(specimen.locationPrecision)) {
             setSharePrec(specimen.locationPrecision);
         } else if (!specimen.isShared) {
-            setSharePrec("100m");
+            setSharePrec("1km");
         }
     }
   }, [specimen]);
@@ -380,13 +380,13 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
     const currentPrecision = isPrecisionLevel(draft.locationPrecision) ? draft.locationPrecision : "exact";
     const currentlyLocked = draft.precisionLocked ?? currentPrecision !== "exact";
     const shareExact = currentlyLocked;
-    const nextPrecision: PrecisionLevel = shareExact ? "exact" : "100m";
+    const nextPrecision: PrecisionLevel = shareExact ? "exact" : "1km";
     const nextPrecisionLocked = nextPrecision !== "exact";
     const ok = await confirmAction({
       title: shareExact ? "Share exact location?" : "Hide exact location?",
       message: shareExact
         ? "Exact GPS coordinates will be visible to all FossilMapped users."
-        : "FossilMapped will return to an approximate ~100m public marker.",
+        : "FossilMapped will return to a general 1km area marker.",
       confirmLabel: shareExact ? "Share exact" : "Use approximate",
       tone: "warning",
     });
@@ -396,7 +396,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
     try {
       const nextPublicCoords = shareExact
         ? coords
-        : applyPrecision(coords.lat, coords.lon, "100m");
+        : applyPrecision(coords.lat, coords.lon, "1km");
 
       await updateSharedFindPrecision(
         draft.id,
@@ -418,7 +418,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
         title: shareExact ? "Exact location shared" : "Approximate location restored",
         message: shareExact
           ? "FossilMapped will show the exact GPS coordinates for this find."
-          : "FossilMapped will show an approximate ~100m public marker.",
+          : "FossilMapped will show a general 1km area marker.",
         tone: "success",
       });
     } catch (e: any) {
@@ -948,61 +948,67 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
                   )}
               </div>
 
+              <p className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 -mb-2">Share for research.</p>
+
               {communityShareBanner}
 
               {!draft.isShared && (
-                <div className="flex flex-col gap-3 rounded-2xl border border-amber-100 bg-amber-50/60 p-4 dark:border-amber-900/40 dark:bg-amber-900/10 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-start gap-3">
-                    <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
-                    <div>
-                      <div className="text-sm font-black text-gray-900 dark:text-white">Share exact location</div>
-                      <div className="mt-0.5 text-xs font-semibold leading-relaxed text-gray-600 dark:text-gray-300">
-                        {shareExactLocation ? "Exact GPS will be public." : "FossilMapped will use an approximate ~100m public marker."}
-                      </div>
+                <div className="flex flex-col gap-1.5 rounded-xl border border-amber-100 bg-amber-50/60 px-3 py-2 dark:border-amber-900/40 dark:bg-amber-900/10">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                      <span className="text-xs font-black text-gray-900 dark:text-white">
+                        {shareExactLocation ? "Exact GPS — full coordinates shared" : "1km — general area only"}
+                      </span>
                     </div>
+                    <label className="inline-flex cursor-pointer items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={shareExactLocation}
+                        disabled={sharing}
+                        onChange={(event) => setSharePrec(event.target.checked ? "exact" : "1km")}
+                        className="peer sr-only"
+                      />
+                      <span className="relative h-5 w-9 rounded-full bg-gray-300 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-transform peer-checked:bg-amber-600 peer-checked:after:translate-x-4 peer-disabled:opacity-60 dark:bg-gray-700" />
+                    </label>
                   </div>
-                  <label className="inline-flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs font-black text-amber-800 shadow-sm dark:border-amber-800 dark:bg-gray-900 dark:text-amber-200 sm:min-w-36">
-                    <span>{shareExactLocation ? "On" : "Off"}</span>
-                    <input
-                      type="checkbox"
-                      checked={shareExactLocation}
-                      disabled={sharing}
-                      onChange={(event) => setSharePrec(event.target.checked ? "exact" : "100m")}
-                      className="peer sr-only"
-                    />
-                    <span className="relative h-5 w-9 rounded-full bg-gray-300 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-transform peer-checked:bg-amber-600 peer-checked:after:translate-x-4 peer-disabled:opacity-60 dark:bg-gray-700" />
-                  </label>
+                  <p className={`text-[10px] font-semibold ${shareExactLocation ? "text-amber-600 dark:text-amber-400" : "text-gray-500 dark:text-white/60"}`}>
+                    {shareExactLocation
+                      ? "Researchers will see your exact find location."
+                      : "The general area is shared."}
+                  </p>
                 </div>
               )}
 
               {draft.isShared && (
-                <div className="flex flex-col gap-3 rounded-2xl border border-green-100 bg-green-50/60 p-4 dark:border-green-900/40 dark:bg-green-900/10 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-start gap-3">
-                    <Lock className="mt-0.5 h-5 w-5 shrink-0 text-green-600 dark:text-green-400" />
-                    <div>
-                      <div className="text-sm font-black text-gray-900 dark:text-white">Share exact location</div>
-                      <div className="mt-0.5 text-xs font-semibold leading-relaxed text-gray-600 dark:text-gray-300">
-                        {sharedExactLocation
-                          ? "Exact GPS is visible on FossilMapped."
-                          : "FossilMapped is using an approximate ~100m public marker."}
-                      </div>
+                <div className="flex flex-col gap-1.5 rounded-xl border border-green-100 bg-green-50/60 px-3 py-2 dark:border-green-900/40 dark:bg-green-900/10">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <Lock className="h-4 w-4 shrink-0 text-green-600 dark:text-green-400" />
+                      <span className="text-xs font-black text-gray-900 dark:text-white">
+                        {sharedExactLocation ? "Exact GPS — full coordinates shared" : "1km — general area only"}
+                      </span>
                     </div>
+                    <label className="inline-flex cursor-pointer items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={sharedExactLocation}
+                        disabled={sharing}
+                        onChange={handleTogglePrecision}
+                        className="peer sr-only"
+                      />
+                      {sharing ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-green-600" />
+                      ) : (
+                        <span className="relative h-5 w-9 rounded-full bg-gray-300 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-transform peer-checked:bg-green-600 peer-checked:after:translate-x-4 peer-disabled:opacity-60 dark:bg-gray-700" />
+                      )}
+                    </label>
                   </div>
-                  <label className="inline-flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-green-200 bg-white px-3 py-2 text-xs font-black text-green-700 shadow-sm dark:border-green-800 dark:bg-gray-900 dark:text-green-300 sm:min-w-36">
-                    <span>{sharing ? "Updating" : sharedExactLocation ? "On" : "Off"}</span>
-                    <input
-                      type="checkbox"
-                      checked={sharedExactLocation}
-                      disabled={sharing}
-                      onChange={handleTogglePrecision}
-                      className="peer sr-only"
-                    />
-                    {sharing ? (
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                    ) : (
-                      <span className="relative h-5 w-9 rounded-full bg-gray-300 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-transform peer-checked:bg-green-600 peer-checked:after:translate-x-4 peer-disabled:opacity-60 dark:bg-gray-700" />
-                    )}
-                  </label>
+                  <p className={`text-[10px] font-semibold ${sharedExactLocation ? "text-amber-600 dark:text-amber-400" : "text-gray-500 dark:text-white/60"}`}>
+                    {sharedExactLocation
+                      ? "Researchers will see your exact find location — useful for site-level studies."
+                      : "Your general area is shared — your exact site stays private."}
+                  </p>
                 </div>
               )}
 
