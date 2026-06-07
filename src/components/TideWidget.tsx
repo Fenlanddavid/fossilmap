@@ -33,7 +33,7 @@ export function TideWidget() {
           </div>
           <div className="min-w-0">
             <h3 className="text-sm font-black text-slate-950 dark:text-white">UK coast tides</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Nearest Environment Agency gauge.</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Recent EA gauge readings — not a tide prediction.</p>
           </div>
         </div>
         <button

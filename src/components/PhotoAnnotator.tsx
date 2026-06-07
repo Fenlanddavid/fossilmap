@@ -14,6 +14,7 @@ type Annotation = {
 export function PhotoAnnotator(props: { media: Media; url: string; onClose: () => void }) {
   const { confirm: confirmAction, dialog } = useConfirmDialog();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const imgRef = useRef<HTMLImageElement | null>(null);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [currentAnnotation, setCurrentAnnotation] = useState<Annotation | null>(null);
   const [mode, setMode] = useState<"arrow" | "circle">("arrow");
@@ -30,11 +31,10 @@ export function PhotoAnnotator(props: { media: Media; url: string; onClose: () =
     }
   }, [props.media.id]);
 
+  // Load image once when URL changes — cached in imgRef so annotation redraws don't reload it.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
 
     const img = new Image();
     img.src = props.url;
@@ -43,42 +43,47 @@ export function PhotoAnnotator(props: { media: Media; url: string; onClose: () =
       const maxHeight = window.innerHeight * 0.6;
       let w = img.width;
       let h = img.height;
-
       const ratio = Math.min(maxWidth / w, maxHeight / h);
       w *= ratio;
       h *= ratio;
-
-      setCanvasDim({ w, h });
       canvas.width = w;
       canvas.height = h;
-      draw();
+      imgRef.current = img;
+      setCanvasDim({ w, h });
     };
+  }, [props.url]);
 
-    function draw() {
-      if (!ctx || !canvas) return;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  // Redraw annotations whenever they change — reuses the cached image.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const img = imgRef.current;
+    if (!canvas || !img) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
 
-      const all = [...annotations, ...(currentAnnotation ? [currentAnnotation] : [])];
-      all.forEach((ann) => {
-        ctx.strokeStyle = ann.color;
-        ctx.fillStyle = ann.color;
-        ctx.lineWidth = 3;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-        const x1 = ann.start.x * canvas.width;
-        const y1 = ann.start.y * canvas.height;
-        const x2 = ann.end.x * canvas.width;
-        const y2 = ann.end.y * canvas.height;
+    const all = [...annotations, ...(currentAnnotation ? [currentAnnotation] : [])];
+    all.forEach((ann) => {
+      ctx.strokeStyle = ann.color;
+      ctx.fillStyle = ann.color;
+      ctx.lineWidth = 3;
 
-        if (ann.type === "arrow") {
-          drawArrow(ctx, x1, y1, x2, y2);
-        } else if (ann.type === "circle") {
-          drawCircle(ctx, x1, y1, x2, y2);
-        }
-      });
-    }
+      const x1 = ann.start.x * canvas.width;
+      const y1 = ann.start.y * canvas.height;
+      const x2 = ann.end.x * canvas.width;
+      const y2 = ann.end.y * canvas.height;
 
-    function drawArrow(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number) {
+      if (ann.type === "arrow") {
+        drawArrow(ctx, x1, y1, x2, y2);
+      } else if (ann.type === "circle") {
+        drawCircle(ctx, x1, y1, x2, y2);
+      }
+    });
+  }, [annotations, currentAnnotation, canvasDim]);
+
+  function drawArrow(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number) {
       const headlen = 15;
       const dx = x2 - x1;
       const dy = y2 - y1;
@@ -95,15 +100,12 @@ export function PhotoAnnotator(props: { media: Media; url: string; onClose: () =
       ctx.fill();
     }
 
-    function drawCircle(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number) {
-      const radius = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
-      ctx.beginPath();
-      ctx.arc(x1, y1, radius, 0, 2 * Math.PI);
-      ctx.stroke();
-    }
-
-    draw();
-  }, [annotations, currentAnnotation, props.url]);
+  function drawCircle(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number) {
+    const radius = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+    ctx.beginPath();
+    ctx.arc(x1, y1, radius, 0, 2 * Math.PI);
+    ctx.stroke();
+  }
 
   function getNormalizedPos(e: React.MouseEvent | React.TouchEvent): Point {
     const canvas = canvasRef.current;

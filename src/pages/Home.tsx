@@ -320,13 +320,13 @@ export default function Home(props: {
 
 
   return (
-    <div className="mx-auto grid max-w-6xl gap-6 pb-10">
+    <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-6 pb-10">
 
       {showNextMovePanel && (
         <NextMovePanel moves={nextMoves} onDismiss={() => dismissNextMove(activeNextMoveKey)} />
       )}
 
-      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
+      <section className="min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
             <p className="mb-2 text-[11px] font-black uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-300">Fossil field records</p>
@@ -353,7 +353,7 @@ export default function Home(props: {
       <FossilMappedPanel />
 
       {!hasAnyData && (
-        <section className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:grid-cols-3">
+        <section className="grid min-w-0 grid-cols-1 gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:grid-cols-3">
           <WorkflowStep icon={MapPin} title="Locality" detail="Where and what geology." />
           <WorkflowStep icon={Compass} title="Trip" detail="The collecting visit." />
           <WorkflowStep icon={Microscope} title="Specimen" detail="The fossil record." />
@@ -361,7 +361,7 @@ export default function Home(props: {
       )}
 
       {!hasAnyData && (
-        <section className="rounded-lg border border-emerald-200 bg-emerald-50 p-5 dark:border-emerald-900 dark:bg-emerald-950/30">
+        <section className="min-w-0 rounded-lg border border-emerald-200 bg-emerald-50 p-5 dark:border-emerald-900 dark:bg-emerald-950/30">
           <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
             <div>
               <p className="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-300">First run</p>
@@ -389,8 +389,8 @@ export default function Home(props: {
       )}
 
 
-      <section className="grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
-        <div className="grid gap-4">
+      <section className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,0.75fr)]">
+        <div className="grid min-w-0 grid-cols-1 gap-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-xl font-black tracking-tight text-slate-950 dark:text-white">Locations and trips</h3>
@@ -424,13 +424,13 @@ export default function Home(props: {
           )}
 
           {visibleLocalities.length > 0 && (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
               {visibleLocalities.map((locality) => {
                 const activeSession = activeSessions?.get(locality.id);
                 const isActive = !!activeSession;
                 const findCount = specimenCountByLocality.get(locality.id) ?? 0;
                 return (
-                  <article key={locality.id} className={`group relative grid min-h-48 grid-cols-[1fr_7.75rem] overflow-hidden rounded-xl border bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg dark:bg-slate-900 ${isActive ? "border-emerald-400 ring-1 ring-emerald-400" : "border-slate-200 hover:border-emerald-300 dark:border-slate-800 dark:hover:border-emerald-800"}`}>
+                  <article key={locality.id} className={`group relative grid min-h-48 min-w-0 grid-cols-[minmax(0,1fr)_7.75rem] overflow-hidden rounded-xl border bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg dark:bg-slate-900 ${isActive ? "border-emerald-400 ring-1 ring-emerald-400" : "border-slate-200 hover:border-emerald-300 dark:border-slate-800 dark:hover:border-emerald-800"}`}>
                     <div className={`absolute inset-x-0 top-0 h-1 ${isActive ? "bg-emerald-500" : locality.type === "trip" ? "bg-emerald-400" : "bg-sky-400"}`} />
                     <div className="flex min-w-0 flex-col p-4">
                       <div className="mb-2 flex items-start justify-between gap-2">
@@ -529,8 +529,8 @@ export default function Home(props: {
           )}
         </div>
 
-        <aside className="grid content-start gap-4">
-          <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <aside className="grid min-w-0 content-start gap-4">
+          <div className="min-w-0 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-black text-slate-950 dark:text-white">Recent finds</h3>
@@ -570,7 +570,7 @@ export default function Home(props: {
             )}
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="min-w-0 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <div className="flex gap-3">
               <HardDrive className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-300" />
               <div>
@@ -617,7 +617,7 @@ function NextMovePanel(props: {
   const PrimaryIcon = primary.icon;
 
   return (
-    <section className={`relative flex min-h-16 items-center justify-between gap-4 rounded-2xl border p-3 pr-10 shadow-sm ${toneClasses[primary.tone]}`}>
+    <section className={`relative flex min-h-16 min-w-0 items-center justify-between gap-4 rounded-2xl border p-3 pr-10 shadow-sm ${toneClasses[primary.tone]}`}>
       <button
         type="button"
         onClick={props.onDismiss}
@@ -654,7 +654,7 @@ function FossilMappedPanel() {
       href={getCommunityUrl()}
       target="_blank"
       rel="noopener noreferrer"
-      className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition-all duration-200 ease-out hover:-translate-y-px hover:shadow-md dark:border-slate-700 dark:bg-slate-900 group no-underline"
+      className="flex min-w-0 items-center gap-4 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition-all duration-200 ease-out hover:-translate-y-px hover:shadow-md dark:border-slate-700 dark:bg-slate-900 group no-underline"
     >
       <svg width="40" height="40" viewBox="0 0 512 512" fill="none" className="shrink-0">
         <defs>

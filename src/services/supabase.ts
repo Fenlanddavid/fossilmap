@@ -5,7 +5,38 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'YOUR_ANON_KEY
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-export async function uploadSharedFind(payload: any) {
+/** Mirrors the shared_finds table column names exactly. Keep in sync with FossilMapped's SharedFind type. */
+export interface SharedFindPayload {
+  id: string;
+  hrid: string;
+  collectorName: string;
+  collectorEmail: string;
+  taxon: string;
+  element: string;
+  period: string;
+  stage: string;
+  formation: string;
+  member: string;
+  bed: string;
+  verification_status: 'community' | 'verified' | 'research_grade';
+  locationName: string;
+  latitude: number;
+  longitude: number;
+  publicLatitude: number;
+  publicLongitude: number;
+  locationPrecision: 'exact' | '100m' | '1km' | 'locality';
+  precisionLocked: boolean;
+  dateCollected: string;
+  photos: string[];
+  measurements: { length?: number | null; width?: number | null; thickness?: number | null; weight?: number | null };
+  repository: string;
+  accession_id: string | null;
+  quality_score: number;
+  notes: string;
+  sharedAt: string;
+}
+
+export async function uploadSharedFind(payload: SharedFindPayload) {
   if (supabaseUrl.includes('YOUR_PROJECT_ID')) {
     throw new Error("Supabase configuration is missing. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.");
   }

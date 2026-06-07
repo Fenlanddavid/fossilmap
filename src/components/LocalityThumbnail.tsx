@@ -1,8 +1,8 @@
 import React from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Camera, MapPin } from "lucide-react";
-import { db } from "../db";
 import { ScaledImage } from "./ScaledImage";
+import { getFirstLocalityMedia } from "../services/media";
 
 export function LocalityThumbnail({ localityId, className, imgClassName, onHasMedia }: {
   localityId: string;
@@ -11,15 +11,10 @@ export function LocalityThumbnail({ localityId, className, imgClassName, onHasMe
   onHasMedia?: (has: boolean) => void;
 }) {
   const media = useLiveQuery(async () => {
-    const items = await db.media.where("localityId").equals(localityId).toArray();
-    const hasMedia = items && items.length > 0;
+    const firstMedia = await getFirstLocalityMedia(localityId);
+    const hasMedia = firstMedia != null;
     if (onHasMedia) onHasMedia(hasMedia);
-    if (!hasMedia) return null;
-    return items.sort((a, b) => {
-        const aDate = a?.createdAt || "";
-        const bDate = b?.createdAt || "";
-        return aDate.localeCompare(bDate);
-    })[0];
+    return firstMedia;
   }, [localityId]);
 
   // Still loading

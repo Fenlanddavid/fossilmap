@@ -22,16 +22,21 @@ export default defineConfig({
         start_url: '/fossilmap/',
         icons: [
           {
-            src: 'logo.svg',
-            sizes: 'any',
-            type: 'image/svg+xml',
+            src: 'logo-192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'any'
+          },
+          {
+            src: 'logo-512.png',
+            sizes: '512x512',
+            type: 'image/png',
             purpose: 'any maskable'
           },
           {
             src: 'logo.svg',
-            sizes: '512x512',
-            type: 'image/svg+xml',
-            purpose: 'any maskable'
+            sizes: 'any',
+            type: 'image/svg+xml'
           }
         ]
       },

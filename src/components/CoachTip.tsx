@@ -11,7 +11,9 @@ export function CoachTip(props: {
     try {
       return localStorage.getItem(props.storageKey) !== "1";
     } catch {
-      return true;
+      // If localStorage is unavailable (private mode, quota exceeded) default to hidden
+      // so tips don't appear permanently and cannot be dismissed.
+      return false;
     }
   });
 

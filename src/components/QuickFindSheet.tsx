@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { db, Specimen } from "../db";
 import { v4 as uuid } from "uuid";
 import { captureGPS } from "../services/gps";
 import { hasCoords } from "../services/coords";
-import { X, MapPin, Loader2, CheckCircle2, Zap } from "lucide-react";
+import { X, MapPin, Loader2, CheckCircle2, Zap, RefreshCw } from "lucide-react";
 
 const COMMON_TAXA = [
   "Ammonite", "Belemnite", "Bivalve", "Gastropod", "Brachiopod",
@@ -32,13 +32,16 @@ export function QuickFindSheet({ projectId, localityId, onClose, onSaved }: Quic
     setTimeout(() => inputRef.current?.focus(), 120);
   }, []);
 
-  useEffect(() => {
+  const tryGPS = useCallback(() => {
     setGpsLoading(true);
+    setGpsError(null);
     captureGPS()
       .then((fix) => { setLat(fix.lat); setLon(fix.lon); })
       .catch(() => setGpsError("GPS unavailable"))
       .finally(() => setGpsLoading(false));
   }, []);
+
+  useEffect(() => { tryGPS(); }, []);
 
   async function handleSave() {
     if (!taxon.trim()) return;
@@ -143,7 +146,17 @@ export function QuickFindSheet({ projectId, localityId, onClose, onSaved }: Quic
           </div>
 
           {gpsError && (
-            <p className="mb-3 text-[11px] text-amber-600 dark:text-amber-400">{gpsError} — find will be saved without GPS.</p>
+            <div className="mb-3 flex items-center justify-between gap-2 rounded-lg bg-amber-50 px-3 py-2 dark:bg-amber-900/20">
+              <p className="text-[11px] text-amber-700 dark:text-amber-400">{gpsError} — find will be saved without GPS.</p>
+              <button
+                type="button"
+                onClick={tryGPS}
+                className="inline-flex shrink-0 items-center gap-1 rounded-md border border-amber-200 bg-white px-2 py-1 text-[10px] font-black text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:bg-slate-900 dark:text-amber-300"
+              >
+                <RefreshCw className="h-3 w-3" />
+                Retry
+              </button>
+            </div>
           )}
 
           {/* Save button */}

@@ -69,7 +69,6 @@ function Shell() {
   const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW();
   const { confirm: confirmAction, notify, dialog } = useConfirmDialog();
   const [projectId, setProjectId] = useState<string | null>(null);
-  const [dismissedBackup, setDismissedBackup] = useState(false);
   const [showInstallHelp, setShowInstallHelp] = useState(false);
   const [isInAppBrowser, setIsInAppBrowser] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
@@ -158,7 +157,6 @@ function Shell() {
   const isBackupSnoozed = backupSnoozedUntilTime != null && Number.isFinite(backupSnoozedUntilTime) && Date.now() < backupSnoozedUntilTime;
   const backupIsStale = !lastBackupTime || !Number.isFinite(lastBackupTime) || Date.now() - lastBackupTime > 30 * 24 * 60 * 60 * 1000;
   const showBackupReminder =
-    !dismissedBackup &&
     (dataCount?.total ?? 0) > 0 &&
     !isBackupSnoozed &&
     backupIsStale;
@@ -186,11 +184,9 @@ function Shell() {
   async function handleSnooze() {
     const snoozedUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     await db.settings.put({ key: "backupSnoozedUntil", value: snoozedUntil });
-    setDismissedBackup(true);
   }
 
   function openBackupSettings() {
-    setDismissedBackup(true);
     nav("/settings?tab=backup");
   }
 

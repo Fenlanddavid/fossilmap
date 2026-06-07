@@ -170,9 +170,21 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
       if (!proceed) return;
     }
 
+    // Fetch locality early so we can disclose inherited fields in the confirm dialog.
+    const locality = await db.localities.get(draft.localityId);
+    const inherited: string[] = [];
+    if (!draft.formation && locality?.formation) inherited.push(`formation (${locality.formation})`);
+    if (!draft.stage && locality?.stage) inherited.push(`stage (${locality.stage})`);
+    if (!draft.period && locality?.period) inherited.push(`period (${locality.period})`);
+
+    const photoCount = (media || []).length;
+    const photosShared = Math.min(photoCount, 2);
+    const photoNote = photoCount > 2 ? ` Up to 2 of your ${photoCount} photos will be shared.` : "";
+    const inheritedNote = inherited.length > 0 ? ` Stratigraphy inherited from locality: ${inherited.join(", ")}.` : "";
+
     const ok = await confirmAction({
       title: "Share with FossilMapped?",
-      message: `This find will be visible on the public community map. Public location: ${precisionLabel(chosenPrecision)}. Your collector name and contact email, if set in settings, will also be shared with the find.`,
+      message: `This find will be visible on the public community map. Public location: ${precisionLabel(chosenPrecision)}.${photoNote}${inheritedNote} Your collector name and contact email, if set in settings, will also be shared with the find.`,
       confirmLabel: "Share find",
       tone: "warning",
     });
@@ -183,9 +195,9 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
       let hrid = draft.hrid || generateHRID();
       const repository = draft.repository || "Private";
 
-      // Prepare the payload — cap at 2 photos, compress for share
+      // Cap at 2 photos for Supabase payload size limits.
       const photos: string[] = [];
-      for (const m of (media || []).slice(0, 2)) {
+      for (const m of (media || []).slice(0, photosShared)) {
         const compressed = await compressForShare(m.blob);
         const reader = new FileReader();
         const base64Promise = new Promise<string>((resolve) => {
@@ -195,8 +207,6 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
         photos.push(await base64Promise);
       }
 
-      // Find location name and period
-      const locality = await db.localities.get(draft.localityId);
       const collectorEmail = await db.settings.get("defaultEmail").then(s => s?.value || "");
 
       const cleanStage = (draft.stage || locality?.stage || "").replace(/^Unknown$/i, "").trim();
@@ -757,17 +767,27 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
               </div>
 
               <label className="grid gap-1">
-                <span className="text-sm font-bold opacity-75">Notes</span>
-                <textarea 
+                <span className="text-sm font-bold opacity-75">Date collected</span>
+                <input
+                  type="date"
+                  value={draft.dateCollected ? draft.dateCollected.slice(0, 10) : draft.createdAt?.slice(0, 10) || ""}
+                  onChange={(e) => setDraft(prev => prev ? { ...prev, dateCollected: e.target.value } : null)}
                   className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"
-                  value={draft.notes} 
-                  onChange={(e) => setDraft(prev => prev ? { ...prev, notes: e.target.value } : null)} rows={4} 
+                />
+              </label>
+
+              <label className="grid gap-1">
+                <span className="text-sm font-bold opacity-75">Notes</span>
+                <textarea
+                  className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"
+                  value={draft.notes}
+                  onChange={(e) => setDraft(prev => prev ? { ...prev, notes: e.target.value } : null)} rows={4}
                 />
               </label>
 
               <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
                 <div className="flex flex-col gap-3 mb-3">
-                  <h4 className="m-0 font-bold text-sm uppercase tracking-tight">Add Photos (4 Max)</h4>
+                  <h4 className="m-0 font-bold text-sm uppercase tracking-tight">Add Photos (4 max stored · 2 shared)</h4>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       <label className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 px-2 py-3 rounded-xl text-[10px] font-black cursor-pointer hover:bg-amber-100 transition-colors shadow-sm text-center flex flex-col items-center justify-center gap-1 uppercase">
                       📸 Photo 1

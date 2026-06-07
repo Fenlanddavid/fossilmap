@@ -5,9 +5,11 @@ export type TideEvent = {
 };
 
 /**
- * Fetches tide data from the UK Environment Agency (ADUK) API.
- * This is the official UK government data for tide gauges.
- * No key required.
+ * Fetches RECENT GAUGE READINGS from the UK Environment Agency flood-monitoring API.
+ * These are historical observations, NOT official tide predictions.
+ * The "next tide" estimate is approximate (last peak ± 12h 25m) and should NOT
+ * be used for safety-critical decisions. For authoritative predictions use
+ * the Admiralty EasyTide or a dedicated tide-table service.
  */
 export async function getTidesUK(lat: number, lon: number): Promise<TideEvent[]> {
     // 1. Find the nearest tidal station
@@ -39,8 +41,7 @@ export async function getTidesUK(lat: number, lon: number): Promise<TideEvent[]>
     const tData = await tResp.json();
     const readings = tData.items;
 
-    // The EA API provides raw level data. 
-    // For a simple "Safety Widget", we'll find the peaks in the recent 24h data.
+    // The EA API provides raw level data — peaks and troughs in recent 24h readings.
     const events: TideEvent[] = [];
     
     for (let i = 1; i < readings.length - 1; i++) {
@@ -63,8 +64,8 @@ export async function getTidesUK(lat: number, lon: number): Promise<TideEvent[]>
         }
     }
 
-    // Since these are recent *readings*, we calculate the next expected tide 
-    // by adding roughly 12h 25m to the last known peak/trough.
+    // Rough estimate only: next tide ≈ last reading ± 12h 25m.
+    // This will be wrong near neap/spring transitions and at irregular coastlines.
     if (events.length > 0) {
         const last = events[0];
         const lastTime = new Date(last.time).getTime();

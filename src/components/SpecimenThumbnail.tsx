@@ -1,8 +1,8 @@
 import React from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Camera, Microscope } from "lucide-react";
-import { db } from "../db";
 import { ScaledImage } from "./ScaledImage";
+import { getFirstSpecimenMedia } from "../services/media";
 
 /**
  * A lightweight component to fetch and display the first thumbnail for a specimen
@@ -14,16 +14,7 @@ export function SpecimenThumbnail({ specimenId, className, imgClassName }: {
   imgClassName?: string;
 }) {
   const media = useLiveQuery(async () => {
-    // Only fetch the FIRST media record for this specimen
-    const items = await db.media.where("specimenId").equals(specimenId).toArray();
-    if (!items || items.length === 0) return null;
-    
-    // Sort locally by createdAt to find the earliest one
-    return items.sort((a, b) => {
-        const aDate = a?.createdAt || "";
-        const bDate = b?.createdAt || "";
-        return aDate.localeCompare(bDate);
-    })[0];
+    return getFirstSpecimenMedia(specimenId);
   }, [specimenId]);
 
   if (!media) {

@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { Locality, Specimen, Media } from "../db";
 import { ScaledImage } from "./ScaledImage";
+import { APP_VERSION } from "../version";
 
 export function FieldTripReport(props: {
   locality: Locality;
@@ -57,7 +58,7 @@ export function FieldTripReport(props: {
           <div className="min-w-48 rounded-lg border border-slate-200 bg-slate-50 p-4 font-mono text-[10px] leading-relaxed text-slate-600 print:bg-white">
             <div><strong className="text-slate-950">Generated</strong> {generatedAt.toLocaleString("en-GB")}</div>
             <div><strong className="text-slate-950">Reference</strong> {reportReference}</div>
-            <div><strong className="text-slate-950">Version</strong> FossilMap v0.1.0</div>
+            <div><strong className="text-slate-950">Version</strong> FossilMap v{APP_VERSION}</div>
           </div>
         </div>
       </header>
