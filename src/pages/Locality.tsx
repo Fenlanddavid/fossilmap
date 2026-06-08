@@ -500,48 +500,48 @@ export default function LocalityPage(props: {
                         )}
 
                         {bgsResult && (
-                          <div className="mt-3 rounded-lg border border-purple-300 dark:border-purple-700/40 bg-white dark:bg-gray-900/50 p-4">
+                          <div className="mt-3 min-w-0 rounded-lg border border-purple-300 dark:border-purple-700/40 bg-white dark:bg-gray-900/50 p-3 sm:p-4">
                             <div className="text-[10px] font-black uppercase tracking-widest text-purple-600 dark:text-purple-400 mb-3">BGS result — confirm to apply</div>
-                            <div className="grid grid-cols-2 gap-3 text-xs">
+                            <div className="grid min-w-0 grid-cols-1 gap-3 text-xs sm:grid-cols-2">
                               {bgsResult.formation && (
-                                <div>
+                                <div className="min-w-0">
                                   <div className="font-black uppercase text-[9px] text-gray-400 tracking-wider">Formation</div>
-                                  <div className="font-bold text-gray-800 dark:text-gray-200">{bgsResult.formation}</div>
+                                  <div className="break-words font-bold text-gray-800 dark:text-gray-200">{bgsResult.formation}</div>
                                 </div>
                               )}
                               {bgsResult.period && (
-                                <div>
+                                <div className="min-w-0">
                                   <div className="font-black uppercase text-[9px] text-gray-400 tracking-wider">Period</div>
-                                  <div className="font-bold text-gray-800 dark:text-gray-200">{bgsResult.period}</div>
+                                  <div className="break-words font-bold text-gray-800 dark:text-gray-200">{bgsResult.period}</div>
                                 </div>
                               )}
                               {bgsResult.stage && (
-                                <div>
+                                <div className="min-w-0">
                                   <div className="font-black uppercase text-[9px] text-gray-400 tracking-wider">Stage</div>
-                                  <div className="font-bold text-gray-800 dark:text-gray-200">{bgsResult.stage}</div>
+                                  <div className="break-words font-bold text-gray-800 dark:text-gray-200">{bgsResult.stage}</div>
                                 </div>
                               )}
                               {bgsResult.description && (
-                                <div className="col-span-2">
+                                <div className="min-w-0 sm:col-span-2">
                                   <div className="font-black uppercase text-[9px] text-gray-400 tracking-wider">Description</div>
-                                  <div className="text-gray-600 dark:text-gray-400 italic">{bgsResult.description}</div>
+                                  <div className="break-words text-gray-600 dark:text-gray-400 italic">{bgsResult.description}</div>
                                 </div>
                               )}
                             </div>
-                            <div className="mt-4 flex gap-2">
-                              <button
-                                type="button"
-                                onClick={applyBGSResult}
-                                className="flex-1 bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-lg text-xs font-black transition-all"
-                              >
-                                Apply (keep existing)
-                              </button>
+                            <div className="mt-4 grid grid-cols-3 gap-2">
                               <button
                                 type="button"
                                 onClick={applyBGSResultOverwrite}
+                                className="flex-1 bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-lg text-xs font-black transition-all"
+                              >
+                                Apply
+                              </button>
+                              <button
+                                type="button"
+                                onClick={applyBGSResult}
                                 className="flex-1 border border-purple-300 dark:border-purple-700 text-purple-600 dark:text-purple-400 px-3 py-2 rounded-lg text-xs font-black hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all"
                               >
-                                Apply (overwrite all)
+                                Keep
                               </button>
                               <button
                                 type="button"
