@@ -32,6 +32,13 @@ export function GlobalQuickFind({ projectId }: { projectId: string }) {
     db.specimens.where("projectId").equals(projectId).filter((specimen) => !!specimen.isPending).count()
   ), [projectId]);
 
+  const targetLocality = useLiveQuery(async () => {
+    if (activeSession?.localityId) {
+      return await db.localities.get(activeSession.localityId) ?? null;
+    }
+    return fallbackLocality ?? null;
+  }, [activeSession?.localityId, fallbackLocality?.id]);
+
   const shouldHide = useMemo(() => {
     const path = location.pathname;
     if ((dataCount ?? 0) === 0) return true;
@@ -45,7 +52,7 @@ export function GlobalQuickFind({ projectId }: { projectId: string }) {
 
   if (shouldHide) return null;
 
-  const targetLocalityId = activeSession?.localityId ?? fallbackLocality?.id ?? null;
+  const targetLocalityId = targetLocality?.id ?? activeSession?.localityId ?? fallbackLocality?.id ?? null;
 
   return (
     <>
@@ -74,6 +81,7 @@ export function GlobalQuickFind({ projectId }: { projectId: string }) {
         <QuickFindSheet
           projectId={projectId}
           localityId={targetLocalityId}
+          localityName={targetLocality?.name ?? null}
           onClose={() => setOpen(false)}
           onSaved={() => {}}
         />

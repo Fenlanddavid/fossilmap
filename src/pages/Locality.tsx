@@ -257,12 +257,13 @@ export default function LocalityPage(props: {
         lithologyPrimary,
         notes,
         designationNotes,
-        createdAt: isEdit ? undefined as any : now, 
+        createdAt: now,
         updatedAt: now,
       };
 
       if (isEdit) {
-        await db.localities.update(id, locality);
+        const { createdAt, ...patch } = locality;
+        await db.localities.update(id, patch);
         setIsEditing(false);
         void notify({
           title: `${localityType === 'location' ? 'Location' : 'Field trip'} updated`,
@@ -270,7 +271,6 @@ export default function LocalityPage(props: {
           tone: "success",
         });
       } else {
-        (locality as any).createdAt = now;
         await db.localities.add(locality);
         
         // If it's a field trip, create an automatic session for it

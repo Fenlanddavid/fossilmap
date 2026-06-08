@@ -14,11 +14,12 @@ const COMMON_TAXA = [
 interface QuickFindSheetProps {
   projectId: string;
   localityId: string | null;
+  localityName?: string | null;
   onClose: () => void;
   onSaved: (specimenId: string) => void;
 }
 
-export function QuickFindSheet({ projectId, localityId, onClose, onSaved }: QuickFindSheetProps) {
+export function QuickFindSheet({ projectId, localityId, localityName, onClose, onSaved }: QuickFindSheetProps) {
   const [taxon, setTaxon]       = useState("");
   const [lat, setLat]           = useState<number | null>(null);
   const [lon, setLon]           = useState<number | null>(null);
@@ -143,6 +144,9 @@ export function QuickFindSheet({ projectId, localityId, onClose, onSaved }: Quic
             <datalist id="qf-taxa">
               {COMMON_TAXA.map(t => <option key={t} value={t} />)}
             </datalist>
+            <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-bold text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
+              Adding to: <span className="font-black text-slate-900 dark:text-white">{localityName || (localityId ? "Selected locality" : "No locality selected")}</span>
+            </div>
           </div>
 
           {gpsError && (

@@ -1,10 +1,12 @@
 import React from "react";
-import { Waves, BookOpen } from "lucide-react";
+import { BookOpen, Check, Copy, Layers, Loader2, MapPin, Waves } from "lucide-react";
 import { getCommunityUrl } from "../services/community";
+import { lookupBGSGeology, type BGSResult } from "../services/bgs";
+import { captureGPS, type GPSFix } from "../services/gps";
 
 const TidePage = React.lazy(() => import("./TidePage"));
 
-type Tool = "tides" | "timescale";
+type Tool = "tides" | "timescale" | "bgs";
 
 export default function ToolsPage() {
   const [activeTool, setActiveTool] = React.useState<Tool>("tides");
@@ -12,6 +14,7 @@ export default function ToolsPage() {
   const tools: { id: Tool; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: "tides",     label: "Tides",     icon: Waves    },
     { id: "timescale", label: "Timescale", icon: BookOpen },
+    { id: "bgs",       label: "BGS",       icon: Layers   },
   ];
 
   return (
@@ -52,6 +55,7 @@ export default function ToolsPage() {
       }>
         {activeTool === "tides"     && <TidePage />}
         {activeTool === "timescale" && <TimescaleReference />}
+        {activeTool === "bgs"       && <BGSLookupTool />}
       </React.Suspense>
 
       {activeTool === "tides" && (
@@ -84,6 +88,124 @@ export default function ToolsPage() {
           </span>
         </a>
       )}
+    </div>
+  );
+}
+
+function BGSLookupTool() {
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [fix, setFix] = React.useState<GPSFix | null>(null);
+  const [result, setResult] = React.useState<BGSResult | null>(null);
+  const [copied, setCopied] = React.useState(false);
+
+  const runLookup = async () => {
+    setLoading(true);
+    setError(null);
+    setCopied(false);
+    try {
+      const gps = await captureGPS();
+      setFix(gps);
+      const geology = await lookupBGSGeology(gps.lat, gps.lon);
+      setResult(geology);
+    } catch (err) {
+      setResult(null);
+      setError(err instanceof Error ? err.message : "BGS lookup failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const copyResult = async () => {
+    if (!result) return;
+    const text = [
+      result.formation ? `Formation: ${result.formation}` : null,
+      result.period ? `Period: ${result.period}` : null,
+      result.stage ? `Stage: ${result.stage}` : null,
+      result.description ? `Description: ${result.description}` : null,
+      fix ? `GPS: ${fix.lat.toFixed(6)}, ${fix.lon.toFixed(6)}` : null,
+    ].filter(Boolean).join("\n");
+
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1800);
+  };
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h3 className="text-base font-black text-slate-950 dark:text-white">
+            BGS Geology Lookup
+          </h3>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Bedrock formation from your current GPS position.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={runLookup}
+          disabled={loading}
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-black text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+        >
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
+          {loading ? "Looking up" : "Use current GPS"}
+        </button>
+      </div>
+
+      {error && (
+        <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200">
+          {error}
+        </div>
+      )}
+
+      {result ? (
+        <div className="mt-4 grid gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <BGSField label="Formation" value={result.formation || "Unknown"} />
+            <BGSField label="Period" value={result.period || "Unknown"} />
+            <BGSField label="Stage" value={result.stage || "Not recorded"} />
+            <BGSField label="Rock type" value={result.description || "Not recorded"} />
+          </div>
+
+          {fix && (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-300">
+              GPS {fix.lat.toFixed(6)}, {fix.lon.toFixed(6)}
+              {fix.accuracyM != null && ` · ±${Math.round(fix.accuracyM)}m`}
+            </div>
+          )}
+
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={copyResult}
+              className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 sm:w-auto"
+            >
+              {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+              {copied ? "Copied" : "Copy"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        !error && (
+          <div className="mt-4 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm font-bold text-slate-500 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-400">
+            No lookup yet
+          </div>
+        )
+      )}
+    </div>
+  );
+}
+
+function BGSField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-950/40">
+      <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
+        {label}
+      </div>
+      <div className="mt-1 text-sm font-bold text-slate-900 dark:text-slate-100">
+        {value}
+      </div>
     </div>
   );
 }

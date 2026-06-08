@@ -66,6 +66,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
   const [isCustomElement, setIsCustomElement] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [sharePrec, setSharePrec] = useState<PrecisionLevel>("1km");
+  const [includeShareEmail, setIncludeShareEmail] = useState(true);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
   
   const qualityScore = useMemo(() => {
@@ -76,6 +77,10 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
   const defaultCollector = useLiveQuery(async () => {
     const s = await db.settings.get("defaultCollector");
     return s?.value || "Anonymous Collector";
+  });
+  const defaultEmail = useLiveQuery(async () => {
+    const s = await db.settings.get("defaultEmail");
+    return (s?.value || "").trim();
   });
 
   const [calibratingMedia, setCalibratingMedia] = useState<{ media: Media; url: string } | null>(null);
@@ -189,9 +194,13 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
     const photoNote = photoCount > 2 ? ` Up to 2 of your ${photoCount} photos will be shared.` : "";
     const inheritedNote = inherited.length > 0 ? ` Stratigraphy inherited from locality: ${inherited.join(", ")}.` : "";
 
+    const emailNote = includeShareEmail
+      ? " Your contact email, if set in settings, will also be shared."
+      : " Your contact email will be omitted from the public record."
+
     const ok = await confirmAction({
       title: "Share with FossilMapped?",
-      message: `This find will be visible on the public community map. Public location: ${precisionLabel(chosenPrecision)}.${photoNote}${inheritedNote} Your collector name and contact email, if set in settings, will also be shared with the find.`,
+      message: `This find will be visible on the public community map. Public location: ${precisionLabel(chosenPrecision)}.${photoNote}${inheritedNote} Your collector name will be shared.${emailNote}`,
       confirmLabel: "Share find",
       tone: "warning",
     });
@@ -222,7 +231,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
         id: draft.id,
         hrid: hrid,
         collectorName: defaultCollector,
-        collectorEmail: collectorEmail,
+        collectorEmail: includeShareEmail ? collectorEmail : "",
         taxon: draft.taxon,
         element: draft.element,
         period: (draft.period || locality?.period || "Unknown").trim(),
@@ -499,7 +508,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
     }
     await db.media.bulkAdd(items);
 
-    if (items.length === 1) {
+    if (items.length === 1 && !isEditing) {
         const m = items[0];
         const url = URL.createObjectURL(m.blob);
         setAnnotatingMedia({ media: m, url });
@@ -666,9 +675,29 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-            Collector name and contact email from settings are included when available.
-          </p>
+          <div className="min-w-0">
+            {!draft.isShared ? (
+              <label className={`flex items-start gap-2 text-[10px] font-semibold ${defaultEmail ? "cursor-pointer text-slate-600 dark:text-slate-300" : "cursor-not-allowed text-slate-400 dark:text-slate-500"}`}>
+                <input
+                  type="checkbox"
+                  checked={includeShareEmail && !!defaultEmail}
+                  disabled={sharing || !defaultEmail}
+                  onChange={(event) => setIncludeShareEmail(event.target.checked)}
+                  className="mt-0.5 h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 disabled:opacity-50"
+                />
+                <span>
+                  Include contact email
+                  <span className="block font-medium text-slate-400 dark:text-slate-500">
+                    {defaultEmail ? "Researchers can contact you about this find." : "No email is saved in settings."}
+                  </span>
+                </span>
+              </label>
+            ) : (
+              <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                Shared contact details are controlled by the published record.
+              </p>
+            )}
+          </div>
           <div className="flex shrink-0 gap-2">
             {draft.isShared ? (
               <>
@@ -803,7 +832,37 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
                 </label>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <label className="grid gap-1">
+                  <span className="text-sm font-bold opacity-75">Formation</span>
+                  <input
+                    className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"
+                    value={draft.formation || ""}
+                    onChange={(e) => setDraft(prev => prev ? { ...prev, formation: e.target.value } : null)}
+                    placeholder="Override locality value"
+                  />
+                </label>
+                <label className="grid gap-1">
+                  <span className="text-sm font-bold opacity-75">Member</span>
+                  <input
+                    className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"
+                    value={draft.member || ""}
+                    onChange={(e) => setDraft(prev => prev ? { ...prev, member: e.target.value } : null)}
+                    placeholder="Override locality value"
+                  />
+                </label>
+                <label className="grid gap-1">
+                  <span className="text-sm font-bold opacity-75">Bed</span>
+                  <input
+                    className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"
+                    value={draft.bed || ""}
+                    onChange={(e) => setDraft(prev => prev ? { ...prev, bed: e.target.value } : null)}
+                    placeholder="Override locality value"
+                  />
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <label className="grid gap-1">
                   <span className="text-sm font-bold opacity-75">Confidence</span>
                   <select 
@@ -814,6 +873,28 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
                     <option value="high">High</option>
                     <option value="med">Medium</option>
                     <option value="low">Low</option>
+                  </select>
+                </label>
+
+                <label className="grid gap-1">
+                  <span className="text-sm font-bold opacity-75">Preservation</span>
+                  <select
+                    className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"
+                    value={draft.preservation || "body fossil"}
+                    onChange={(e) => setDraft(prev => prev ? { ...prev, preservation: e.target.value as Specimen["preservation"] } : null)}
+                  >
+                    {[
+                      "body fossil",
+                      "trace fossil",
+                      "mould",
+                      "cast",
+                      "impression/compression",
+                      "permineralised",
+                      "replacement",
+                      "carbonised",
+                      "subfossil",
+                      "other",
+                    ].map((value) => <option key={value} value={value}>{value}</option>)}
                   </select>
                 </label>
                 
@@ -892,6 +973,32 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
                           />
                       </label>
                   </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/40">
+                <div className="mb-3 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Context & Taphonomy</div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="grid gap-1">
+                    <span className="text-sm font-bold opacity-75">Find context</span>
+                    <textarea
+                      value={draft.findContext || ""}
+                      onChange={(e) => setDraft(prev => prev ? { ...prev, findContext: e.target.value } : null)}
+                      rows={3}
+                      placeholder="Matrix, float, in situ, beach shingle..."
+                      className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm"
+                    />
+                  </label>
+                  <label className="grid gap-1">
+                    <span className="text-sm font-bold opacity-75">Taphonomy</span>
+                    <textarea
+                      value={draft.taphonomy || ""}
+                      onChange={(e) => setDraft(prev => prev ? { ...prev, taphonomy: e.target.value } : null)}
+                      rows={3}
+                      placeholder="Weathering, abrasion, articulation, breakage..."
+                      className="w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm"
+                    />
+                  </label>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
