@@ -4,7 +4,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db, Specimen, Media } from "../db";
 import { Modal } from "./Modal";
 import { v4 as uuid } from "uuid";
-import { Globe, Check, Loader2, Lock, ShieldCheck, Trash2, ExternalLink } from "lucide-react";
+import { Check, Database, ExternalLink, Globe, Loader2, Lock, ShieldCheck, Trash2 } from "lucide-react";
 import { fileToBlob, compressForShare } from "../services/photos";
 import { ScaleCalibrationModal } from "./ScaleCalibrationModal";
 import { ScaledImage } from "./ScaledImage";
@@ -566,58 +566,144 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
       : "exact GPS"
     : precisionLabel(sharePrec);
   const communityUrl = getCommunityUrl(draft.hrid);
-  const communityShareBanner = (
-    <section className="flex min-w-0 items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-      <div className="flex min-w-0 flex-1 items-center gap-2 text-xs">
-        <div className="min-w-0 flex flex-1 items-center gap-2 overflow-hidden">
-          <span className="shrink-0 font-black text-slate-900 dark:text-white">FossilMapped</span>
-          {draft.isShared && (
-            <span className="inline-flex shrink-0 items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300">
-              <Check className="h-3 w-3" />
-              Shared
-            </span>
-          )}
-          <span className="hidden min-w-0 truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400 sm:inline">
-            {draft.isShared
-              ? `${publicPrecisionLabel} public location${draft.hrid ? ` · ${draft.hrid}` : ""}`
-              : `${publicPrecisionLabel} public location when shared`}
-          </span>
+  const locationIsExact = draft.isShared ? sharedExactLocation : shareExactLocation;
+  const qualityLabel = getQualityLabel(qualityScore);
+  const communitySharePanel = (
+    <section className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3 shadow-sm dark:border-emerald-900/60 dark:bg-emerald-950/20 sm:p-4">
+      <div className="flex flex-col gap-3 sm:gap-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 gap-3">
+            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-emerald-600 text-white shadow-sm shadow-emerald-700/20 sm:h-10 sm:w-10">
+              <Globe className="h-4 w-4 sm:h-5 sm:w-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h4 className="m-0 text-sm font-black text-slate-900 dark:text-white">Share for research</h4>
+                <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${
+                  draft.isShared
+                    ? "border-emerald-300 bg-white text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
+                    : "border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+                }`}>
+                  {draft.isShared ? <Check className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
+                  {draft.isShared ? "Shared" : "Private"}
+                </span>
+              </div>
+              <p className="mt-1 text-xs font-semibold leading-relaxed text-slate-600 dark:text-slate-300">
+                {draft.isShared
+                  ? `Visible on FossilMapped${draft.hrid ? ` as ${draft.hrid}` : ""}.`
+                  : "Ready to publish to the FossilMapped community map."}
+              </p>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <div className="flex shrink-0 flex-wrap gap-2 sm:flex-nowrap">
-        {draft.isShared ? (
-          <>
-            <a
-              href={communityUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-700 transition-colors hover:bg-emerald-600 hover:text-white dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300"
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-              View
-            </a>
-            <button
-              type="button"
-              onClick={unshareFromCommunity}
-              disabled={sharing}
-              className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-red-600 transition-colors hover:bg-red-600 hover:text-white disabled:cursor-wait disabled:opacity-60 dark:border-red-900/60 dark:bg-slate-950/30 dark:text-red-300"
-            >
-              {sharing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-              Delete
-            </button>
-          </>
-        ) : (
-          <button
-            type="button"
-            onClick={shareToCommunity}
-            disabled={sharing}
-            className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-white shadow-sm shadow-emerald-600/20 transition-colors hover:bg-emerald-500 disabled:cursor-wait disabled:opacity-60"
-          >
-            {sharing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Globe className="h-3.5 w-3.5" />}
-            {sharing ? "Sharing..." : "Share"}
-          </button>
-        )}
+        <div className="grid gap-2">
+          <div className="min-w-0 rounded-xl border border-white/80 bg-white p-3 dark:border-slate-800 dark:bg-slate-900/80">
+            <div className="flex items-start gap-3">
+              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300">
+                <Database className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  Quality
+                </div>
+                <div className={`mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 font-bold ${getQualityColor(qualityScore)}`}>
+                  <span className="text-base leading-none">{qualityScore}%</span>
+                  <span className="text-xs leading-tight">{qualityLabel}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-white/80 bg-white p-3 dark:border-slate-800 dark:bg-slate-900/80">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-xs font-black text-slate-900 dark:text-white">
+                <ShieldCheck className={`h-4 w-4 ${locationIsExact ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`} />
+                {locationIsExact ? "Exact GPS is public" : "Exact spot stays private"}
+              </div>
+              <p className={`mt-1 text-[10px] font-semibold ${locationIsExact ? "text-amber-600 dark:text-amber-400" : "text-slate-500 dark:text-slate-400"}`}>
+                {locationIsExact
+                  ? "Best for site-level research where public coordinates are acceptable."
+                  : "A rounded area marker is shown on the public map."}
+              </p>
+            </div>
+
+            <div className="inline-flex h-9 rounded-lg border border-slate-200 bg-slate-100 p-1 dark:border-slate-700 dark:bg-slate-800">
+              <button
+                type="button"
+                disabled={sharing || (!draft.isShared && !shareExactLocation) || (draft.isShared && !sharedExactLocation)}
+                onClick={() => {
+                  if (draft.isShared) handleTogglePrecision();
+                  else setSharePrec("1km");
+                }}
+                className={`inline-flex items-center justify-center rounded-md px-3 text-[10px] font-black uppercase tracking-wider transition-colors ${
+                  !locationIsExact
+                    ? "bg-white text-emerald-700 shadow-sm dark:bg-slate-950 dark:text-emerald-300"
+                    : "text-slate-500 hover:bg-white/70 hover:text-slate-900 disabled:hover:bg-transparent dark:text-slate-400 dark:hover:bg-slate-950/60 dark:hover:text-slate-100"
+                } disabled:cursor-default disabled:opacity-70`}
+              >
+                General area
+              </button>
+              <button
+                type="button"
+                disabled={sharing || (!draft.isShared && shareExactLocation) || (draft.isShared && sharedExactLocation)}
+                onClick={() => {
+                  if (draft.isShared) handleTogglePrecision();
+                  else setSharePrec("exact");
+                }}
+                className={`inline-flex items-center justify-center rounded-md px-3 text-[10px] font-black uppercase tracking-wider transition-colors ${
+                  locationIsExact
+                    ? "bg-white text-amber-700 shadow-sm dark:bg-slate-950 dark:text-amber-300"
+                    : "text-slate-500 hover:bg-white/70 hover:text-slate-900 disabled:hover:bg-transparent dark:text-slate-400 dark:hover:bg-slate-950/60 dark:hover:text-slate-100"
+                } disabled:cursor-default disabled:opacity-70`}
+              >
+                Exact GPS
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+            Collector name and contact email from settings are included when available.
+          </p>
+          <div className="flex shrink-0 gap-2">
+            {draft.isShared ? (
+              <>
+                <a
+                  href={communityUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-wider text-emerald-700 transition-colors hover:bg-emerald-600 hover:text-white dark:border-emerald-800 dark:bg-slate-900 dark:text-emerald-300 sm:flex-none"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  View
+                </a>
+                <button
+                  type="button"
+                  onClick={unshareFromCommunity}
+                  disabled={sharing}
+                  className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-wider text-red-600 transition-colors hover:bg-red-600 hover:text-white disabled:cursor-wait disabled:opacity-60 dark:border-red-900/60 dark:bg-slate-900 dark:text-red-300 sm:flex-none"
+                >
+                  {sharing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  Remove share
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={shareToCommunity}
+                disabled={sharing}
+                className="inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-[10px] font-black uppercase tracking-wider text-white shadow-sm shadow-emerald-600/20 transition-colors hover:bg-emerald-500 disabled:cursor-wait disabled:opacity-60 sm:w-auto"
+              >
+                {sharing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Globe className="h-3.5 w-3.5" />}
+                {sharing ? "Sharing..." : "Share with FossilMapped"}
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     </section>
   );
@@ -948,69 +1034,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
                   )}
               </div>
 
-              <p className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 -mb-2">Share for research.</p>
-
-              {communityShareBanner}
-
-              {!draft.isShared && (
-                <div className="flex flex-col gap-1.5 rounded-xl border border-amber-100 bg-amber-50/60 px-3 py-2 dark:border-amber-900/40 dark:bg-amber-900/10">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <ShieldCheck className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                      <span className="text-xs font-black text-gray-900 dark:text-white">
-                        {shareExactLocation ? "Exact GPS — full coordinates shared" : "1km — general area only"}
-                      </span>
-                    </div>
-                    <label className="inline-flex cursor-pointer items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={shareExactLocation}
-                        disabled={sharing}
-                        onChange={(event) => setSharePrec(event.target.checked ? "exact" : "1km")}
-                        className="peer sr-only"
-                      />
-                      <span className="relative h-5 w-9 rounded-full bg-gray-300 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-transform peer-checked:bg-amber-600 peer-checked:after:translate-x-4 peer-disabled:opacity-60 dark:bg-gray-700" />
-                    </label>
-                  </div>
-                  <p className={`text-[10px] font-semibold ${shareExactLocation ? "text-amber-600 dark:text-amber-400" : "text-gray-500 dark:text-white/60"}`}>
-                    {shareExactLocation
-                      ? "Researchers will see your exact find location."
-                      : "The general area is shared."}
-                  </p>
-                </div>
-              )}
-
-              {draft.isShared && (
-                <div className="flex flex-col gap-1.5 rounded-xl border border-green-100 bg-green-50/60 px-3 py-2 dark:border-green-900/40 dark:bg-green-900/10">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <Lock className="h-4 w-4 shrink-0 text-green-600 dark:text-green-400" />
-                      <span className="text-xs font-black text-gray-900 dark:text-white">
-                        {sharedExactLocation ? "Exact GPS — full coordinates shared" : "1km — general area only"}
-                      </span>
-                    </div>
-                    <label className="inline-flex cursor-pointer items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={sharedExactLocation}
-                        disabled={sharing}
-                        onChange={handleTogglePrecision}
-                        className="peer sr-only"
-                      />
-                      {sharing ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-green-600" />
-                      ) : (
-                        <span className="relative h-5 w-9 rounded-full bg-gray-300 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-transform peer-checked:bg-green-600 peer-checked:after:translate-x-4 peer-disabled:opacity-60 dark:bg-gray-700" />
-                      )}
-                    </label>
-                  </div>
-                  <p className={`text-[10px] font-semibold ${sharedExactLocation ? "text-amber-600 dark:text-amber-400" : "text-gray-500 dark:text-white/60"}`}>
-                    {sharedExactLocation
-                      ? "Researchers will see your exact find location — useful for site-level studies."
-                      : "Your general area is shared — your exact site stays private."}
-                  </p>
-                </div>
-              )}
+              {communitySharePanel}
 
               {draft.notes && (
                   <div className="px-2">

@@ -548,7 +548,7 @@ export default function MapPage({ projectId }: { projectId: string }) {
       <div className="fossilmap-map-frame relative overflow-hidden rounded-xl border border-slate-200 bg-slate-100 shadow-inner dark:border-slate-800 dark:bg-slate-900">
         <div
           ref={mapDivRef}
-          className="h-[calc(100svh-335px)] min-h-[430px] w-full md:h-[calc(100svh-270px)]"
+          className="h-[calc(100svh-360px)] min-h-[320px] w-full sm:h-[calc(100svh-335px)] sm:min-h-[430px] md:h-[calc(100svh-270px)]"
         />
         {tileErrorCount >= 3 && (
           <div className="absolute right-14 top-3 z-10 max-w-xs rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950 shadow-lg dark:border-amber-900 dark:bg-amber-950/80 dark:text-amber-100">
@@ -582,7 +582,7 @@ export default function MapPage({ projectId }: { projectId: string }) {
         
         {/* Selection overlay */}
         {selected && (
-          <div className="absolute bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:w-96 z-10">
+          <div className="absolute bottom-3 left-3 right-3 z-10 sm:bottom-4 sm:left-auto sm:right-4 sm:w-96">
             <LocalityPanel 
               selected={selected}
               selectedSpecimens={selectedSpecimens as Specimen[]}

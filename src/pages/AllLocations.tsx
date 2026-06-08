@@ -136,10 +136,17 @@ export default function AllLocations(props: { projectId: string }) {
                     <Calendar className="h-3 w-3" />
                     {new Date(l.createdAt).toLocaleDateString()}
                   </span>
-                  <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-700 dark:text-emerald-400">
-                    Open
-                    <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
-                  </span>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      navigate(`/specimen?localityId=${encodeURIComponent(l.id)}`);
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-[10px] font-black text-emerald-800 shadow-sm hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/25 dark:text-emerald-200"
+                  >
+                    <Plus className="h-3 w-3" />
+                    Add find
+                  </button>
                 </div>
               </div>
 

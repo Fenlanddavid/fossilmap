@@ -1,0 +1,14 @@
+name            = "fossilmap-bgs-proxy"
+main            = "index.js"
+compatibility_date = "2024-09-23"
+
+# No KV, Durable Objects or secrets needed.
+# All configuration is inline in index.js.
+#
+# Deploy:
+#   cd workers/bgs-proxy
+#   wrangler deploy
+#
+# Worker will be available at:
+#   https://fossilmap-bgs-proxy.<your-subdomain>.workers.dev
+# Update BGS_PROXY_URL in src/services/bgs.ts after first deploy.

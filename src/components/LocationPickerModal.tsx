@@ -91,9 +91,9 @@ export function LocationPickerModal(props: {
 
   return (
     <Modal title="Pick Find Location" onClose={props.onClose}>
-      <div className="grid gap-4 no-print">
-        <div className="rounded-2xl overflow-hidden border-2 border-gray-100 dark:border-gray-800 relative shadow-inner bg-gray-50 dark:bg-black">
-          <div ref={mapDivRef} className="w-full h-[60vh]" />
+      <div className="grid gap-3 no-print sm:gap-4">
+        <div className="rounded-xl sm:rounded-2xl overflow-hidden border-2 border-gray-100 dark:border-gray-800 relative shadow-inner bg-gray-50 dark:bg-black">
+          <div ref={mapDivRef} className="h-[min(48svh,360px)] w-full sm:h-[60vh]" />
           {!mapReady && tileErrorCount < 3 && (
             <div className="absolute inset-0 z-[5] grid place-items-center bg-white/70 text-xs font-black text-slate-500 backdrop-blur-sm dark:bg-slate-950/60 dark:text-slate-300">
               Loading map...
@@ -126,16 +126,16 @@ export function LocationPickerModal(props: {
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-blue-50/50 dark:bg-blue-900/10 p-4 rounded-2xl border border-blue-100 dark:border-blue-900/30">
-          <div className="flex flex-col">
+        <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 sm:gap-4 bg-blue-50/50 dark:bg-blue-900/10 p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-blue-100 dark:border-blue-900/30">
+          <div className="flex min-w-0 flex-col">
             <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-1">Selected Coordinates</span>
-            <div className="font-mono font-bold text-sm text-gray-800 dark:text-gray-100 flex gap-3">
+            <div className="font-mono font-bold text-xs text-gray-800 dark:text-gray-100 flex flex-wrap gap-x-3 gap-y-1 sm:text-sm">
               <span>{lat.toFixed(6)}</span>
               <span className="opacity-20">|</span>
               <span>{lon.toFixed(6)}</span>
             </div>
           </div>
-          <div className="flex gap-3 w-full sm:w-auto">
+          <div className="flex gap-2 w-full sm:w-auto sm:gap-3">
             <button onClick={props.onClose} className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 font-bold hover:bg-gray-200 transition-colors text-sm">Cancel</button>
             <button onClick={() => props.onSelect(lat, lon)} className="flex-1 sm:flex-none px-6 py-2 rounded-xl bg-blue-600 text-white font-bold shadow-md hover:bg-blue-700 transition-all text-sm">Confirm Location</button>
           </div>

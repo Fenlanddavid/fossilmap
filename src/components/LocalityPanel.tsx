@@ -29,7 +29,7 @@ export function LocalityPanel(props: {
   const { selected } = props;
   
   return (
-    <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur border border-slate-200 dark:border-slate-700 rounded-xl p-4 grid gap-3 shadow-xl max-h-[50vh] overflow-y-auto animate-in slide-in-from-bottom-4 duration-300">
+    <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur border border-slate-200 dark:border-slate-700 rounded-xl p-3 sm:p-4 grid gap-3 shadow-xl max-h-[44svh] sm:max-h-[50svh] overflow-y-auto animate-in slide-in-from-bottom-4 duration-300">
       <div className="flex justify-between gap-3 items-start">
         <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">

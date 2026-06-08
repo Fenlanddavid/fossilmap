@@ -635,6 +635,15 @@ export default function Settings() {
             </div>
           </section>
 
+          <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <h3 className="text-lg font-black text-slate-950 dark:text-white">External data</h3>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              FossilMap can look up bedrock geology from the British Geological Survey when adding or editing a locality. Only the map coordinate is sent — no find records or personal data leave your device.
+            </p>
+            <p className="mt-4 text-xs leading-relaxed text-slate-400 dark:text-slate-500">
+              Contains British Geological Survey materials © UKRI 2025. BGS data is used under the Open Government Licence.
+            </p>
+          </section>
         </>
       )}
 

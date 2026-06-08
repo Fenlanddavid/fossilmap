@@ -4,7 +4,6 @@ import {
   ArrowRight,
   Camera,
   Calendar,
-  ChevronRight,
   ClipboardList,
   Compass,
   HardDrive,
@@ -14,17 +13,12 @@ import {
   Plus,
   Search,
   ShieldAlert,
-  Upload,
   X,
 } from "lucide-react";
-import { v4 as uuid } from "uuid";
-import { db, Media } from "../db";
+import { db } from "../db";
 import { SpecimenThumbnail } from "../components/SpecimenThumbnail";
 import { LocalityThumbnail } from "../components/LocalityThumbnail";
-import { LocalityFindsList } from "../components/LocalityFindsList";
 import { getCommunityUrl } from "../services/community";
-import { fileToBlob } from "../services/photos";
-import { useConfirmDialog } from "../components/ConfirmModal";
 
 const SpecimenModal = React.lazy(() =>
   import("../components/SpecimenModal").then((mod) => ({ default: mod.SpecimenModal }))
@@ -47,10 +41,8 @@ export default function Home(props: {
   goBackupSettings: () => void;
   goSession: (id: string) => void;
 }) {
-  const { confirm: confirmAction, notify, dialog } = useConfirmDialog();
   const [searchQuery, setSearchQuery] = useState("");
   const [openSpecimenId, setOpenSpecimenId] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   const [dismissedNextMoveKey, setDismissedNextMoveKey] = useState(() => {
     try {
       return localStorage.getItem("fm_home_next_move_dismissed") ?? "";
@@ -127,7 +119,7 @@ export default function Home(props: {
     [props.projectId]
   );
 
-  const recentFinds = useMemo(() => (specimens ?? []).filter(s => !s.isPending).slice(0, 8), [specimens]);
+  const recentFinds = useMemo(() => (specimens ?? []).filter(s => !s.isPending).slice(0, 3), [specimens]);
   const specimenCountByLocality = useMemo(() => {
     const counts = new Map<string, number>();
     for (const specimen of specimens ?? []) {
@@ -136,7 +128,26 @@ export default function Home(props: {
     }
     return counts;
   }, [specimens]);
-  const visibleLocalities = useMemo(() => localities?.slice(0, searchQuery.trim() ? 24 : 8) ?? [], [localities, searchQuery]);
+  const localityLastUsedAt = useMemo(() => {
+    const dates = new Map<string, string>();
+    for (const specimen of specimens ?? []) {
+      if (specimen.isPending) continue;
+      const previous = dates.get(specimen.localityId);
+      if (!previous || specimen.createdAt > previous) dates.set(specimen.localityId, specimen.createdAt);
+    }
+    return dates;
+  }, [specimens]);
+  const visibleLocalities = useMemo(() => {
+    const rows = localities ?? [];
+    if (searchQuery.trim()) return rows.slice(0, 3);
+    return [...rows]
+      .sort((a, b) => {
+        const aTime = new Date(localityLastUsedAt.get(a.id) ?? a.updatedAt ?? a.createdAt).getTime();
+        const bTime = new Date(localityLastUsedAt.get(b.id) ?? b.updatedAt ?? b.createdAt).getTime();
+        return bTime - aTime;
+      })
+      .slice(0, 3);
+  }, [localities, localityLastUsedAt, searchQuery]);
   const hasAnyData = (dashboard?.locations ?? 0) + (dashboard?.trips ?? 0) + (dashboard?.finds ?? 0) > 0;
 
   const nextMoves = useMemo(() => {
@@ -269,56 +280,6 @@ export default function Home(props: {
     } catch {}
   }
 
-  async function addLocalityPhoto(localityId: string, files: FileList | null) {
-    if (!files || files.length === 0) return;
-    setBusy(true);
-    try {
-      const file = files[0];
-      const blob = await fileToBlob(file);
-      const item: Media = {
-        id: uuid(),
-        projectId: props.projectId,
-        localityId,
-        type: "photo",
-        filename: file.name,
-        mime: file.type || "image/jpeg",
-        blob,
-        caption: "Locality photo",
-        scalePresent: false,
-        createdAt: new Date().toISOString(),
-      };
-      await db.media.add(item);
-    } catch (e) {
-      console.error("Locality photo failed:", e);
-      await notify({
-        title: "Photo not saved",
-        message: "FossilMap could not save that locality photo. Try again with a smaller image or after freeing device storage.",
-        tone: "danger",
-      });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function finishTrip(localityId: string) {
-    const ok = await confirmAction({
-      title: "Finish field trip?",
-      message: "This records the end time and stops the active visit. You can still review and edit the field trip afterwards.",
-      confirmLabel: "Finish trip",
-      tone: "warning",
-    });
-    if (!ok) return;
-    const session = activeSessions?.get(localityId);
-    if (session) {
-      await db.sessions.update(session.id, {
-        isFinished: true,
-        endTime: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
-    }
-  }
-
-
   return (
     <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-6 pb-10">
 
@@ -394,7 +355,9 @@ export default function Home(props: {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-xl font-black tracking-tight text-slate-950 dark:text-white">Locations and trips</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400">{localities?.length ?? 0} shown from your local field book.</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                {searchQuery.trim() ? `${visibleLocalities.length} matching shown.` : "Your 3 most recently used places."}
+              </p>
             </div>
             <div className="flex gap-2">
               <div className="relative min-w-0 flex-1 sm:w-72">
@@ -430,16 +393,17 @@ export default function Home(props: {
                 const isActive = !!activeSession;
                 const findCount = specimenCountByLocality.get(locality.id) ?? 0;
                 return (
-                  <article key={locality.id} className={`group relative grid min-h-48 min-w-0 grid-cols-[minmax(0,1fr)_7.75rem] overflow-hidden rounded-xl border bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg dark:bg-slate-900 ${isActive ? "border-emerald-400 ring-1 ring-emerald-400" : "border-slate-200 hover:border-emerald-300 dark:border-slate-800 dark:hover:border-emerald-800"}`}>
+                  <article
+                    key={locality.id}
+                    onClick={() => props.goLocalityEdit(locality.id, locality.type)}
+                    className={`group relative grid min-h-48 min-w-0 cursor-pointer grid-cols-[minmax(0,1fr)_7.75rem] overflow-hidden rounded-xl border bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg dark:bg-slate-900 ${isActive ? "border-emerald-400 ring-1 ring-emerald-400" : "border-slate-200 hover:border-emerald-300 dark:border-slate-800 dark:hover:border-emerald-800"}`}
+                  >
                     <div className={`absolute inset-x-0 top-0 h-1 ${isActive ? "bg-emerald-500" : locality.type === "trip" ? "bg-emerald-400" : "bg-sky-400"}`} />
                     <div className="flex min-w-0 flex-col p-4">
                       <div className="mb-2 flex items-start justify-between gap-2">
-                        <button
-                          onClick={() => props.goLocalityEdit(locality.id, locality.type)}
-                          className="min-w-0 text-left text-base font-black leading-tight text-slate-950 transition-colors hover:text-emerald-700 dark:text-white dark:hover:text-emerald-300"
-                        >
+                        <span className="min-w-0 text-base font-black leading-tight text-slate-950 transition-colors group-hover:text-emerald-700 dark:text-white dark:group-hover:text-emerald-300">
                           {locality.name || "(Unnamed)"}
-                        </button>
+                        </span>
                         <span className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest ${locality.type === "trip" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200" : "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200"}`}>
                           {locality.type === "trip" ? "Trip" : "Site"}
                         </span>
@@ -466,57 +430,32 @@ export default function Home(props: {
                           <Microscope className="h-3.5 w-3.5" />
                           <span>{findCount} find{findCount !== 1 ? "s" : ""}</span>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <Calendar className="h-3.5 w-3.5" />
-                          <span>{new Date(locality.observedAt || locality.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
-                        </div>
                       </div>
 
-                      <LocalityFindsList localityId={locality.id} />
-
-                      <div className="mt-auto flex items-center gap-2 pt-3">
-                        {isActive ? (
-                          <>
-                            <button onClick={() => props.goSpecimen(locality.id)} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[11px] font-black text-white shadow-sm hover:bg-emerald-700">
-                              <Plus className="h-3.5 w-3.5" />
-                              Find
-                            </button>
-                            <button onClick={() => finishTrip(locality.id)} className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] font-black text-red-700 hover:bg-red-100 dark:border-red-900 dark:bg-red-950/25 dark:text-red-200">
-                              Finish
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button onClick={() => props.goSpecimen(locality.id)} className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-black text-emerald-800 shadow-sm hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/25 dark:text-emerald-200">
-                              <Plus className="h-3.5 w-3.5" />
-                              Add find
-                            </button>
-                            <button onClick={() => props.goLocalityEdit(locality.id, locality.type)} className="ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-black text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white">
-                              Open
-                              <ChevronRight className="h-3.5 w-3.5" />
-                            </button>
-                          </>
-                        )}
+                      <div className="mt-auto flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800">
+                        <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-slate-400">
+                          <Calendar className="h-3 w-3" />
+                          {new Date(locality.createdAt).toLocaleDateString()}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            props.goSpecimen(locality.id);
+                          }}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-[10px] font-black text-emerald-800 shadow-sm hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/25 dark:text-emerald-200"
+                        >
+                          <Plus className="h-3 w-3" />
+                          Add find
+                        </button>
                       </div>
                     </div>
 
                     <div className="relative border-l border-slate-100 bg-slate-100 dark:border-slate-800 dark:bg-slate-950">
                       <LocalityThumbnail localityId={locality.id} className="h-full w-full" imgClassName="object-cover" />
                       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-slate-950/55 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
-                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-950/0 opacity-0 transition-opacity group-hover:bg-slate-950/60 group-hover:opacity-100">
-                        <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-white px-2 py-1.5 text-[10px] font-black text-slate-900 shadow-sm">
-                          <Camera className="h-3.5 w-3.5" />
-                          Camera
-                          <input type="file" accept="image/*" capture="environment" disabled={busy} className="hidden" onChange={(e) => addLocalityPhoto(locality.id, e.target.files)} />
-                        </label>
-                        <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-white/25 bg-white/15 px-2 py-1.5 text-[10px] font-black text-white backdrop-blur">
-                          <Upload className="h-3.5 w-3.5" />
-                          Upload
-                          <input type="file" accept="image/*" disabled={busy} className="hidden" onChange={(e) => addLocalityPhoto(locality.id, e.target.files)} />
-                        </label>
-                      </div>
                       {(locality.sssi || locality.rigs) && (
-                        <div className="absolute right-2 top-2 rounded bg-amber-500 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-widest text-white">
+                        <div className="absolute right-2 top-2 rounded bg-amber-500 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-widest text-white shadow-sm">
                           Protected
                         </div>
                       )}
@@ -534,7 +473,7 @@ export default function Home(props: {
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-black text-slate-950 dark:text-white">Recent finds</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">{recentFinds.length} latest records</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Last {recentFinds.length} records</p>
               </div>
               <button onClick={props.goAllFinds} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-black text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/30">
                 All
@@ -589,7 +528,6 @@ export default function Home(props: {
           <SpecimenModal specimenId={openSpecimenId} onClose={() => setOpenSpecimenId(null)} />
         </React.Suspense>
       )}
-      {dialog}
     </div>
   );
 }

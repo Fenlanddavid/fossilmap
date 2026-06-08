@@ -333,10 +333,10 @@ export default function LocalityPage(props: {
       : "Access needs review";
 
   return (
-    <div className="max-w-4xl mx-auto pb-20 px-4">
-      <div className="no-print grid gap-8 mt-4">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div className="flex flex-wrap gap-3 items-center">
+    <div className="max-w-4xl mx-auto w-full min-w-0 pb-20 px-2 sm:px-4">
+      <div className="no-print grid min-w-0 gap-8 mt-4">
+        <div className="flex min-w-0 flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="flex min-w-0 flex-wrap gap-3 items-center">
                 <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100 uppercase tracking-tight">
                     {isEdit ? (isTrip ? "Field Trip Details" : "Location Details") : (isTrip ? "New Field Trip" : "New Location")}
                 </h2>
@@ -377,9 +377,9 @@ export default function LocalityPage(props: {
             </div>
         )}
 
-        <div className="grid lg:grid-cols-3 gap-8">
+        <div className="grid min-w-0 lg:grid-cols-3 gap-8">
             {/* Left Column: Info */}
-            <div className="lg:col-span-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-sm grid gap-6 h-fit">
+            <div className="min-w-0 lg:col-span-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-4 sm:p-6 shadow-sm grid gap-6 h-fit">
                 {isEditing ? (
                   <>
                     <label className="block">
@@ -414,7 +414,7 @@ export default function LocalityPage(props: {
                         </label>
                     </div>
 
-                    <div className="bg-blue-50/50 dark:bg-blue-900/20 p-5 rounded-2xl border-2 border-blue-100/50 dark:border-blue-800/30 flex flex-col gap-4">
+                    <div className="min-w-0 bg-blue-50/50 dark:bg-blue-900/20 p-4 sm:p-5 rounded-2xl border-2 border-blue-100/50 dark:border-blue-800/30 flex flex-col gap-4">
                         <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
                             <div className="flex flex-col gap-1 w-full">
                                 <div className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">GPS Location</div>
@@ -429,7 +429,7 @@ export default function LocalityPage(props: {
                                     )}
                                 </div>
                             </div>
-                            <div className="flex gap-2 w-full sm:w-auto">
+                            <div className="flex min-w-0 gap-2 w-full sm:w-auto">
                                 <button 
                                     type="button" 
                                     onClick={() => setIsPickingLocation(true)} 
@@ -440,7 +440,7 @@ export default function LocalityPage(props: {
                                 <button 
                                     type="button"
                                     onClick={doGPS} 
-                                    className="flex-1 sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-md transition-all flex items-center justify-center gap-2 whitespace-nowrap"
+                                    className="flex-1 sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-3 sm:px-6 py-2.5 rounded-xl font-bold shadow-md transition-all flex items-center justify-center gap-2"
                                 >
                                     📍 {coords ? "Update GPS" : "Get Current GPS"}
                                 </button>
@@ -655,7 +655,7 @@ export default function LocalityPage(props: {
                         </label>
                     </div>
 
-                    <div className="bg-amber-50/50 dark:bg-amber-900/10 p-5 rounded-2xl border-2 border-amber-100/50 dark:border-amber-800/30 grid gap-4">
+                    <div className="min-w-0 bg-amber-50/50 dark:bg-amber-900/10 p-4 sm:p-5 rounded-2xl border-2 border-amber-100/50 dark:border-amber-800/30 grid gap-4">
                         <div className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">Conservation & Access</div>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <label className="flex items-center gap-3 cursor-pointer group">
