@@ -17,6 +17,29 @@ const SpecimenModal = React.lazy(() =>
 const DEFAULT_CENTER: [number, number] = [-2.0, 54.5];
 const DEFAULT_ZOOM = 5;
 const PALETTE = ["#059669", "#2563eb", "#7c3aed", "#d97706", "#dc2626", "#0891b2", "#4f46e5", "#65a30d"];
+type MapStyleMode = "streets" | "satellite";
+
+function rasterStyle(mode: MapStyleMode): any {
+  const isStreets = mode === "streets";
+  return {
+    version: 8,
+    glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
+    sources: {
+      "raster-tiles": {
+        type: "raster",
+        tiles: isStreets
+          ? ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"]
+          : ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
+        tileSize: 256,
+        attribution: isStreets ? "© OpenStreetMap contributors" : "© Esri World Imagery",
+        maxzoom: isStreets ? 19 : 23,
+      },
+    },
+    layers: [
+      { id: "simple-tiles", type: "raster", source: "raster-tiles", minzoom: 0, maxzoom: 24 },
+    ],
+  };
+}
 
 function hashColor(value: string, fallback = "#64748b") {
   const key = value.trim();
@@ -46,6 +69,7 @@ type DateFilterMode = "all" | "7d" | "30d" | "custom";
 export default function MapPage({ projectId, tripOnly = false }: { projectId: string; tripOnly?: boolean }) {
   const mapDivRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  const cameraRef = useRef<{ center: [number, number]; zoom: number; bearing: number; pitch: number } | null>(null);
   const nav = useNavigate();
 
   // Filters
@@ -60,7 +84,7 @@ export default function MapPage({ projectId, tripOnly = false }: { projectId: st
   const [customTo, setCustomTo] = useState<string>("");
   
   // Map Style
-  const [mapStyleMode, setMapStyleMode] = useState<"streets" | "satellite">("streets");
+  const [mapStyleMode, setMapStyleMode] = useState<MapStyleMode>("streets");
   const [colorMode, setColorMode] = useState<"status" | "period" | "formation" | "taxon">("status");
 
   // Selection / modals
@@ -259,35 +283,16 @@ export default function MapPage({ projectId, tripOnly = false }: { projectId: st
   // Map Initialization
   useEffect(() => {
     if (!mapDivRef.current) return;
-
-    if (mapRef.current) {
-      mapRef.current.remove();
-      mapRef.current = null;
-    }
-
-    const style: any = {
-        version: 8,
-        glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
-        sources: {
-            "raster-tiles": {
-                type: "raster",
-                tiles: mapStyleMode === "streets" 
-                    ? ["https://a.tile.openstreetmap.org/{z}/{x}/{y}.png"]
-                    : ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
-                tileSize: 256,
-                attribution: mapStyleMode === "streets" ? "© OpenStreetMap" : "© Esri World Imagery"
-            }
-        },
-        layers: [
-            { id: "simple-tiles", type: "raster", source: "raster-tiles", minzoom: 0, maxzoom: 22 }
-        ]
-    };
+    const camera = cameraRef.current;
 
     const map = new maplibregl.Map({
       container: mapDivRef.current,
-      style: style,
-      center: DEFAULT_CENTER,
-      zoom: DEFAULT_ZOOM,
+      style: rasterStyle(mapStyleMode),
+      center: camera?.center ?? DEFAULT_CENTER,
+      zoom: camera?.zoom ?? DEFAULT_ZOOM,
+      bearing: camera?.bearing ?? 0,
+      pitch: camera?.pitch ?? 0,
+      maxZoom: 22,
       clickTolerance: 40 // Improved hit-testing for mobile touch
     });
 
@@ -366,6 +371,12 @@ export default function MapPage({ projectId, tripOnly = false }: { projectId: st
           }
       });
 
+      if (highlightedLocalityId) {
+        const filter = ["all", ["!", ["has", "point_count"]], ["==", ["get", "id"], highlightedLocalityId]] as any;
+        if (map.getLayer("unclustered-highlight")) map.setFilter("unclustered-highlight", filter);
+        if (map.getLayer("unclustered-highlight-ring")) map.setFilter("unclustered-highlight-ring", filter);
+      }
+
       map.addLayer({
         id: "unclustered-count",
         type: "symbol",
@@ -437,6 +448,16 @@ export default function MapPage({ projectId, tripOnly = false }: { projectId: st
     if (mapDivRef.current) ro.observe(mapDivRef.current);
 
     return () => {
+      const current = mapRef.current;
+      if (current) {
+        const center = current.getCenter();
+        cameraRef.current = {
+          center: [center.lng, center.lat],
+          zoom: current.getZoom(),
+          bearing: current.getBearing(),
+          pitch: current.getPitch(),
+        };
+      }
       ro.disconnect();
       map.remove();
       mapRef.current = null;

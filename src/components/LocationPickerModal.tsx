@@ -3,6 +3,28 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { Modal } from "./Modal";
 
+type MapStyleMode = "streets" | "satellite";
+
+function rasterStyle(mode: MapStyleMode): maplibregl.StyleSpecification {
+  const isStreets = mode === "streets";
+  return {
+    version: 8,
+    glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
+    sources: {
+      "raster-tiles": {
+        type: "raster",
+        tiles: isStreets
+          ? ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"]
+          : ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
+        tileSize: 256,
+        attribution: isStreets ? "© OpenStreetMap contributors" : "© Esri World Imagery",
+        maxzoom: isStreets ? 19 : 23,
+      },
+    },
+    layers: [{ id: "simple-tiles", type: "raster", source: "raster-tiles", minzoom: 0, maxzoom: 24 }],
+  };
+}
+
 export function LocationPickerModal(props: {
   initialLat?: number | null;
   initialLon?: number | null;
@@ -11,43 +33,26 @@ export function LocationPickerModal(props: {
 }) {
   const mapDivRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  const activeStyleRef = useRef<MapStyleMode>("streets");
 
   const [lat, setLat] = useState(props.initialLat ?? 54.5);
   const [lon, setLon] = useState(props.initialLon ?? -2.0);
   const [zoom] = useState(props.initialLat != null ? 16 : 6);
-  const [mapStyle, setMapStyle] = useState<"streets" | "satellite">("streets");
+  const [mapStyle, setMapStyle] = useState<MapStyleMode>("streets");
   const [mapReady, setMapReady] = useState(false);
   const [tileErrorCount, setTileErrorCount] = useState(0);
 
   useEffect(() => {
     if (!mapDivRef.current) return;
-
-    if (mapRef.current) {
-      mapRef.current.remove();
-      mapRef.current = null;
-    }
-
     setMapReady(false);
     setTileErrorCount(0);
 
-    const tiles =
-      mapStyle === "streets"
-        ? ["https://a.tile.openstreetmap.org/{z}/{x}/{y}.png"]
-        : ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"];
-    const attribution = mapStyle === "streets" ? "© OpenStreetMap" : "© Esri World Imagery";
-
     const map = new maplibregl.Map({
       container: mapDivRef.current,
-      style: {
-        version: 8,
-        glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
-        sources: {
-          "raster-tiles": { type: "raster", tiles, tileSize: 256, attribution },
-        },
-        layers: [{ id: "simple-tiles", type: "raster", source: "raster-tiles", minzoom: 0, maxzoom: 22 }],
-      },
+      style: rasterStyle("streets"),
       center: [lon, lat],
       zoom,
+      maxZoom: 22,
     });
 
     map.addControl(new maplibregl.NavigationControl(), "top-right");
@@ -87,6 +92,20 @@ export function LocationPickerModal(props: {
       map.remove();
       mapRef.current = null;
     };
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (activeStyleRef.current === mapStyle) return;
+    activeStyleRef.current = mapStyle;
+    setMapReady(false);
+    setTileErrorCount(0);
+    map.setStyle(rasterStyle(mapStyle));
+    map.once("idle", () => {
+      setMapReady(true);
+      map.resize();
+    });
   }, [mapStyle]);
 
   return (
