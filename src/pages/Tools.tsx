@@ -206,7 +206,9 @@ function BGSLookupTool() {
 
           {sssiResult && !sssiResult.isSSSI && (
             <div className="text-xs text-slate-400">
-              No SSSI designation at this location
+              {sssiResult.nearbySiteName
+                ? `No SSSI exactly at this location. Nearby within ${Math.round((sssiResult.nearbySearchRadiusM ?? 3000) / 1000)}km: ${sssiResult.nearbySiteName}`
+                : "No SSSI designation at this location"}
               {sssiResult.country === "wales" ? " (Wales - check NRW Lle portal for full coverage)" : ""}
             </div>
           )}

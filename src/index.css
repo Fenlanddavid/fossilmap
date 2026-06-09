@@ -14,6 +14,24 @@ button:disabled { cursor: not-allowed; }
   display: none;
 }
 
+.label-sheet-preview {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.label-sheet-grid {
+  display: grid;
+  width: max-content;
+  grid-template-columns: repeat(2, 85mm);
+  gap: 5mm;
+}
+
+@media screen and (max-width: 760px) {
+  .label-sheet-grid {
+    grid-template-columns: 85mm;
+  }
+}
+
 .fossilmap-map-frame .maplibregl-ctrl-top-right {
   top: 12px;
   right: 12px;

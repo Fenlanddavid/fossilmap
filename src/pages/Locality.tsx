@@ -250,6 +250,9 @@ export default function LocalityPage(props: {
           setSssiNotice("Wales SSSI data is not fully available here. Check the NRW Lle portal.");
         } else if (result.country === "unknown") {
           setSssiNotice("SSSI check unavailable. Try again when you have a network connection.");
+        } else if (result.nearbySiteName) {
+          const km = result.nearbySearchRadiusM ? Math.round(result.nearbySearchRadiusM / 1000) : 3;
+          setSssiNotice(`No SSSI exactly at these coordinates. Nearby SSSI within ${km}km: ${result.nearbySiteName}. Check the official boundary if collecting on nearby foreshore, cliffs or access routes.`);
         } else {
           setSssiNotice("No SSSI designation found at these coordinates.");
         }

@@ -15,7 +15,7 @@ describe("checkSSSI", () => {
           {
             attributes: {
               NAME: "Whitby Coast SSSI",
-              NOTIFIED_F: "Geological exposures",
+              REF_CODE: "1003507",
             },
           },
         ],
@@ -27,10 +27,42 @@ describe("checkSSSI", () => {
       isSSSI: true,
       siteName: "Whitby Coast SSSI",
       country: "england",
-      notifiedFeatures: "Geological exposures",
+      notifiedFeatures: "Natural England SSSI reference 1003507",
     });
     expect(String(fetchMock.mock.calls[0][0])).toContain("services.arcgis.com/JJzESW51TqeY9uat");
     expect(String(fetchMock.mock.calls[0][0])).toContain("geometry=-0.6206%2C54.4858");
+  });
+
+  it("returns nearby England SSSI details without marking the point as inside one", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ features: [] }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          features: [
+            {
+              attributes: {
+                NAME: "Runswick Bay SSSI",
+                REF_CODE: "1003480",
+              },
+            },
+          ],
+        }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(checkSSSI(54.5291571, -0.7175133)).resolves.toEqual({
+      isSSSI: false,
+      siteName: "",
+      country: "england",
+      nearbySiteName: "Runswick Bay SSSI",
+      nearbySearchRadiusM: 3000,
+    });
+    expect(String(fetchMock.mock.calls[1][0])).toContain("distance=3000");
   });
 
   it("returns false for England when Natural England returns no features", async () => {

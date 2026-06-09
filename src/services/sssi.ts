@@ -3,6 +3,8 @@ export type SSSIResult = {
   siteName: string;
   country: "england" | "scotland" | "wales" | "unknown";
   notifiedFeatures?: string;
+  nearbySiteName?: string;
+  nearbySearchRadiusM?: number;
 };
 
 const ENG_FS = "https://services.arcgis.com/JJzESW51TqeY9uat/arcgis/rest/services/SSSI_England/FeatureServer/0/query";
@@ -19,7 +21,13 @@ function emptyResult(country: SSSIResult["country"]): SSSIResult {
   return { isSSSI: false, siteName: "", country };
 }
 
-function buildArcGISPointUrl(endpoint: string, lat: number, lon: number, outFields: string): string {
+function buildArcGISPointUrl(
+  endpoint: string,
+  lat: number,
+  lon: number,
+  outFields: string,
+  distanceM?: number
+): string {
   const params = new URLSearchParams({
     geometryType: "esriGeometryPoint",
     geometry: `${lon},${lat}`,
@@ -29,6 +37,10 @@ function buildArcGISPointUrl(endpoint: string, lat: number, lon: number, outFiel
     returnGeometry: "false",
     f: "json",
   });
+  if (distanceM) {
+    params.set("distance", String(distanceM));
+    params.set("units", "esriSRUnit_Meter");
+  }
   return `${endpoint}?${params.toString()}`;
 }
 
@@ -49,7 +61,7 @@ async function fetchArcGISJson(url: string) {
 async function checkEnglandSSSI(lat: number, lon: number): Promise<SSSIResult> {
   const data = await fetchArcGISJson(buildArcGISPointUrl(ENG_FS, lat, lon, "NAME,LABEL,REF_CODE"));
   const feature = Array.isArray(data?.features) ? data.features[0] : null;
-  if (!feature) return emptyResult("england");
+  if (!feature) return await checkNearbyEnglandSSSI(lat, lon);
 
   const attributes = feature.attributes ?? feature.properties ?? {};
   const siteName = String(attributes.NAME ?? attributes.LABEL ?? "").trim();
@@ -62,10 +74,27 @@ async function checkEnglandSSSI(lat: number, lon: number): Promise<SSSIResult> {
   };
 }
 
+async function checkNearbyEnglandSSSI(lat: number, lon: number): Promise<SSSIResult> {
+  const radiusM = 3000;
+  const data = await fetchArcGISJson(buildArcGISPointUrl(ENG_FS, lat, lon, "NAME,LABEL,REF_CODE", radiusM));
+  const feature = Array.isArray(data?.features) ? data.features[0] : null;
+  if (!feature) return emptyResult("england");
+
+  const attributes = feature.attributes ?? feature.properties ?? {};
+  const nearbySiteName = String(attributes.NAME ?? attributes.LABEL ?? "").trim();
+  return {
+    isSSSI: false,
+    siteName: "",
+    country: "england",
+    nearbySiteName,
+    nearbySearchRadiusM: radiusM,
+  };
+}
+
 async function checkScotlandSSSI(lat: number, lon: number): Promise<SSSIResult> {
   const data = await fetchArcGISJson(buildArcGISPointUrl(SCO_FS, lat, lon, "NAME,PA_CODE,STATUS"));
   const feature = Array.isArray(data?.features) ? data.features[0] : null;
-  if (!feature) return emptyResult("scotland");
+  if (!feature) return await checkNearbyScotlandSSSI(lat, lon);
 
   const attributes = feature.attributes ?? feature.properties ?? {};
   const siteName = String(attributes.NAME ?? "").trim();
@@ -77,6 +106,22 @@ async function checkScotlandSSSI(lat: number, lon: number): Promise<SSSIResult> 
     siteName,
     country: "scotland",
     notifiedFeatures: details || undefined,
+  };
+}
+
+async function checkNearbyScotlandSSSI(lat: number, lon: number): Promise<SSSIResult> {
+  const radiusM = 3000;
+  const data = await fetchArcGISJson(buildArcGISPointUrl(SCO_FS, lat, lon, "NAME,PA_CODE,STATUS", radiusM));
+  const feature = Array.isArray(data?.features) ? data.features[0] : null;
+  if (!feature) return emptyResult("scotland");
+
+  const attributes = feature.attributes ?? feature.properties ?? {};
+  return {
+    isSSSI: false,
+    siteName: "",
+    country: "scotland",
+    nearbySiteName: String(attributes.NAME ?? "").trim(),
+    nearbySearchRadiusM: radiusM,
   };
 }
 
