@@ -283,7 +283,7 @@ export default function SessionPage(props: { projectId: string }) {
                   <h3 className="text-lg font-black text-slate-950 dark:text-white">Field controls</h3>
                   <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Large actions for use outdoors while the session is active.</p>
                   <div className="mt-4">
-                    <TideBar />
+                    {location && <TideBar lat={location.lat} lon={location.lon} />}
                   </div>
                   <div className="mt-5 grid gap-3 sm:grid-cols-2">
                     <ActionButton icon={Plus} label="Add Find" detail="Record a specimen in this trip" onClick={() => nav(`/specimen?localityId=${location?.id}&sessionId=${id}`)} tone="emerald" />

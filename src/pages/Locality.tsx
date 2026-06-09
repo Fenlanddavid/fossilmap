@@ -13,7 +13,7 @@ import { SessionFindsList } from "../components/SessionFindsList";
 import { TideBar } from "../components/TideBar";
 import { useConfirmDialog } from "../components/ConfirmModal";
 import { SpecimenLabelSheet } from "../components/SpecimenLabelSheet";
-import { AlertTriangle, ArrowRight, CheckCircle2, ClipboardCheck, FlaskConical, Printer, ShieldAlert } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, ClipboardCheck, FlaskConical, Printer, ShieldAlert, X } from "lucide-react";
 
 const SpecimenModal = React.lazy(() =>
   import("../components/SpecimenModal").then((mod) => ({ default: mod.SpecimenModal }))
@@ -83,6 +83,7 @@ export default function LocalityPage(props: {
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [moveTargetLocalityId, setMoveTargetLocalityId] = useState("");
   const [showLabelSheet, setShowLabelSheet] = useState(false);
+  const [showReport, setShowReport] = useState(false);
 
   const defaultCollector = useLiveQuery(async () => {
     const s = await db.settings.get("defaultCollector");
@@ -415,7 +416,7 @@ export default function LocalityPage(props: {
   }
 
   function handlePrint() {
-    window.print();
+    setShowReport(true);
   }
 
   if (loading) return <div className="p-10 text-center opacity-50 font-medium">Loading details...</div>;
@@ -908,7 +909,7 @@ export default function LocalityPage(props: {
                         </div>
                     </div>
 
-                    <TideBar />
+                    <TideBar lat={lat} lon={lon} />
 
                     <div className="grid gap-3 md:grid-cols-3">
                         <div className="md:col-span-2 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900 rounded-2xl p-4">
@@ -1125,9 +1126,38 @@ export default function LocalityPage(props: {
         </div>
       </div>
 
-      {isEdit && currentLocality && finds && allMedia && (
+      {isEdit && currentLocality && finds && allMedia && !showReport && (
         <div className="hidden print:block">
             <FieldTripReport locality={currentLocality} finds={finds} media={allMedia} />
+        </div>
+      )}
+
+      {showReport && currentLocality && finds && allMedia && (
+        <div className="fixed inset-0 z-[60] flex flex-col overflow-y-auto bg-white text-slate-950 dark:bg-slate-950 dark:text-white">
+          <div className="no-print sticky top-0 z-10 flex flex-col gap-3 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95 sm:flex-row sm:items-center sm:justify-between">
+            <p className="min-w-0 truncate text-sm font-black text-slate-900 dark:text-white">
+              Field report · {currentLocality.name || "Unnamed locality"}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => window.print()}
+                className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-black text-white hover:bg-emerald-700"
+              >
+                <Printer className="h-3.5 w-3.5" />
+                Save / Print
+              </button>
+              <button
+                onClick={() => setShowReport(false)}
+                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                <X className="h-3.5 w-3.5" />
+                Close
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 p-4">
+            <FieldTripReport locality={currentLocality} finds={finds} media={allMedia} />
+          </div>
         </div>
       )}
 

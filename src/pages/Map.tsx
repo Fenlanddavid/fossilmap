@@ -467,9 +467,23 @@ export default function MapPage({ projectId, tripOnly = false }: { projectId: st
   // Data Updates
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !map.isStyleLoaded()) return;
-    const src = map.getSource("localities") as maplibregl.GeoJSONSource | undefined;
-    if (src) src.setData(featureCollection as any);
+    if (!map) return;
+    const mapInstance = map;
+
+    function applyData() {
+      const src = mapInstance.getSource("localities") as maplibregl.GeoJSONSource | undefined;
+      if (src) src.setData(featureCollection as any);
+    }
+
+    if (mapInstance.isStyleLoaded() && mapInstance.getSource("localities")) {
+      applyData();
+    } else {
+      mapInstance.once("load", applyData);
+    }
+
+    return () => {
+      mapInstance.off("load", applyData);
+    };
   }, [featureCollection]); // Update pins when data changes
 
   useEffect(() => {
