@@ -10,6 +10,10 @@ button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; }
 
+.label-print-container {
+  display: none;
+}
+
 .fossilmap-map-frame .maplibregl-ctrl-top-right {
   top: 12px;
   right: 12px;
@@ -97,11 +101,33 @@ button:disabled { cursor: not-allowed; }
   .report-container, .report-container * {
     visibility: visible;
   }
+  body.printing-labels .report-container,
+  body.printing-labels .report-container * {
+    visibility: hidden !important;
+  }
   .report-container {
     position: absolute;
     left: 0;
     top: 0;
     width: 100%;
+  }
+  .label-print-container,
+  .label-print-container * {
+    visibility: visible !important;
+  }
+  .label-print-container {
+    display: block;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  .label-sheet-preview {
+    display: none !important;
+  }
+  .label-card {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   .report-container section,
   .report-container article,

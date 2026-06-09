@@ -8,6 +8,7 @@ import { MapFilterBar } from "../components/MapFilterBar";
 import { LocalityPanel } from "../components/LocalityPanel";
 import { LocalityQuickAddModal } from "../components/LocalityQuickAddModal";
 import { useNavigate } from "react-router-dom";
+import { Map as MapIcon, MapPinPlus, Satellite } from "lucide-react";
 
 const SpecimenModal = React.lazy(() =>
   import("../components/SpecimenModal").then((mod) => ({ default: mod.SpecimenModal }))
@@ -42,7 +43,7 @@ type SelectedLocality = {
 
 type DateFilterMode = "all" | "7d" | "30d" | "custom";
 
-export default function MapPage({ projectId }: { projectId: string }) {
+export default function MapPage({ projectId, tripOnly = false }: { projectId: string; tripOnly?: boolean }) {
   const mapDivRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const nav = useNavigate();
@@ -71,11 +72,14 @@ export default function MapPage({ projectId }: { projectId: string }) {
 
   // Data
   const localities = useLiveQuery(async () => {
-    const rows = await db.localities.where("projectId").equals(projectId).toArray();
+    const rows = await db.localities
+      .where("projectId").equals(projectId)
+      .filter((l) => !tripOnly || l.type === "trip")
+      .toArray();
     return rows.filter((r) => typeof r.lat === "number" && typeof r.lon === "number") as Array<
       typeof rows[number] & { lat: number; lon: number }
     >;
-  }, [projectId]);
+  }, [projectId, tripOnly]);
 
   const specimens = useLiveQuery(async () => db.specimens.where("projectId").equals(projectId).toArray(), [projectId]);
 
@@ -486,6 +490,7 @@ export default function MapPage({ projectId }: { projectId: string }) {
     await db.localities.add({
       id: uuid(),
       projectId,
+      type: tripOnly ? "trip" : "location",
       name: name.trim() || "New field trip",
       lat,
       lon,
@@ -516,34 +521,71 @@ export default function MapPage({ projectId }: { projectId: string }) {
     setCustomTo("");
   }
 
+  const compactMapStyleButton = (mode: "streets" | "satellite", label: string, Icon: typeof MapIcon) => (
+    <button
+      type="button"
+      onClick={() => setMapStyleMode(mode)}
+      aria-pressed={mapStyleMode === mode}
+      title={label}
+      className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-md px-2.5 text-xs font-black transition-colors ${
+        mapStyleMode === mode
+          ? "bg-white text-emerald-700 shadow-sm dark:bg-slate-950 dark:text-emerald-300"
+          : "text-slate-500 hover:bg-white/70 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-950/60 dark:hover:text-slate-100"
+      }`}
+    >
+      <Icon className="h-3.5 w-3.5" />
+      <span>{label}</span>
+    </button>
+  );
+
   return (
     <div className="flex flex-col gap-3">
-      <MapFilterBar
-        count={filteredLocalities.length}
-        addLocalityHere={addLocalityHere}
-        filterSSSIOnly={filterSSSIOnly}
-        setFilterSSSIOnly={setFilterSSSIOnly}
-        filterFormation={filterFormation}
-        setFilterFormation={setFilterFormation}
-        formationOptions={formationOptions}
-        filterTaxon={filterTaxon}
-        setFilterTaxon={setFilterTaxon}
-        minSpecimens={minSpecimens}
-        setMinSpecimens={setMinSpecimens}
-        maxSpecimensAtAnyLocality={maxSpecimensAtAnyLocality}
-        dateMode={dateMode}
-        setDateMode={setDateMode}
-        customFrom={customFrom}
-        setCustomFrom={setCustomFrom}
-        customTo={customTo}
-        setCustomTo={setCustomTo}
-        onClear={clearFilters}
-        needsKey={false}
-        mapStyleMode={mapStyleMode}
-        setMapStyleMode={setMapStyleMode}
-        colorMode={colorMode}
-        setColorMode={setColorMode}
-      />
+      {tripOnly ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white/95 p-2 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/95">
+          <button
+            type="button"
+            onClick={addLocalityHere}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 text-sm font-black text-white shadow-sm transition-colors hover:bg-emerald-700 active:bg-emerald-800"
+          >
+            <MapPinPlus className="h-4 w-4" />
+            <span>New trip here</span>
+          </button>
+          <div className="inline-flex h-10 items-center gap-1 rounded-lg border border-slate-200 bg-slate-100 p-1 dark:border-slate-700 dark:bg-slate-800" aria-label="Map style">
+            {compactMapStyleButton("streets", "Streets", MapIcon)}
+            {compactMapStyleButton("satellite", "Satellite", Satellite)}
+          </div>
+          <div className="ml-auto rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-black text-slate-600 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300">
+            {filteredLocalities.length} trips
+          </div>
+        </div>
+      ) : (
+        <MapFilterBar
+          count={filteredLocalities.length}
+          addLocalityHere={addLocalityHere}
+          filterSSSIOnly={filterSSSIOnly}
+          setFilterSSSIOnly={setFilterSSSIOnly}
+          filterFormation={filterFormation}
+          setFilterFormation={setFilterFormation}
+          formationOptions={formationOptions}
+          filterTaxon={filterTaxon}
+          setFilterTaxon={setFilterTaxon}
+          minSpecimens={minSpecimens}
+          setMinSpecimens={setMinSpecimens}
+          maxSpecimensAtAnyLocality={maxSpecimensAtAnyLocality}
+          dateMode={dateMode}
+          setDateMode={setDateMode}
+          customFrom={customFrom}
+          setCustomFrom={setCustomFrom}
+          customTo={customTo}
+          setCustomTo={setCustomTo}
+          onClear={clearFilters}
+          needsKey={false}
+          mapStyleMode={mapStyleMode}
+          setMapStyleMode={setMapStyleMode}
+          colorMode={colorMode}
+          setColorMode={setColorMode}
+        />
+      )}
 
       <div className="fossilmap-map-frame relative overflow-hidden rounded-xl border border-slate-200 bg-slate-100 shadow-inner dark:border-slate-800 dark:bg-slate-900">
         <div

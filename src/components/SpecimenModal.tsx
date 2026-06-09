@@ -4,7 +4,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db, Specimen, Media } from "../db";
 import { Modal } from "./Modal";
 import { v4 as uuid } from "uuid";
-import { Check, Database, ExternalLink, Globe, Loader2, Lock, ShieldCheck, Trash2 } from "lucide-react";
+import { Check, Database, ExternalLink, Globe, Loader2, Lock, Printer, ShieldCheck, Trash2 } from "lucide-react";
 import { fileToBlob, compressForShare } from "../services/photos";
 import { ScaleCalibrationModal } from "./ScaleCalibrationModal";
 import { ScaledImage } from "./ScaledImage";
@@ -15,6 +15,7 @@ import { uploadSharedFind, deleteSharedFind, updateSharedFindPrecision } from ".
 import { calculateQualityScore, generateHRID, getQualityColor, getQualityLabel } from "../services/research";
 import { getCommunityUrl } from "../services/community";
 import { useConfirmDialog } from "./ConfirmModal";
+import { SpecimenLabelSheet } from "./SpecimenLabelSheet";
 
 const LocationPickerModal = React.lazy(() =>
   import("./LocationPickerModal").then((mod) => ({ default: mod.LocationPickerModal }))
@@ -68,6 +69,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
   const [sharePrec, setSharePrec] = useState<PrecisionLevel>("1km");
   const [includeShareEmail, setIncludeShareEmail] = useState(true);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
+  const [showLabelSheet, setShowLabelSheet] = useState(false);
   
   const qualityScore = useMemo(() => {
     if (!draft) return 0;
@@ -82,6 +84,10 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
     const s = await db.settings.get("defaultEmail");
     return (s?.value || "").trim();
   });
+  const locality = useLiveQuery(
+    async () => draft?.localityId ? db.localities.get(draft.localityId) : null,
+    [draft?.localityId]
+  );
 
   const [calibratingMedia, setCalibratingMedia] = useState<{ media: Media; url: string } | null>(null);
   const [annotatingMedia, setAnnotatingMedia] = useState<{ media: Media; url: string } | null>(null);
@@ -134,6 +140,11 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
       for (const x of imageUrls) URL.revokeObjectURL(x.url);
     };
   }, [imageUrls]);
+
+  const labelMedia = useMemo(() => {
+    const sorted = [...(media ?? [])].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+    return sorted[0] ?? null;
+  }, [media]);
 
   if (!draft) return (
     <>
@@ -447,8 +458,24 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
     setBusy(true);
     setSaveNotice(null);
     try {
+      const trimmedCode = draft.specimenCode.trim();
+      if (trimmedCode) {
+        const conflict = await db.specimens
+          .where("projectId").equals(draft.projectId)
+          .filter((s) => s.specimenCode.trim().toLowerCase() === trimmedCode.toLowerCase() && s.id !== draft.id)
+          .first();
+        if (conflict) {
+          await notify({
+            title: "Duplicate code",
+            message: `"${trimmedCode}" is already used by ${conflict.taxon || "another find"}.`,
+            tone: "warning",
+          });
+          setBusy(false);
+          return;
+        }
+      }
       const now = new Date().toISOString();
-      await db.specimens.update(draft.id, { ...draft, isPending: false, updatedAt: now });
+      await db.specimens.update(draft.id, { ...draft, specimenCode: trimmedCode || draft.specimenCode, isPending: false, updatedAt: now });
       setSaveNotice("Changes saved to this find.");
       if (wasPending) {
         props.onClose();
@@ -1064,15 +1091,27 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-4">
                     {imageUrls.map((x) => (
-                    <div key={x.id} className="relative group border-2 border-gray-100 dark:border-gray-700 rounded-xl overflow-hidden aspect-square shadow-sm cursor-pointer" onClick={() => setCalibratingMedia({ media: x.media, url: x.url })}>
-                        <ScaledImage media={x.media} imgClassName="object-cover" className="w-full h-full" />
-                        <button onClick={(e) => { e.stopPropagation(); removePhoto(x.id); }} className="absolute top-1 right-1 bg-red-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs shadow-lg z-10">✕</button>
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); setAnnotatingMedia({ media: x.media, url: x.url }); }} 
-                            className="absolute bottom-1 left-1 bg-blue-600 text-white px-2 py-1 rounded text-[8px] font-black uppercase shadow-lg z-10 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
-                        >
-                            ✎ Annotate
-                        </button>
+                    <div key={x.id} className="grid gap-1.5">
+                        <div className="relative group border-2 border-gray-100 dark:border-gray-700 rounded-xl overflow-hidden aspect-square shadow-sm cursor-pointer" onClick={() => setCalibratingMedia({ media: x.media, url: x.url })}>
+                            <ScaledImage media={x.media} imgClassName="object-cover" className="w-full h-full" />
+                            <button onClick={(e) => { e.stopPropagation(); removePhoto(x.id); }} className="absolute top-1 right-1 bg-red-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs shadow-lg z-10">✕</button>
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); setAnnotatingMedia({ media: x.media, url: x.url }); }} 
+                                className="absolute bottom-1 left-1 bg-blue-600 text-white px-2 py-1 rounded text-[8px] font-black uppercase shadow-lg z-10 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                            >
+                                ✎ Annotate
+                            </button>
+                        </div>
+                        <input
+                            type="text"
+                            value={x.media.caption || ""}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={async (e) => {
+                                await db.media.update(x.id, { caption: e.target.value });
+                            }}
+                            placeholder="Caption (optional)"
+                            className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900"
+                        />
                     </div>
                     ))}
                 </div>
@@ -1189,7 +1228,16 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
                   <button onClick={del} disabled={busy} className="text-red-600 hover:text-red-800 text-sm font-bold transition-colors">
                     Delete
                   </button>
-                  <button onClick={props.onClose} className="bg-gray-900 dark:bg-gray-100 text-white dark:text-black px-8 py-3 rounded-2xl font-black shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all text-sm">Done</button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setShowLabelSheet(true)}
+                      className="inline-flex items-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 shadow-sm transition-all hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                    >
+                      <Printer className="h-4 w-4" />
+                      Print label
+                    </button>
+                    <button onClick={props.onClose} className="bg-gray-900 dark:bg-gray-100 text-white dark:text-black px-8 py-3 rounded-2xl font-black shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all text-sm">Done</button>
+                  </div>
               </div>
             </div>
           )}
@@ -1224,6 +1272,12 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
               }}
           />
         </React.Suspense>
+      )}
+      {showLabelSheet && draft && (
+        <SpecimenLabelSheet
+          labels={[{ specimen: draft, locality: locality ?? null, media: labelMedia }]}
+          onClose={() => setShowLabelSheet(false)}
+        />
       )}
       {dialog}
     </>

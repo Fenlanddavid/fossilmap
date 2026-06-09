@@ -178,12 +178,17 @@ export async function exportToCSV(): Promise<string> {
   const locMap = new Map(localities.map(l => [l.id, l]));
   
   const headers = [
-    "Specimen Code", "Taxon", "Confidence", "Element", "Preservation", 
+    "Specimen Code", "HRID", "Taxon", "Confidence", "Element", "Preservation", 
     "Specimen Period", "Specimen Stage",
-    "Find Latitude", "Find Longitude", "Weight (g)", "Length (mm)", "Width (mm)", "Thickness (mm)",
-    "Location Name", "Type", "Latitude", "Longitude", "GPS Accuracy (m)", 
+    "Find Latitude", "Find Longitude", "Find GPS Accuracy (m)",
+    "Weight (g)", "Length (mm)", "Width (mm)", "Thickness (mm)",
+    "Find Context", "Taphonomy", "Date Collected",
+    "Quality Score", "Is Shared", "Shared At",
+    "Repository", "Accession ID",
+    "Location Name", "Type", "Latitude", "Longitude", "Locality GPS Accuracy (m)", 
     "Location Period", "Location Stage",
     "Formation", "Member", "Bed", "Lithology", 
+    "SSSI", "SSSI Name", "RIGS",
     "Date Observed", "Collector", "Specimen Notes", "Locality Notes"
   ];
 
@@ -192,14 +197,21 @@ export async function exportToCSV(): Promise<string> {
     // Sanitize notes by removing newlines and escaping quotes
     const sNotes = (s.notes || "").replace(/\r?\n|\r/g, " ");
     const lNotes = (l?.notes || "").replace(/\r?\n|\r/g, " ");
+    const findContext = (s.findContext || "").replace(/\r?\n|\r/g, " ");
+    const taphonomy = (s.taphonomy || "").replace(/\r?\n|\r/g, " ");
 
     return [
-      s.specimenCode, s.taxon, s.taxonConfidence, s.element, s.preservation,
+      s.specimenCode, s.hrid ?? "", s.taxon, s.taxonConfidence, s.element, s.preservation,
       s.period ?? "", s.stage ?? "",
-      s.lat ?? "", s.lon ?? "", s.weightG ?? "", s.lengthMm ?? "", s.widthMm ?? "", s.thicknessMm ?? "",
+      s.lat ?? "", s.lon ?? "", s.gpsAccuracyM ?? "",
+      s.weightG ?? "", s.lengthMm ?? "", s.widthMm ?? "", s.thicknessMm ?? "",
+      findContext, taphonomy, s.dateCollected ?? "",
+      s.qualityScore ?? "", s.isShared ? "true" : "false", s.sharedAt ?? "",
+      s.repository ?? "", s.accessionId ?? "",
       l?.name ?? "", l?.type ?? "location", l?.lat ?? "", l?.lon ?? "", l?.gpsAccuracyM ?? "",
       l?.period ?? "", l?.stage ?? "",
       l?.formation ?? "", l?.member ?? "", l?.bed ?? "", l?.lithologyPrimary ?? "",
+      l?.sssi ? "true" : "false", l?.sssiName ?? "", l?.rigs ? "true" : "false",
       l?.observedAt ? new Date(l.observedAt).toLocaleString() : "",
       l?.collector ?? "", sNotes, lNotes
     ].map(val => `"${String(val).replace(/"/g, '""')}"`);

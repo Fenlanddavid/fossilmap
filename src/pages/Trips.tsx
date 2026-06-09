@@ -22,7 +22,25 @@ export default function TripsPage({ projectId }: { projectId: string }) {
       return Promise.all(
         rows.map(async (t) => {
           const findCount = await db.specimens.where("localityId").equals(t.id).count();
-          return { ...t, findCount };
+          const sessions = await db.sessions
+            .where("localityId").equals(t.id)
+            .reverse()
+            .sortBy("startTime");
+          const latest = sessions[0] ?? null;
+          let durationLabel = "";
+
+          if (latest) {
+            const start = new Date(latest.startTime).getTime();
+            const end = latest.endTime ? new Date(latest.endTime).getTime() : null;
+            if (end && end > start) {
+              const mins = Math.floor((end - start) / 60000);
+              const h = Math.floor(mins / 60);
+              const m = mins % 60;
+              durationLabel = h > 0 ? `${h}h ${m}m` : `${m}m`;
+            }
+          }
+
+          return { ...t, findCount, durationLabel, sessionCount: sessions.length };
         })
       );
     },
@@ -79,7 +97,7 @@ export default function TripsPage({ projectId }: { projectId: string }) {
       {/* Map view */}
       {view === "map" && (
         <React.Suspense fallback={<div className="h-96 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-900" />}>
-          <MapPage projectId={projectId} />
+          <MapPage projectId={projectId} tripOnly />
         </React.Suspense>
       )}
 
@@ -159,7 +177,13 @@ export default function TripsPage({ projectId }: { projectId: string }) {
                       <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-slate-400">
                         <Calendar className="h-3 w-3" />
                         {formatDisplayDate(trip.observedAt || trip.createdAt)}
+                        {trip.durationLabel && <span className="opacity-70">· {trip.durationLabel}</span>}
                       </span>
+                      {trip.sessionCount > 1 && (
+                        <span className="text-[10px] font-bold text-slate-400">
+                          {trip.sessionCount} sessions
+                        </span>
+                      )}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();

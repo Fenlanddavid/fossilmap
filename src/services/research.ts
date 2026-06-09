@@ -7,31 +7,39 @@ import { getFiniteCoords } from "./coords";
 export function calculateQualityScore(specimen: Partial<Specimen>, media: Media[] = []): number {
   let score = 0;
 
-  // 1. Geographic Precision (30 pts)
+  // Geographic precision (23 pts)
   if (getFiniteCoords(specimen.lat, specimen.lon)) {
-    score += 20;
-    if (typeof specimen.gpsAccuracyM === "number" && specimen.gpsAccuracyM < 10) score += 10;
-    else if (typeof specimen.gpsAccuracyM === "number" && specimen.gpsAccuracyM < 30) score += 5;
+    score += 15;
+    if (typeof specimen.gpsAccuracyM === "number" && specimen.gpsAccuracyM < 10) score += 5;
+    else if (typeof specimen.gpsAccuracyM === "number" && specimen.gpsAccuracyM < 30) score += 3;
   }
 
-  // 2. Stratigraphic Detail (30 pts)
-  if (specimen.period && specimen.period !== "Unknown") score += 10;
-  if (specimen.stage && specimen.stage !== "Unknown") score += 10;
-  if (specimen.element) score += 10;
+  // Stratigraphic detail (21 pts)
+  if (specimen.period && specimen.period !== "Unknown") score += 8;
+  if (specimen.stage && specimen.stage !== "Unknown") score += 8;
+  if (specimen.formation?.trim()) score += 5;
 
-  // 3. Physical Measurements (20 pts)
-  if (specimen.weightG) score += 5;
-  if (specimen.lengthMm && specimen.widthMm && specimen.thicknessMm) score += 15;
-  else if (specimen.lengthMm || specimen.widthMm || specimen.thicknessMm) score += 5;
+  // Specimen detail (20 pts)
+  if (specimen.element?.trim()) score += 7;
+  if (specimen.preservation && specimen.preservation !== "body fossil") score += 3;
+  if (specimen.findContext?.trim()) score += 5;
+  if (specimen.taphonomy?.trim()) score += 5;
 
-  // 4. Visual Documentation (20 pts)
+  // Measurements (15 pts)
+  const hasMeasurement =
+    specimen.weightG || specimen.lengthMm || specimen.widthMm || specimen.thicknessMm;
+  if (hasMeasurement) score += 10;
+  if (specimen.lengthMm && specimen.widthMm && specimen.thicknessMm) score += 5;
+
+  // Visual documentation (21 pts)
   if (media.length > 0) {
-    score += 10;
-    if (media.length >= 3) score += 10;
-    else if (media.length >= 2) score += 5;
+    score += 8;
+    if (media.length >= 2) score += 4;
+    if (media.length >= 3) score += 5;
+    if (media.some((m) => (m.pxPerMm ?? 0) > 0)) score += 4;
   }
 
-  return score;
+  return Math.min(score, 100);
 }
 
 /**

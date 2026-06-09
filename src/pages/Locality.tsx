@@ -12,7 +12,8 @@ import { FieldTripReport } from "../components/FieldTripReport";
 import { SessionFindsList } from "../components/SessionFindsList";
 import { TideBar } from "../components/TideBar";
 import { useConfirmDialog } from "../components/ConfirmModal";
-import { AlertTriangle, CheckCircle2, ClipboardCheck, FlaskConical, MapPin, ShieldAlert } from "lucide-react";
+import { SpecimenLabelSheet } from "../components/SpecimenLabelSheet";
+import { AlertTriangle, ArrowRight, CheckCircle2, ClipboardCheck, FlaskConical, Printer, ShieldAlert } from "lucide-react";
 
 const SpecimenModal = React.lazy(() =>
   import("../components/SpecimenModal").then((mod) => ({ default: mod.SpecimenModal }))
@@ -79,6 +80,9 @@ export default function LocalityPage(props: {
   const [bgsError, setBgsError] = useState<string | null>(null);
 
   const [openFindId, setOpenFindId] = useState<string | null>(null);
+  const [showMoveModal, setShowMoveModal] = useState(false);
+  const [moveTargetLocalityId, setMoveTargetLocalityId] = useState("");
+  const [showLabelSheet, setShowLabelSheet] = useState(false);
 
   const defaultCollector = useLiveQuery(async () => {
     const s = await db.settings.get("defaultCollector");
@@ -96,6 +100,14 @@ export default function LocalityPage(props: {
     if (!id) return [];
     return db.specimens.where("localityId").equals(id).reverse().sortBy("createdAt");
   }, [id]);
+
+  const otherLocalities = useLiveQuery(async () => {
+    if (!id) return [];
+    const rows = await db.localities.where("projectId").equals(props.projectId).toArray();
+    return rows
+      .filter((l) => l.id !== id)
+      .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  }, [id, props.projectId]);
 
   // Fetch sessions for this location
   const sessions = useLiveQuery(async () => {
@@ -285,6 +297,50 @@ export default function LocalityPage(props: {
     }
   }
 
+  async function moveFindsTo(targetLocalityId: string) {
+    if (!id || !finds || finds.length === 0) return;
+    const targetLocality = await db.localities.get(targetLocalityId);
+    if (!targetLocality) {
+      setError("Choose a destination locality first.");
+      return;
+    }
+
+    const ok = await confirmAction({
+      title: "Move all finds?",
+      message: `Move ${finds.length} find(s) from "${name || "this locality"}" to "${targetLocality.name || "the selected locality"}"? Existing visit/session links will be cleared.`,
+      confirmLabel: "Move",
+      tone: "warning",
+    });
+    if (!ok) return;
+
+    setSaving(true);
+    setError(null);
+    try {
+      const now = new Date().toISOString();
+      await db.transaction("rw", db.specimens, async () => {
+        await db.specimens.bulkPut(
+          finds.map((find) => ({
+            ...find,
+            localityId: targetLocalityId,
+            sessionId: null,
+            updatedAt: now,
+          }))
+        );
+      });
+      setShowMoveModal(false);
+      setMoveTargetLocalityId("");
+      await notify({
+        title: "Finds moved",
+        message: `${finds.length} find(s) moved to "${targetLocality.name || "the selected locality"}".`,
+        tone: "success",
+      });
+    } catch (e: any) {
+      setError("Move failed: " + (e?.message ?? "Unknown error"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function save() {
     setSaving(true);
     setError(null);
@@ -372,6 +428,13 @@ export default function LocalityPage(props: {
   } : null;
 
   const isTrip = localityType === 'trip';
+  const labelData = currentLocality && finds
+    ? finds.map((find) => ({
+      specimen: find,
+      locality: currentLocality,
+      media: findThumbMedia.get(find.id) ?? null,
+    }))
+    : [];
   const coords = getFiniteCoords(lat, lon);
   const coordsLabel = formatCoords(lat, lon);
   const completenessItems = [
@@ -382,15 +445,10 @@ export default function LocalityPage(props: {
     { label: "Stage", done: !!stage.trim() },
     { label: "Formation", done: !!formation.trim() },
     { label: "Lithology", done: !!lithologyPrimary },
-    { label: "Access notes", done: permissionGranted || !!designationNotes.trim() },
   ];
   const completenessCount = completenessItems.filter(item => item.done).length;
   const completenessPercent = Math.round((completenessCount / completenessItems.length) * 100);
-  const accessState = sssi || rigs
-    ? "Protected-site flag present"
-    : permissionGranted
-      ? "Access marked clear"
-      : "Access needs review";
+  const hasConservationInfo = sssi || rigs || !!sssiName || !!designationNotes.trim();
 
   return (
     <div className="max-w-4xl mx-auto w-full min-w-0 pb-20 px-2 sm:px-4">
@@ -418,6 +476,28 @@ export default function LocalityPage(props: {
                         >
                             PDF Report
                         </button>
+                        {!isEditing && (finds?.length ?? 0) > 0 && (
+                            <button
+                                onClick={() => setShowLabelSheet(true)}
+                                className="text-xs sm:text-sm font-bold text-emerald-700 hover:text-white hover:bg-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-300 px-3 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800 transition-all flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5"
+                            >
+                                <Printer className="h-3.5 w-3.5" />
+                                Print labels
+                            </button>
+                        )}
+                        {!isEditing && (finds?.length ?? 0) > 0 && (
+                            <button
+                                onClick={() => {
+                                    setMoveTargetLocalityId(otherLocalities?.[0]?.id ?? "");
+                                    setShowMoveModal(true);
+                                }}
+                                disabled={saving || (otherLocalities?.length ?? 0) === 0}
+                                className="text-xs sm:text-sm font-bold text-slate-600 hover:text-white hover:bg-slate-700 bg-white dark:bg-slate-900 dark:text-slate-300 px-3 py-1 rounded-lg border border-slate-200 dark:border-slate-700 transition-all disabled:opacity-50 flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5"
+                            >
+                                <ArrowRight className="h-3.5 w-3.5" />
+                                Move finds
+                            </button>
+                        )}
                         <button 
                             onClick={handleDelete}
                             disabled={saving}
@@ -764,7 +844,7 @@ export default function LocalityPage(props: {
                             Wales SSSI data is not fully available here. Check the NRW Lle portal before collecting.
                           </div>
                         )}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <label className="flex items-center gap-3 cursor-pointer group">
                                 <input type="checkbox" checked={sssi} onChange={(e) => setSssi(e.target.checked)} className="w-5 h-5 rounded border-amber-300 text-amber-600 focus:ring-amber-500" />
                                 <span className="text-sm font-bold text-gray-700 dark:text-gray-300 group-hover:text-amber-600">
@@ -776,18 +856,14 @@ export default function LocalityPage(props: {
                                 <input type="checkbox" checked={rigs} onChange={(e) => setRigs(e.target.checked)} className="w-5 h-5 rounded border-amber-300 text-amber-600 focus:ring-amber-500" />
                                 <span className="text-sm font-bold text-gray-700 dark:text-gray-300 group-hover:text-amber-600">RIGS Status</span>
                             </label>
-                            <label className="flex items-center gap-3 cursor-pointer group">
-                                <input type="checkbox" checked={permissionGranted} onChange={(e) => setPermissionGranted(e.target.checked)} className="w-5 h-5 rounded border-amber-300 text-amber-600 focus:ring-amber-500" />
-                                <span className="text-sm font-bold text-gray-700 dark:text-gray-300 group-hover:text-amber-600">Permission Granted</span>
-                            </label>
                         </div>
                         <label className="block">
-                            <div className="mb-2 text-[10px] font-bold text-amber-600/70 dark:text-amber-400/70 uppercase">Designation / Access Notes</div>
+                            <div className="mb-2 text-[10px] font-bold text-amber-600/70 dark:text-amber-400/70 uppercase">Access / Designation Notes</div>
                             <textarea 
                                 value={designationNotes} 
                                 onChange={(e) => setDesignationNotes(e.target.value)} 
                                 rows={2} 
-                                placeholder="e.g. Planning condition CS35 recording, RIGS boundary details..."
+                                placeholder="e.g. site rules, RIGS boundary details, collecting restrictions..."
                                 className="w-full bg-white dark:bg-gray-900 border border-amber-100 dark:border-amber-800 rounded-xl p-3 focus:ring-2 focus:ring-amber-500 outline-none transition-all text-sm"
                             />
                         </label>
@@ -858,25 +934,33 @@ export default function LocalityPage(props: {
                             </div>
                         </div>
 
-                        <div className={`rounded-2xl p-4 border ${sssi || rigs || !permissionGranted ? 'bg-amber-50 border-amber-100 dark:bg-amber-950/20 dark:border-amber-900' : 'bg-blue-50 border-blue-100 dark:bg-blue-950/20 dark:border-blue-900'}`}>
+                        {hasConservationInfo && (
+                        <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/20">
                             <div className="flex items-start gap-3">
-                                {sssi || rigs || !permissionGranted ? (
-                                    <ShieldAlert className="w-5 h-5 text-amber-700 dark:text-amber-300 shrink-0 mt-0.5" />
-                                ) : (
-                                    <MapPin className="w-5 h-5 text-blue-700 dark:text-blue-300 shrink-0 mt-0.5" />
-                                )}
-                                <div>
-                                    <h4 className="m-0 text-sm font-black text-gray-900 dark:text-white">{accessState}</h4>
-                                    <p className="mt-1 text-xs leading-relaxed text-gray-600 dark:text-gray-300">
-                                        {sssi || rigs
-                                            ? "Check designation rules and avoid damaging protected exposures."
-                                            : permissionGranted
-                                                ? "Still confirm current local rules before collecting."
-                                                : "Add permission or designation notes before using this as a collecting record."}
+                                <ShieldAlert className="w-5 h-5 text-amber-700 dark:text-amber-300 shrink-0 mt-0.5" />
+                                <div className="min-w-0">
+                                    <h4 className="m-0 text-sm font-black text-amber-950 dark:text-amber-100">
+                                        {sssiName ? `SSSI: ${sssiName}` : sssi ? "SSSI flagged" : rigs ? "RIGS flagged" : "Access note recorded"}
+                                    </h4>
+                                    <p className="mt-1 text-xs leading-relaxed text-amber-900/80 dark:text-amber-100/80">
+                                        Check current site rules before collecting or publishing precise locations.
                                     </p>
+                                    {designationNotes && (
+                                        <p className="mt-2 text-xs leading-relaxed text-amber-950 dark:text-amber-100">{designationNotes}</p>
+                                    )}
+                                    {(sssi || sssiName) && (
+                                        <p className="mt-2 text-[10px] font-bold text-amber-800/70 dark:text-amber-200/70">
+                                            {sssiCountry === "scotland"
+                                                ? "Source: NatureScot, Open Government Licence v3.0"
+                                                : sssiCountry === "wales"
+                                                    ? "Check NRW Lle for current SSSI details"
+                                                    : "Source: Natural England, Open Government Licence v3.0"}
+                                        </p>
+                                    )}
                                 </div>
                             </div>
                         </div>
+                        )}
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -890,27 +974,15 @@ export default function LocalityPage(props: {
                                 {bed && <p className="text-sm opacity-60">Bed: {bed}</p>}
                             </div>
                             <div>
-                                <h4 className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-1">Conservation & Access</h4>
-                                <div className="flex flex-wrap gap-2 mt-1">
-                                    {sssi && <span className="text-[10px] font-black bg-amber-100 text-amber-800 px-2 py-0.5 rounded border border-amber-200 uppercase tracking-tighter">⚠️ SSSI</span>}
-                                    {rigs && <span className="text-[10px] font-black bg-amber-100 text-amber-800 px-2 py-0.5 rounded border border-amber-200 uppercase tracking-tighter">⚠️ RIGS</span>}
-                                    {permissionGranted ? (
-                                        <span className="text-[10px] font-black bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded border border-emerald-200 uppercase tracking-tighter">✓ Permission</span>
-                                    ) : (
-                                        <span className="text-[10px] font-black bg-red-50 text-red-700 px-2 py-0.5 rounded border border-red-100 uppercase tracking-tighter">No Permission</span>
-                                    )}
-                                </div>
-                                {sssi && sssiName && (
-                                  <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/25 dark:text-amber-100">
-                                    <p className="font-black">SSSI: {sssiName}</p>
-                                    <p className="mt-1 text-[10px] opacity-70">
-                                      {sssiCountry === "scotland"
-                                        ? "© NatureScot, Open Government Licence v3.0"
-                                        : "© Natural England, Open Government Licence v3.0"}
-                                    </p>
-                                  </div>
+                                <h4 className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-1">Conservation</h4>
+                                {hasConservationInfo ? (
+                                    <div className="flex flex-wrap gap-2 mt-1">
+                                        {sssi && <span className="text-[10px] font-black bg-amber-100 text-amber-800 px-2 py-0.5 rounded border border-amber-200 uppercase tracking-tighter">SSSI</span>}
+                                        {rigs && <span className="text-[10px] font-black bg-amber-100 text-amber-800 px-2 py-0.5 rounded border border-amber-200 uppercase tracking-tighter">RIGS</span>}
+                                    </div>
+                                ) : (
+                                    <p className="text-sm opacity-40 italic">No designation recorded</p>
                                 )}
-                                {designationNotes && <p className="text-xs italic opacity-60 mt-2">{designationNotes}</p>}
                             </div>
                         </div>
 
@@ -1057,6 +1129,55 @@ export default function LocalityPage(props: {
         <div className="hidden print:block">
             <FieldTripReport locality={currentLocality} finds={finds} media={allMedia} />
         </div>
+      )}
+
+      {showMoveModal && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+            <div className="mb-4">
+              <h3 className="m-0 text-base font-black text-slate-950 dark:text-white">Move finds</h3>
+              <p className="mt-1 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
+                Move all {(finds?.length ?? 0)} find(s) from this locality to another saved locality or trip.
+              </p>
+            </div>
+
+            <label className="block">
+              <div className="mb-2 text-xs font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">Destination</div>
+              <select
+                value={moveTargetLocalityId}
+                onChange={(e) => setMoveTargetLocalityId(e.target.value)}
+                className="w-full rounded-xl border-2 border-slate-100 bg-white p-3 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950"
+              >
+                {(otherLocalities ?? []).map((locality) => (
+                  <option key={locality.id} value={locality.id}>
+                    {locality.name || "(Unnamed locality)"} {locality.type === "trip" ? "(trip)" : "(location)"}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                onClick={() => setShowMoveModal(false)}
+                className="rounded-xl px-4 py-2 text-sm font-bold text-slate-500 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => moveFindsTo(moveTargetLocalityId)}
+                disabled={!moveTargetLocalityId || saving}
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-black text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
+              >
+                <ArrowRight className="h-4 w-4" />
+                Move
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showLabelSheet && labelData.length > 0 && (
+        <SpecimenLabelSheet labels={labelData} onClose={() => setShowLabelSheet(false)} />
       )}
 
       {isPickingLocation && (

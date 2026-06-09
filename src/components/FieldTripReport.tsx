@@ -1,7 +1,9 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
+import { Printer } from "lucide-react";
 import { Locality, Specimen, Media } from "../db";
 import { ScaledImage } from "./ScaledImage";
 import { APP_VERSION } from "../version";
+import { SpecimenLabelSheet } from "./SpecimenLabelSheet";
 
 export function FieldTripReport(props: {
   locality: Locality;
@@ -9,6 +11,7 @@ export function FieldTripReport(props: {
   media: Media[];
 }) {
   const generatedAt = useMemo(() => new Date(), []);
+  const [showLabelSheet, setShowLabelSheet] = useState(false);
   const reportReference = useMemo(() => makeReportReference(props.locality.id, generatedAt), [props.locality.id, generatedAt]);
 
   const mediaMap = useMemo(() => {
@@ -28,11 +31,17 @@ export function FieldTripReport(props: {
   const gpsFindCount = props.finds.filter((find) => find.lat != null && find.lon != null).length;
   const measuredFindCount = props.finds.filter((find) => find.lengthMm || find.widthMm || find.thicknessMm || find.weightG).length;
   const storedFindCount = props.finds.filter((find) => find.bagBoxId || find.storageLocation).length;
+  const labelData = useMemo(() => props.finds.map((find) => ({
+    specimen: find,
+    locality: props.locality,
+    media: mediaMap.get(find.id)?.[0] ?? null,
+  })), [mediaMap, props.finds, props.locality]);
   const localityGps = props.locality.lat != null && props.locality.lon != null
     ? `${props.locality.lat.toFixed(6)}, ${props.locality.lon.toFixed(6)}${props.locality.gpsAccuracyM ? ` (+/- ${Math.round(props.locality.gpsAccuracyM)}m)` : ""}`
     : "Not recorded";
 
   return (
+    <>
     <div className="report-container mx-auto max-w-5xl overflow-hidden rounded-xl border border-slate-200 bg-stone-50 text-slate-950 shadow-sm print:max-w-none print:rounded-none print:border-0 print:bg-white print:shadow-none">
       <header className="relative overflow-hidden border-b border-slate-200 bg-white p-7 print:p-6">
         <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-emerald-600 via-teal-500 to-sky-500" />
@@ -55,10 +64,20 @@ export function FieldTripReport(props: {
               {" "}This report links site context, stratigraphy, access notes, specimen evidence and mapped find positions.
             </p>
           </div>
-          <div className="min-w-48 rounded-lg border border-slate-200 bg-slate-50 p-4 font-mono text-[10px] leading-relaxed text-slate-600 print:bg-white">
-            <div><strong className="text-slate-950">Generated</strong> {generatedAt.toLocaleString("en-GB")}</div>
-            <div><strong className="text-slate-950">Reference</strong> {reportReference}</div>
-            <div><strong className="text-slate-950">Version</strong> FossilMap v{APP_VERSION}</div>
+          <div className="grid gap-3">
+            <button
+              onClick={() => setShowLabelSheet(true)}
+              disabled={props.finds.length === 0}
+              className="no-print inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600 shadow-sm hover:bg-slate-50 disabled:opacity-50"
+            >
+              <Printer className="h-3.5 w-3.5" />
+              Print labels
+            </button>
+            <div className="min-w-48 rounded-lg border border-slate-200 bg-slate-50 p-4 font-mono text-[10px] leading-relaxed text-slate-600 print:bg-white">
+              <div><strong className="text-slate-950">Generated</strong> {generatedAt.toLocaleString("en-GB")}</div>
+              <div><strong className="text-slate-950">Reference</strong> {reportReference}</div>
+              <div><strong className="text-slate-950">Version</strong> FossilMap v{APP_VERSION}</div>
+            </div>
           </div>
         </div>
       </header>
@@ -159,7 +178,7 @@ export function FieldTripReport(props: {
                               <figure key={media.id} className="m-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
                                 <ScaledImage media={media} className="aspect-square bg-slate-100" imgClassName="object-cover" />
                                 <figcaption className="flex items-center justify-between gap-2 px-2 py-1 font-mono text-[9px] text-slate-600">
-                                  <span className="truncate">{media.filename}</span>
+                                  <span className="truncate">{media.caption || media.filename}</span>
                                   <span className="shrink-0 uppercase">{photoLabel(media.photoType)}</span>
                                 </figcaption>
                               </figure>
@@ -180,6 +199,10 @@ export function FieldTripReport(props: {
         </footer>
       </main>
     </div>
+    {showLabelSheet && (
+      <SpecimenLabelSheet labels={labelData} onClose={() => setShowLabelSheet(false)} />
+    )}
+    </>
   );
 }
 

@@ -199,11 +199,14 @@ export default function SpecimenPage(props: {
     period: period.trim(),
     stage: stage.trim(),
     element,
+    preservation,
+    findContext: findContext.trim(),
+    taphonomy: taphonomy.trim(),
     weightG: numberFromInput(weightG),
     lengthMm: numberFromInput(lengthMm),
     widthMm: numberFromInput(widthMm),
     thicknessMm: numberFromInput(thicknessMm),
-  }), [acc, element, lat, lengthMm, lon, period, stage, thicknessMm, weightG, widthMm]);
+  }), [acc, element, findContext, lat, lengthMm, lon, period, preservation, stage, taphonomy, thicknessMm, weightG, widthMm]);
   const qualityPercent = calculateQualityScore(qualitySpecimen, media || []);
   const qualityItems = [
     { label: "GPS", done: lat != null && lon != null },
@@ -211,10 +214,12 @@ export default function SpecimenPage(props: {
     { label: "Period", done: !!period.trim() && period.trim() !== "Unknown" },
     { label: "Stage", done: !!stage.trim() && stage.trim() !== "Unknown" },
     { label: "Element", done: !!element.trim() },
-    { label: "Weight", done: !!numberFromInput(weightG) },
-    { label: "Dimensions", done: !!numberFromInput(lengthMm) && !!numberFromInput(widthMm) && !!numberFromInput(thicknessMm) },
+    { label: "Preservation", done: preservation !== "body fossil" },
+    { label: "Context", done: !!findContext.trim() },
+    { label: "Taphonomy", done: !!taphonomy.trim() },
+    { label: "Measurements", done: !!(numberFromInput(weightG) || numberFromInput(lengthMm) || numberFromInput(widthMm) || numberFromInput(thicknessMm)) },
     { label: "Photos", done: (media?.length ?? 0) > 0 },
-    { label: "Photo set", done: (media?.length ?? 0) >= 2 },
+    { label: "Scale photo", done: (media ?? []).some((m) => (m.pxPerMm ?? 0) > 0) },
   ];
 
   // ── GPS ───────────────────────────────────────────────────────────────────
@@ -304,6 +309,24 @@ export default function SpecimenPage(props: {
     };
   }
 
+  async function findSpecimenCodeConflict(code: string, excludeId?: string | null) {
+    const trimmed = code.trim();
+    if (!trimmed) return null;
+    const normalized = trimmed.toLowerCase();
+    return db.specimens
+      .where("projectId").equals(props.projectId)
+      .filter((s) => s.specimenCode.trim().toLowerCase() === normalized && s.id !== (excludeId ?? ""))
+      .first();
+  }
+
+  async function assertUniqueSpecimenCode(code: string, excludeId?: string | null) {
+    const conflict = await findSpecimenCodeConflict(code, excludeId);
+    if (!conflict) return;
+    throw new Error(
+      `Specimen code "${code.trim()}" is already used by ${conflict.taxon || "another find"}. Please use a different code.`
+    );
+  }
+
   // Full save (desktop / edit mode)
   async function saveSpecimen() {
     setError(null);
@@ -311,6 +334,7 @@ export default function SpecimenPage(props: {
     setSaving(true);
     try {
       if (!locationName.trim()) throw new Error("Enter a location name first.");
+      await assertUniqueSpecimenCode(specimenCode, editId);
       const localityId = await resolveLocalityId();
       const existing = editId ? await db.specimens.get(editId) : undefined;
       const id = editId || uuid();
@@ -333,6 +357,7 @@ export default function SpecimenPage(props: {
     try {
       if (!taxon.trim()) throw new Error("Enter a taxon name first.");
       if (!locationName.trim()) throw new Error("Enter a location name first.");
+      await assertUniqueSpecimenCode(specimenCode);
       const localityId = await resolveLocalityId();
       const id = uuid();
       const record = buildSpecimenRecord(id, localityId, undefined, true);
@@ -376,6 +401,7 @@ export default function SpecimenPage(props: {
     setSaving(true);
     try {
       const now = new Date().toISOString();
+      await assertUniqueSpecimenCode(specimenCode, savedId);
       await db.specimens.update(savedId, {
         specimenCode: specimenCode.trim() || makeSpecimenCode(),
         bagBoxId: bagBoxId.trim(),
@@ -1389,45 +1415,59 @@ function PhotoThumb(props: {
   if (!media) return <div className="w-full h-32 bg-gray-100 dark:bg-gray-700 animate-pulse rounded-lg" />;
 
   return (
-    <div
-      className="relative group border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden aspect-square shadow-sm cursor-pointer"
-      onClick={() => props.onAnnotate(media, URL.createObjectURL(media.blob))}
-    >
-      <ScaledImage media={media} imgClassName="object-cover" className="w-full h-full" />
-      <div className="pointer-events-none absolute inset-0 bg-blue-600/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-        <span className="bg-white dark:bg-gray-800 text-[8px] font-black px-2 py-1 rounded-full shadow-sm uppercase tracking-widest">Annotate</span>
-      </div>
-      <div className="absolute top-1 left-1 right-1 z-20 flex items-center justify-between gap-1">
-        <div className="flex gap-1">
-          <button type="button" title="Move earlier" aria-label="Move photo earlier" disabled={props.index === 0}
-            onClick={(e) => { e.stopPropagation(); props.onMove(props.mediaId, -1); }}
-            className="grid h-6 w-6 place-items-center rounded bg-white/90 text-slate-700 shadow-sm disabled:opacity-35 dark:bg-slate-900/90 dark:text-slate-100">
-            <ArrowUp className="h-3.5 w-3.5" />
-          </button>
-          <button type="button" title="Move later" aria-label="Move photo later" disabled={props.index === props.count - 1}
-            onClick={(e) => { e.stopPropagation(); props.onMove(props.mediaId, 1); }}
-            className="grid h-6 w-6 place-items-center rounded bg-white/90 text-slate-700 shadow-sm disabled:opacity-35 dark:bg-slate-900/90 dark:text-slate-100">
-            <ArrowDown className="h-3.5 w-3.5" />
+    <div className="grid gap-1.5">
+      <div
+        className="relative group border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden aspect-square shadow-sm cursor-pointer"
+        onClick={() => props.onAnnotate(media, URL.createObjectURL(media.blob))}
+      >
+        <ScaledImage media={media} imgClassName="object-cover" className="w-full h-full" />
+        <div className="pointer-events-none absolute inset-0 bg-blue-600/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+          <span className="bg-white dark:bg-gray-800 text-[8px] font-black px-2 py-1 rounded-full shadow-sm uppercase tracking-widest">Annotate</span>
+        </div>
+        <div className="absolute top-1 left-1 right-1 z-20 flex items-center justify-between gap-1">
+          <div className="flex gap-1">
+            <button type="button" title="Move earlier" aria-label="Move photo earlier" disabled={props.index === 0}
+              onClick={(e) => { e.stopPropagation(); props.onMove(props.mediaId, -1); }}
+              className="grid h-6 w-6 place-items-center rounded bg-white/90 text-slate-700 shadow-sm disabled:opacity-35 dark:bg-slate-900/90 dark:text-slate-100">
+              <ArrowUp className="h-3.5 w-3.5" />
+            </button>
+            <button type="button" title="Move later" aria-label="Move photo later" disabled={props.index === props.count - 1}
+              onClick={(e) => { e.stopPropagation(); props.onMove(props.mediaId, 1); }}
+              className="grid h-6 w-6 place-items-center rounded bg-white/90 text-slate-700 shadow-sm disabled:opacity-35 dark:bg-slate-900/90 dark:text-slate-100">
+              <ArrowDown className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <button type="button" title="Delete photo" aria-label="Delete photo"
+            onClick={(e) => { e.stopPropagation(); props.onRemove(props.mediaId); }}
+            className="grid h-6 w-6 place-items-center rounded bg-red-600 text-white shadow-sm">
+            <Trash2 className="h-3.5 w-3.5" />
           </button>
         </div>
-        <button type="button" title="Delete photo" aria-label="Delete photo"
-          onClick={(e) => { e.stopPropagation(); props.onRemove(props.mediaId); }}
-          className="grid h-6 w-6 place-items-center rounded bg-red-600 text-white shadow-sm">
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
+        <div className="bg-white/90 dark:bg-gray-900/90 p-1 text-[8px] truncate absolute bottom-0 inset-x-0 z-10 flex justify-between items-center font-mono">
+          <span className="truncate flex-1">{props.filename}</span>
+          <label className="mr-1 inline-grid h-5 w-5 cursor-pointer place-items-center rounded bg-white text-slate-600 shadow-sm dark:bg-slate-800 dark:text-slate-200" title="Replace photo" aria-label="Replace photo" onClick={(e) => e.stopPropagation()}>
+            <RefreshCw className="h-3 w-3" />
+            <input type="file" accept="image/*" className="hidden" onChange={(e) => props.onReplace(props.mediaId, e.target.files)} />
+          </label>
+          {media.photoType && (
+            <span className={`px-1 rounded uppercase text-[7px] font-black ${media.photoType === "in-situ" ? "bg-amber-100 text-amber-800" : media.photoType === "laboratory" ? "bg-indigo-100 text-indigo-800" : "bg-gray-100 text-gray-800"}`}>
+              {media.photoType === "in-situ" ? "Field" : media.photoType === "laboratory" ? "Lab" : "Photo"}
+            </span>
+          )}
+        </div>
       </div>
-      <div className="bg-white/90 dark:bg-gray-900/90 p-1 text-[8px] truncate absolute bottom-0 inset-x-0 z-10 flex justify-between items-center font-mono">
-        <span className="truncate flex-1">{props.filename}</span>
-        <label className="mr-1 inline-grid h-5 w-5 cursor-pointer place-items-center rounded bg-white text-slate-600 shadow-sm dark:bg-slate-800 dark:text-slate-200" title="Replace photo" aria-label="Replace photo" onClick={(e) => e.stopPropagation()}>
-          <RefreshCw className="h-3 w-3" />
-          <input type="file" accept="image/*" className="hidden" onChange={(e) => props.onReplace(props.mediaId, e.target.files)} />
-        </label>
-        {media.photoType && (
-          <span className={`px-1 rounded uppercase text-[7px] font-black ${media.photoType === "in-situ" ? "bg-amber-100 text-amber-800" : media.photoType === "laboratory" ? "bg-indigo-100 text-indigo-800" : "bg-gray-100 text-gray-800"}`}>
-            {media.photoType === "in-situ" ? "Field" : media.photoType === "laboratory" ? "Lab" : "Photo"}
-          </span>
-        )}
-      </div>
+      <input
+        type="text"
+        value={media.caption || ""}
+        onClick={(e) => e.stopPropagation()}
+        onChange={async (e) => {
+          const caption = e.target.value;
+          setMedia({ ...media, caption });
+          await db.media.update(media.id, { caption });
+        }}
+        placeholder="Caption (optional)"
+        className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900"
+      />
     </div>
   );
 }
