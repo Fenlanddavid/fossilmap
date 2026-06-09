@@ -3,6 +3,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useNavigate } from "react-router-dom";
 import { db } from "../db";
 import { LocalityThumbnail } from "../components/LocalityThumbnail";
+import { formatDisplayDate } from "../services/dates";
 import { Calendar, Compass, FileText, List, Map as MapIcon, MapPin, Microscope, Plus, ShieldAlert } from "lucide-react";
 
 const MapPage = React.lazy(() => import("./Map"));
@@ -157,9 +158,7 @@ export default function TripsPage({ projectId }: { projectId: string }) {
                     <div className="mt-auto flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800">
                       <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-slate-400">
                         <Calendar className="h-3 w-3" />
-                        {new Date(trip.observedAt).toLocaleDateString("en-GB", {
-                          day: "numeric", month: "short", year: "numeric",
-                        })}
+                        {formatDisplayDate(trip.observedAt || trip.createdAt)}
                       </span>
                       <button
                         onClick={(e) => {

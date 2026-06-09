@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowRight, Calendar, Compass, MapPin, Microscope, Plus, Search, ShieldAlert } from "lucide-react";
 import { db } from "../db";
 import { LocalityThumbnail } from "../components/LocalityThumbnail";
+import { formatDisplayDate } from "../services/dates";
 
 export default function AllLocations(props: { projectId: string }) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -134,7 +135,7 @@ export default function AllLocations(props: { projectId: string }) {
                 <div className="mt-auto flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800">
                   <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-slate-400">
                     <Calendar className="h-3 w-3" />
-                    {new Date(l.createdAt).toLocaleDateString()}
+                    {formatDisplayDate(l.observedAt || l.createdAt)}
                   </span>
                   <button
                     type="button"

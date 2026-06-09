@@ -19,6 +19,7 @@ import { db } from "../db";
 import { SpecimenThumbnail } from "../components/SpecimenThumbnail";
 import { LocalityThumbnail } from "../components/LocalityThumbnail";
 import { getCommunityUrl } from "../services/community";
+import { formatDisplayDate } from "../services/dates";
 
 const SpecimenModal = React.lazy(() =>
   import("../components/SpecimenModal").then((mod) => ({ default: mod.SpecimenModal }))
@@ -435,7 +436,7 @@ export default function Home(props: {
                       <div className="mt-auto flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800">
                         <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-slate-400">
                           <Calendar className="h-3 w-3" />
-                          {new Date(locality.createdAt).toLocaleDateString()}
+                          {formatDisplayDate(locality.observedAt || locality.createdAt)}
                         </span>
                         <button
                           type="button"
