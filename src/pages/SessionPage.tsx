@@ -21,6 +21,7 @@ import { db, Media, Session, Specimen } from "../db";
 import { captureGPS } from "../services/gps";
 import { fileToBlob } from "../services/photos";
 import { SpecimenRow } from "../components/SpecimenRow";
+import { TideBar } from "../components/TideBar";
 import { useConfirmDialog } from "../components/ConfirmModal";
 
 const SpecimenModal = React.lazy(() =>
@@ -281,6 +282,9 @@ export default function SessionPage(props: { projectId: string }) {
                 <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                   <h3 className="text-lg font-black text-slate-950 dark:text-white">Field controls</h3>
                   <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Large actions for use outdoors while the session is active.</p>
+                  <div className="mt-4">
+                    <TideBar />
+                  </div>
                   <div className="mt-5 grid gap-3 sm:grid-cols-2">
                     <ActionButton icon={Plus} label="Add Find" detail="Record a specimen in this trip" onClick={() => nav(`/specimen?localityId=${location?.id}&sessionId=${id}`)} tone="emerald" />
                     <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-sky-200 bg-sky-50 p-4 text-left text-sky-950 transition-colors hover:bg-sky-100 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-100">

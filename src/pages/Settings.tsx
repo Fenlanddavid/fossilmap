@@ -638,11 +638,13 @@ export default function Settings() {
           <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <h3 className="text-lg font-black text-slate-950 dark:text-white">External data</h3>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              FossilMap can look up bedrock geology from the British Geological Survey when adding or editing a locality. Only the map coordinate is sent — no find records or personal data leave your device.
+              FossilMap can look up bedrock geology, nearby tide readings and SSSI status from public UK data services. Only the map coordinate is sent - no find records or personal data leave your device.
             </p>
-            <p className="mt-4 text-xs leading-relaxed text-slate-400 dark:text-slate-500">
-              Contains British Geological Survey materials © UKRI 2025. BGS data is used under the Open Government Licence.
-            </p>
+            <div className="mt-4 grid gap-2 text-xs leading-relaxed text-slate-400 dark:text-slate-500">
+              <p>Contains British Geological Survey materials © UKRI 2025. BGS data is used under the Open Government Licence.</p>
+              <p>Tide readings are sourced from the Environment Agency flood-monitoring API and are planning aids only, not safety forecasts or official tide predictions.</p>
+              <p>SSSI checks use © Natural England and © NatureScot data under the Open Government Licence v3.0. Wales SSSI coverage is partial; check the NRW Lle portal for designation details.</p>
+            </div>
           </section>
         </>
       )}

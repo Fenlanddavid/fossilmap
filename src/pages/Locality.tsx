@@ -4,11 +4,13 @@ import { v4 as uuid } from "uuid";
 import { captureGPS } from "../services/gps";
 import { formatCoords, getFiniteCoords } from "../services/coords";
 import { lookupBGSGeology, BGSResult } from "../services/bgs";
+import { checkSSSI, type SSSIResult } from "../services/sssi";
 import { useParams, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { SpecimenRow } from "../components/SpecimenRow";
 import { FieldTripReport } from "../components/FieldTripReport";
 import { SessionFindsList } from "../components/SessionFindsList";
+import { TideBar } from "../components/TideBar";
 import { useConfirmDialog } from "../components/ConfirmModal";
 import { AlertTriangle, CheckCircle2, ClipboardCheck, FlaskConical, MapPin, ShieldAlert } from "lucide-react";
 
@@ -51,6 +53,10 @@ export default function LocalityPage(props: {
 
   const [exposureType, setExposureType] = useState<Locality["exposureType"]>("beach shingle");
   const [sssi, setSssi] = useState(false);
+  const [sssiName, setSssiName] = useState("");
+  const [sssiCountry, setSssiCountry] = useState<SSSIResult["country"]>("unknown");
+  const [sssiChecking, setSssiChecking] = useState(false);
+  const [sssiNotice, setSssiNotice] = useState("");
   const [rigs, setRigs] = useState(false);
   const [permissionGranted, setPermissionGranted] = useState(false);
 
@@ -139,6 +145,8 @@ export default function LocalityPage(props: {
           setAcc(l.gpsAccuracyM);
           setExposureType(l.exposureType);
           setSssi(l.sssi || false);
+          setSssiName(l.sssiName || "");
+          setSssiCountry(l.sssiCountry || "unknown");
           setRigs(l.rigs || false);
           setPermissionGranted(l.permissionGranted || false);
           setPeriod(l.period || "");
@@ -199,6 +207,56 @@ export default function LocalityPage(props: {
     setBgsResult(null);
   }
 
+  function applySSSIResult(result: SSSIResult) {
+    setSssiCountry(result.country);
+    if (result.isSSSI) {
+      setSssi(true);
+      setSssiName(result.siteName);
+      setDesignationNotes((current) => mergeDesignationNote(current, result));
+    }
+  }
+
+  async function doSSSICheck() {
+    const coords = getFiniteCoords(lat, lon);
+    if (!coords) {
+      setSssiNotice("Add GPS coordinates before checking SSSI status.");
+      return;
+    }
+    setSssiChecking(true);
+    setSssiNotice("");
+    try {
+      const result = await checkSSSI(coords.lat, coords.lon);
+      setSssiCountry(result.country);
+      if (result.isSSSI) {
+        applySSSIResult(result);
+        setSssiNotice(result.siteName ? `SSSI found: ${result.siteName}` : "SSSI found at these coordinates.");
+      } else {
+        setSssi(false);
+        setSssiName("");
+        if (result.country === "wales") {
+          setSssiNotice("Wales SSSI data is not fully available here. Check the NRW Lle portal.");
+        } else if (result.country === "unknown") {
+          setSssiNotice("SSSI check unavailable. Try again when you have a network connection.");
+        } else {
+          setSssiNotice("No SSSI designation found at these coordinates.");
+        }
+      }
+    } finally {
+      setSssiChecking(false);
+    }
+  }
+
+  function mergeDesignationNote(current: string, result: SSSIResult): string {
+    const site = result.siteName || "Unnamed SSSI";
+    const authority = result.country === "scotland" ? "NatureScot" : "Natural England";
+    const attribution = result.country === "scotland" ? "© NatureScot, OGL v3.0" : "© Natural England, OGL v3.0";
+    const featureText = result.notifiedFeatures ? ` Notified features: ${result.notifiedFeatures}.` : "";
+    const note = `SSSI: ${site}. Check designation notice and consent requirements with ${authority} before collecting.${featureText} Source: ${attribution}.`;
+    const trimmed = current.trim();
+    if (trimmed.includes(`SSSI: ${site}`)) return current;
+    return trimmed ? `${trimmed}\n${note}` : note;
+  }
+
   async function handleDelete() {
     if (!id) return;
     const term = localityType === 'location' ? 'location' : 'field trip';
@@ -247,6 +305,8 @@ export default function LocalityPage(props: {
         collector,
         exposureType,
         sssi,
+        sssiName: sssiName || undefined,
+        sssiCountry,
         rigs,
         permissionGranted,
         period,
@@ -306,7 +366,7 @@ export default function LocalityPage(props: {
 
   const currentLocality: Locality | null = id ? {
     id, projectId: props.projectId, type: localityType, name, lat, lon, gpsAccuracyM: acc, observedAt, collector,
-    exposureType, sssi, rigs, permissionGranted, period, stage, formation, member, bed, lithologyPrimary, notes,
+    exposureType, sssi, sssiName: sssiName || undefined, sssiCountry, rigs, permissionGranted, period, stage, formation, member, bed, lithologyPrimary, notes,
     designationNotes,
     createdAt: "", updatedAt: ""
   } : null;
@@ -656,11 +716,61 @@ export default function LocalityPage(props: {
                     </div>
 
                     <div className="min-w-0 bg-amber-50/50 dark:bg-amber-900/10 p-4 sm:p-5 rounded-2xl border-2 border-amber-100/50 dark:border-amber-800/30 grid gap-4">
-                        <div className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">Conservation & Access</div>
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <div className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">Conservation & Access</div>
+                            <p className="mt-1 text-xs text-amber-700/70 dark:text-amber-300/70">Use the current coordinates to check protected-site status.</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={doSSSICheck}
+                            disabled={sssiChecking}
+                            className="inline-flex items-center justify-center gap-2 rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-black text-amber-800 shadow-sm transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200 dark:hover:bg-amber-900/40"
+                          >
+                            <ShieldAlert className="h-3.5 w-3.5" />
+                            {sssiChecking ? "Checking SSSI..." : "Check SSSI"}
+                          </button>
+                        </div>
+                        {sssiNotice && (
+                          <div className={`rounded-lg border px-3 py-2 text-xs font-bold ${
+                            sssi
+                              ? "border-amber-300 bg-amber-100 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100"
+                              : "border-slate-200 bg-white/70 text-slate-600 dark:border-slate-800 dark:bg-slate-950/30 dark:text-slate-300"
+                          }`}>
+                            {sssiNotice}
+                          </div>
+                        )}
+                        {sssi && (
+                          <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 flex gap-3 dark:border-amber-700 dark:bg-amber-950/30">
+                            <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="font-black text-amber-900 dark:text-amber-100 text-sm">
+                                This location is within a designated SSSI{sssiName ? `: ${sssiName}` : ""}
+                              </p>
+                              <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                                Collecting from SSSIs may require consent from Natural England{sssiCountry === "scotland" ? " / NatureScot" : ""}.
+                                Check the designation notice before collecting.
+                              </p>
+                              <p className="text-[10px] text-amber-600/70 dark:text-amber-400/60 mt-2">
+                                {sssiCountry === "scotland"
+                                  ? "© NatureScot, Open Government Licence v3.0"
+                                  : "© Natural England, Open Government Licence v3.0"}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                        {sssiCountry === "wales" && !sssi && (
+                          <div className="rounded-lg border border-amber-200 bg-white/70 px-3 py-2 text-xs font-bold text-amber-800 dark:border-amber-800/60 dark:bg-amber-950/20 dark:text-amber-200">
+                            Wales SSSI data is not fully available here. Check the NRW Lle portal before collecting.
+                          </div>
+                        )}
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <label className="flex items-center gap-3 cursor-pointer group">
                                 <input type="checkbox" checked={sssi} onChange={(e) => setSssi(e.target.checked)} className="w-5 h-5 rounded border-amber-300 text-amber-600 focus:ring-amber-500" />
-                                <span className="text-sm font-bold text-gray-700 dark:text-gray-300 group-hover:text-amber-600">SSSI Status</span>
+                                <span className="text-sm font-bold text-gray-700 dark:text-gray-300 group-hover:text-amber-600">
+                                  SSSI Status
+                                  {sssiName && !sssi && <span className="ml-1 text-xs text-slate-400">(auto-detected)</span>}
+                                </span>
                             </label>
                             <label className="flex items-center gap-3 cursor-pointer group">
                                 <input type="checkbox" checked={rigs} onChange={(e) => setRigs(e.target.checked)} className="w-5 h-5 rounded border-amber-300 text-amber-600 focus:ring-amber-500" />
@@ -721,6 +831,8 @@ export default function LocalityPage(props: {
                             <h3 className="text-2xl sm:text-3xl font-black text-gray-800 dark:text-gray-100 mt-2 break-words leading-tight">{name}</h3>
                         </div>
                     </div>
+
+                    <TideBar />
 
                     <div className="grid gap-3 md:grid-cols-3">
                         <div className="md:col-span-2 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900 rounded-2xl p-4">
@@ -788,6 +900,16 @@ export default function LocalityPage(props: {
                                         <span className="text-[10px] font-black bg-red-50 text-red-700 px-2 py-0.5 rounded border border-red-100 uppercase tracking-tighter">No Permission</span>
                                     )}
                                 </div>
+                                {sssi && sssiName && (
+                                  <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/25 dark:text-amber-100">
+                                    <p className="font-black">SSSI: {sssiName}</p>
+                                    <p className="mt-1 text-[10px] opacity-70">
+                                      {sssiCountry === "scotland"
+                                        ? "© NatureScot, Open Government Licence v3.0"
+                                        : "© Natural England, Open Government Licence v3.0"}
+                                    </p>
+                                  </div>
+                                )}
                                 {designationNotes && <p className="text-xs italic opacity-60 mt-2">{designationNotes}</p>}
                             </div>
                         </div>

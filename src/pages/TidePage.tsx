@@ -23,7 +23,7 @@ export default function TidePage() {
         <ul className="grid gap-2 text-sm leading-relaxed text-amber-900/80 dark:text-amber-100/75">
           <li className="flex gap-2">
             <Waves className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>Check local weather, sea state and tide tables before heading out.</span>
+            <span>Tide times are estimated from Environment Agency gauge readings and are for planning purposes only. Always verify with official sources, such as Admiralty EasyTide, before accessing tidal or cliff-base locations.</span>
           </li>
           <li className="flex gap-2">
             <Waves className="mt-0.5 h-4 w-4 shrink-0" />

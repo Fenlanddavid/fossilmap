@@ -1,8 +1,9 @@
 import React from "react";
-import { BookOpen, Check, Copy, Layers, Loader2, MapPin, Waves } from "lucide-react";
+import { AlertTriangle, BookOpen, Check, Copy, Layers, Loader2, MapPin, Waves } from "lucide-react";
 import { getCommunityUrl } from "../services/community";
 import { lookupBGSGeology, type BGSResult } from "../services/bgs";
 import { captureGPS, type GPSFix } from "../services/gps";
+import { checkSSSI, type SSSIResult } from "../services/sssi";
 
 const TidePage = React.lazy(() => import("./TidePage"));
 
@@ -97,17 +98,28 @@ function BGSLookupTool() {
   const [error, setError] = React.useState<string | null>(null);
   const [fix, setFix] = React.useState<GPSFix | null>(null);
   const [result, setResult] = React.useState<BGSResult | null>(null);
+  const [sssiResult, setSssiResult] = React.useState<SSSIResult | null>(null);
   const [copied, setCopied] = React.useState(false);
 
   const runLookup = async () => {
     setLoading(true);
     setError(null);
     setCopied(false);
+    setSssiResult(null);
     try {
       const gps = await captureGPS();
       setFix(gps);
-      const geology = await lookupBGSGeology(gps.lat, gps.lon);
-      setResult(geology);
+      const [geology, sssi] = await Promise.allSettled([
+        lookupBGSGeology(gps.lat, gps.lon),
+        checkSSSI(gps.lat, gps.lon),
+      ]);
+      if (sssi.status === "fulfilled") setSssiResult(sssi.value);
+      if (geology.status === "fulfilled") {
+        setResult(geology.value);
+      } else {
+        setResult(null);
+        setError(geology.reason instanceof Error ? geology.reason.message : "BGS lookup failed");
+      }
     } catch (err) {
       setResult(null);
       setError(err instanceof Error ? err.message : "BGS lookup failed");
@@ -172,6 +184,30 @@ function BGSLookupTool() {
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-300">
               GPS {fix.lat.toFixed(6)}, {fix.lon.toFixed(6)}
               {fix.accuracyM != null && ` · ±${Math.round(fix.accuracyM)}m`}
+            </div>
+          )}
+
+          {sssiResult && sssiResult.isSSSI && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm dark:border-amber-800 dark:bg-amber-950/20">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700 dark:text-amber-300" />
+                <div>
+                  <span className="font-black text-amber-800 dark:text-amber-200">SSSI: </span>
+                  <span className="text-amber-700 dark:text-amber-300">{sssiResult.siteName || "Designated site"}</span>
+                  <p className="mt-1 text-[10px] text-amber-700/70 dark:text-amber-300/70">
+                    {sssiResult.country === "scotland"
+                      ? "© NatureScot, Open Government Licence v3.0"
+                      : "© Natural England, Open Government Licence v3.0"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {sssiResult && !sssiResult.isSSSI && (
+            <div className="text-xs text-slate-400">
+              No SSSI designation at this location
+              {sssiResult.country === "wales" ? " (Wales - check NRW Lle portal for full coverage)" : ""}
             </div>
           )}
 

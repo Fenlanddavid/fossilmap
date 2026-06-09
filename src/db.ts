@@ -33,6 +33,8 @@ export type Locality = {
     | "other";
 
   sssi: boolean;
+  sssiName?: string;
+  sssiCountry?: "england" | "scotland" | "wales" | "unknown";
   rigs: boolean;
   permissionGranted: boolean;
 
