@@ -88,6 +88,17 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
     async () => draft?.localityId ? db.localities.get(draft.localityId) : null,
     [draft?.localityId]
   );
+  const localities = useLiveQuery(
+    async () => {
+      if (!draft?.projectId) return [];
+      return db.localities.where("projectId").equals(draft.projectId).toArray();
+    },
+    [draft?.projectId]
+  );
+  const sortedLocalities = useMemo(
+    () => [...(localities ?? [])].sort((a, b) => (a.name || "").localeCompare(b.name || "")),
+    [localities]
+  );
 
   const [calibratingMedia, setCalibratingMedia] = useState<{ media: Media; url: string } | null>(null);
   const [annotatingMedia, setAnnotatingMedia] = useState<{ media: Media; url: string } | null>(null);
@@ -119,6 +130,22 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
         }
     }
   }, [specimen]);
+
+  async function chooseLinkedLocality(localityId: string) {
+    const nextLocality = await db.localities.get(localityId);
+    setDraft((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        localityId,
+        period: prev.period || nextLocality?.period || "",
+        stage: prev.stage || nextLocality?.stage || "",
+        formation: prev.formation || nextLocality?.formation || "",
+        member: prev.member || nextLocality?.member || "",
+        bed: prev.bed || nextLocality?.bed || "",
+      };
+    });
+  }
 
   useEffect(() => {
     if (!saveNotice) return;
@@ -800,6 +827,24 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
                     />
                   </label>
               )}
+
+              <label className="grid gap-1">
+                <span className="text-sm font-bold opacity-75">Linked locality</span>
+                <select
+                  className="w-full rounded-xl border-2 border-gray-100 bg-white p-2.5 font-medium outline-none transition-all focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800"
+                  value={draft.localityId}
+                  onChange={(e) => void chooseLinkedLocality(e.target.value)}
+                >
+                  {sortedLocalities.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name || "(Unnamed)"} {item.type === "trip" ? "(trip)" : ""}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                  Move this find to another saved locality if it was recorded against the wrong place.
+                </span>
+              </label>
 
               <label className="grid gap-1">
                 <span className="text-sm font-bold opacity-75">Taxon / ID</span>

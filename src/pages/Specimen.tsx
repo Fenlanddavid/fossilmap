@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db, Media, Specimen } from "../db";
+import { db, Locality, Media, Specimen } from "../db";
 import { v4 as uuid } from "uuid";
 import { fileToBlob } from "../services/photos";
 import { ScaledImage } from "../components/ScaledImage";
@@ -77,11 +77,13 @@ export default function SpecimenPage(props: {
 
   // ── Form fields ──────────────────────────────────────────────────────────
   const [locationName, setLocationName] = useState("");
+  const [selectedLocalityId, setSelectedLocalityId] = useState(props.localityId ?? "");
   const [specimenCode, setSpecimenCode] = useState(makeSpecimenCode());
   const [taxon, setTaxon] = useState("");
   const [confidence, setConfidence] = useState<Specimen["taxonConfidence"]>("med");
   const [period, setPeriod] = useState("");
   const [stage, setStage] = useState("");
+  const [formation, setFormation] = useState("");
   const [element, setElement] = useState<Specimen["element"]>("shell");
   const [isCustomElement, setIsCustomElement] = useState(false);
   const [preservation, setPreservation] = useState<Specimen["preservation"]>("body fossil");
@@ -131,17 +133,32 @@ export default function SpecimenPage(props: {
     return () => window.clearTimeout(timer);
   }, [saveMessage]);
 
+  function applyLocalityDefaults(locality: Locality, overwrite = false) {
+    setLocationName(locality.name || "");
+    if (overwrite || !period.trim()) setPeriod(locality.period || "");
+    if (overwrite || !stage.trim()) setStage(locality.stage || "");
+    if (overwrite || !formation.trim()) setFormation(locality.formation || "");
+  }
+
+  async function chooseLocality(localityId: string) {
+    setSelectedLocalityId(localityId);
+    if (!localityId) return;
+    const locality = await db.localities.get(localityId);
+    if (locality) applyLocalityDefaults(locality, true);
+  }
+
   // ── Load locality default ─────────────────────────────────────────────────
   useEffect(() => {
     if (editId) return;
     if (props.localityId) {
       db.localities.get(props.localityId).then((l) => {
-        if (l) setLocationName(l.name);
+        if (l) {
+          setSelectedLocalityId(l.id);
+          applyLocalityDefaults(l, false);
+        }
       });
-    } else if (localities && localities.length > 0 && !locationName) {
-      setLocationName(localities[0].name || "");
     }
-  }, [props.localityId, localities, editId]);
+  }, [props.localityId, editId]);
 
   // ── Load existing specimen for edit ──────────────────────────────────────
   useEffect(() => {
@@ -157,12 +174,14 @@ export default function SpecimenPage(props: {
       if (!active) return;
 
       setSavedId(specimen.id);
+      setSelectedLocalityId(specimen.localityId || "");
       setLocationName(locality?.name || "");
       setSpecimenCode(specimen.specimenCode || makeSpecimenCode());
       setTaxon(specimen.taxon || "");
       setConfidence(specimen.taxonConfidence || "med");
       setPeriod(specimen.period || "");
       setStage(specimen.stage || "");
+      setFormation(specimen.formation || "");
       setElement(specimen.element || "shell");
       setPreservation(specimen.preservation || "body fossil");
       setTaphonomy(specimen.taphonomy || "");
@@ -189,6 +208,10 @@ export default function SpecimenPage(props: {
     async () => (savedId ? db.media.where("specimenId").equals(savedId).sortBy("createdAt") : []),
     [savedId]
   );
+  const sortedLocalities = useMemo(
+    () => [...(localities ?? [])].sort((a, b) => (a.name || "").localeCompare(b.name || "")),
+    [localities]
+  );
   const formLocked = !!savedId && !isEditingExisting && !isMobileWizard;
 
   // ── Quality bar ───────────────────────────────────────────────────────────
@@ -198,6 +221,7 @@ export default function SpecimenPage(props: {
     gpsAccuracyM: acc,
     period: period.trim(),
     stage: stage.trim(),
+    formation: formation.trim(),
     element,
     preservation,
     findContext: findContext.trim(),
@@ -206,13 +230,14 @@ export default function SpecimenPage(props: {
     lengthMm: numberFromInput(lengthMm),
     widthMm: numberFromInput(widthMm),
     thicknessMm: numberFromInput(thicknessMm),
-  }), [acc, element, findContext, lat, lengthMm, lon, period, preservation, stage, taphonomy, thicknessMm, weightG, widthMm]);
+  }), [acc, element, findContext, formation, lat, lengthMm, lon, period, preservation, stage, taphonomy, thicknessMm, weightG, widthMm]);
   const qualityPercent = calculateQualityScore(qualitySpecimen, media || []);
   const qualityItems = [
     { label: "GPS", done: lat != null && lon != null },
     { label: "Accuracy", done: typeof acc === "number" && acc < 30 },
     { label: "Period", done: !!period.trim() && period.trim() !== "Unknown" },
     { label: "Stage", done: !!stage.trim() && stage.trim() !== "Unknown" },
+    { label: "Formation", done: !!formation.trim() },
     { label: "Element", done: !!element.trim() },
     { label: "Preservation", done: preservation !== "body fossil" },
     { label: "Context", done: !!findContext.trim() },
@@ -237,6 +262,15 @@ export default function SpecimenPage(props: {
 
   // ── Save helpers ──────────────────────────────────────────────────────────
   async function resolveLocalityId(): Promise<string> {
+    if (selectedLocalityId) {
+      const linked = await db.localities.get(selectedLocalityId);
+      if (linked) return linked.id;
+    }
+    if (props.localityId && !isEditingExisting) {
+      const linked = await db.localities.get(props.localityId);
+      if (linked) return linked.id;
+    }
+
     const trimmedName = locationName.trim();
     const existing = await db.localities
       .where("projectId").equals(props.projectId)
@@ -250,7 +284,7 @@ export default function SpecimenPage(props: {
     await db.localities.add({
       id: newId,
       projectId: props.projectId,
-      type: props.localityId ? "location" : "trip",
+      type: "location",
       name: trimmedName,
       lat: null, lon: null, gpsAccuracyM: null,
       observedAt: now,
@@ -258,9 +292,9 @@ export default function SpecimenPage(props: {
       exposureType: "other",
       sssi: false, rigs: false, permissionGranted: false,
       period: period.trim(), stage: stage.trim(),
-      formation: "", member: "", bed: "",
+      formation: formation.trim(), member: "", bed: "",
       lithologyPrimary: "other",
-      notes: props.localityId ? "Structured Location" : "Field Trip (Casual)",
+      notes: "Structured Location",
       designationNotes: "",
       createdAt: now, updatedAt: now,
     });
@@ -279,6 +313,7 @@ export default function SpecimenPage(props: {
       taxonConfidence: confidence,
       period: period.trim(),
       stage: stage.trim(),
+      formation: formation.trim(),
       lat, lon,
       gpsAccuracyM: acc,
       element,
@@ -430,7 +465,15 @@ export default function SpecimenPage(props: {
     setActiveStep(1);
     setMaxVisitedStep(1);
     setSpecimenCode(makeSpecimenCode());
-    setTaxon(""); setConfidence("med"); setPeriod(""); setStage("");
+    setSelectedLocalityId(props.localityId ?? "");
+    if (props.localityId) {
+      db.localities.get(props.localityId).then((locality) => {
+        if (locality) applyLocalityDefaults(locality, true);
+      });
+    } else {
+      setLocationName("");
+    }
+    setTaxon(""); setConfidence("med"); setPeriod(""); setStage(""); setFormation("");
     setElement("shell"); setPreservation("body fossil");
     setTaphonomy(""); setFindContext("");
     setLat(null); setLon(null); setAcc(null);
@@ -516,7 +559,7 @@ export default function SpecimenPage(props: {
         <div className="min-w-0">
           <p className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-300">Specimen recorder</p>
           <h2 className="text-xl sm:text-2xl font-black text-gray-800 dark:text-gray-100 tracking-tight">
-            {isEditingExisting ? "Edit Find" : props.localityId ? "Record Find" : "New Field Trip Find"}
+            {isEditingExisting ? "Edit Find" : props.localityId ? "Record Find" : "New Find"}
           </h2>
         </div>
         <div className="flex min-w-0 gap-2 w-full sm:w-auto">
@@ -592,11 +635,15 @@ export default function SpecimenPage(props: {
           savedId={savedId}
           saving={saving}
           // step state
+          selectedLocalityId={selectedLocalityId}
+          chooseLocality={chooseLocality}
+          localities={sortedLocalities}
           locationName={locationName} setLocationName={setLocationName}
           taxon={taxon} setTaxon={setTaxon}
           confidence={confidence} setConfidence={setConfidence}
           period={period} setPeriod={setPeriod}
           stage={stage} setStage={setStage}
+          formation={formation} setFormation={setFormation}
           element={element} setElement={setElement}
           isCustomElement={isCustomElement} setIsCustomElement={setIsCustomElement}
           lat={lat} lon={lon} acc={acc}
@@ -637,15 +684,13 @@ export default function SpecimenPage(props: {
             className={`min-w-0 lg:col-span-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-sm grid gap-6 h-fit transition-opacity ${formLocked ? "opacity-50 pointer-events-none" : ""}`}
           >
             <SectionTitle icon={MapPin} title="1. Place" detail="Link the specimen to the right locality or trip." />
-            <label className="block">
-              <div className="mb-2 text-sm font-bold text-gray-700 dark:text-gray-300">Location Name</div>
-              <input
-                value={locationName}
-                onChange={(e) => setLocationName(e.target.value)}
-                placeholder="e.g. Charmouth, Lyme Regis"
-                className="w-full bg-white dark:bg-gray-900 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-3.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-bold"
-              />
-            </label>
+            <LocalityLinkFields
+              selectedLocalityId={selectedLocalityId}
+              chooseLocality={chooseLocality}
+              localities={sortedLocalities}
+              locationName={locationName}
+              setLocationName={setLocationName}
+            />
 
             <SectionTitle icon={Microscope} title="2. Identify" detail="Record the identification and geological age as far as you know it." />
 
@@ -685,6 +730,7 @@ export default function SpecimenPage(props: {
             </label>
 
             <PeriodStageFields period={period} setPeriod={setPeriod} stage={stage} setStage={setStage} />
+            <FormationField formation={formation} setFormation={setFormation} />
 
             <SectionTitle icon={MapPin} title="3. Find spot" detail="Capture GPS now if possible. You can correct it on the map later." />
             <GpsBlock lat={lat} lon={lon} doGPS={doGPS} setIsPickingLocation={setIsPickingLocation} setLat={setLat} setLon={setLon} setAcc={setAcc} />
@@ -767,11 +813,15 @@ type WizardProps = {
   maxVisitedStep: number;
   savedId: string | null;
   saving: boolean;
+  selectedLocalityId: string;
+  chooseLocality: (id: string) => void;
+  localities: Locality[];
   locationName: string; setLocationName: (v: string) => void;
   taxon: string; setTaxon: (v: string) => void;
   confidence: Specimen["taxonConfidence"]; setConfidence: (v: Specimen["taxonConfidence"]) => void;
   period: string; setPeriod: (v: string) => void;
   stage: string; setStage: (v: string) => void;
+  formation: string; setFormation: (v: string) => void;
   element: string; setElement: (v: string) => void;
   isCustomElement: boolean; setIsCustomElement: (v: boolean) => void;
   lat: number | null; lon: number | null; acc: number | null;
@@ -846,15 +896,13 @@ function MobileWizard(p: WizardProps) {
         {p.activeStep === 1 && (
           <>
             <SectionTitle icon={MapPin} title="Location" detail="Where was this found?" />
-            <label className="block">
-              <div className="mb-2 text-sm font-bold text-gray-700 dark:text-gray-300">Location Name</div>
-              <input
-                value={p.locationName}
-                onChange={(e) => p.setLocationName(e.target.value)}
-                placeholder="e.g. Charmouth, Lyme Regis"
-                className="w-full bg-white dark:bg-gray-900 border-2 border-gray-100 dark:border-gray-700 rounded-xl p-3.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-bold"
-              />
-            </label>
+            <LocalityLinkFields
+              selectedLocalityId={p.selectedLocalityId}
+              chooseLocality={p.chooseLocality}
+              localities={p.localities}
+              locationName={p.locationName}
+              setLocationName={p.setLocationName}
+            />
 
             <SectionTitle icon={Microscope} title="Identify" detail="Taxon and geological age." />
             <label className="block">
@@ -911,6 +959,7 @@ function MobileWizard(p: WizardProps) {
             )}
 
             <PeriodStageFields period={p.period} setPeriod={p.setPeriod} stage={p.stage} setStage={p.setStage} />
+            <FormationField formation={p.formation} setFormation={p.setFormation} />
 
             <SectionTitle icon={MapPin} title="GPS" detail="Tap while standing on the find. You can update this later." />
             <GpsBlock lat={p.lat} lon={p.lon} doGPS={p.doGPS} setIsPickingLocation={p.setIsPickingLocation} setLat={p.setLat} setLon={p.setLon} setAcc={p.setAcc} compact />
@@ -1070,6 +1119,72 @@ function MobileWizard(p: WizardProps) {
 // ─────────────────────────────────────────────────────────────────────────────
 // SHARED FIELD COMPONENTS
 // ─────────────────────────────────────────────────────────────────────────────
+
+function LocalityLinkFields({
+  selectedLocalityId,
+  chooseLocality,
+  localities,
+  locationName,
+  setLocationName,
+}: {
+  selectedLocalityId: string;
+  chooseLocality: (id: string) => void;
+  localities: Locality[];
+  locationName: string;
+  setLocationName: (v: string) => void;
+}) {
+  return (
+    <div className="grid gap-3">
+      <label className="block">
+        <div className="mb-2 text-sm font-bold text-gray-700 dark:text-gray-300">Saved locality</div>
+        <select
+          value={selectedLocalityId}
+          onChange={(e) => chooseLocality(e.target.value)}
+          className="w-full appearance-none rounded-xl border-2 border-gray-100 bg-white p-3.5 font-bold outline-none transition-all focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-900"
+        >
+          <option value="">Manual / new locality</option>
+          {localities.map((locality) => (
+            <option key={locality.id} value={locality.id}>
+              {locality.name || "(Unnamed)"} {locality.type === "trip" ? "(trip)" : ""}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="block">
+        <div className="mb-2 text-sm font-bold text-gray-700 dark:text-gray-300">Location Name</div>
+        <input
+          value={locationName}
+          onChange={(e) => setLocationName(e.target.value)}
+          disabled={!!selectedLocalityId}
+          placeholder="e.g. Charmouth, Lyme Regis"
+          className="w-full rounded-xl border-2 border-gray-100 bg-white p-3.5 font-bold outline-none transition-all focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:disabled:bg-gray-950"
+        />
+      </label>
+      {selectedLocalityId && (
+        <p className="text-[11px] font-bold text-gray-500 dark:text-gray-400">
+          This find will stay linked to the selected saved locality. Choose Manual / new locality to type a different place.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function FormationField({ formation, setFormation }: {
+  formation: string;
+  setFormation: (v: string) => void;
+}) {
+  return (
+    <label className="block">
+      <div className="mb-2 text-sm font-bold text-gray-700 dark:text-gray-300">Formation</div>
+      <input
+        value={formation}
+        onChange={(e) => setFormation(e.target.value)}
+        placeholder="e.g. Blue Lias Formation"
+        className="w-full rounded-xl border-2 border-gray-100 bg-white p-3.5 font-bold outline-none transition-all focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-900"
+      />
+    </label>
+  );
+}
 
 function PeriodStageFields({ period, setPeriod, stage, setStage }: {
   period: string; setPeriod: (v: string) => void;

@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
+import { v4 as uuid } from "uuid";
 import {
   ArrowRight,
   Camera,
@@ -20,6 +21,7 @@ import { SpecimenThumbnail } from "../components/SpecimenThumbnail";
 import { LocalityThumbnail } from "../components/LocalityThumbnail";
 import { getCommunityUrl } from "../services/community";
 import { formatDisplayDate } from "../services/dates";
+import { fileToBlob } from "../services/photos";
 
 const SpecimenModal = React.lazy(() =>
   import("../components/SpecimenModal").then((mod) => ({ default: mod.SpecimenModal }))
@@ -44,6 +46,7 @@ export default function Home(props: {
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [openSpecimenId, setOpenSpecimenId] = useState<string | null>(null);
+  const [photoSavingLocalityId, setPhotoSavingLocalityId] = useState<string | null>(null);
   const [dismissedNextMoveKey, setDismissedNextMoveKey] = useState(() => {
     try {
       return localStorage.getItem("fm_home_next_move_dismissed") ?? "";
@@ -150,6 +153,31 @@ export default function Home(props: {
       .slice(0, 3);
   }, [localities, localityLastUsedAt, searchQuery]);
   const hasAnyData = (dashboard?.locations ?? 0) + (dashboard?.trips ?? 0) + (dashboard?.finds ?? 0) > 0;
+
+  async function addLocalityPhoto(localityId: string, files: FileList | null) {
+    if (!files || files.length === 0) return;
+    const file = files[0];
+    setPhotoSavingLocalityId(localityId);
+    try {
+      const blob = await fileToBlob(file);
+      await db.media.add({
+        id: uuid(),
+        projectId: props.projectId,
+        localityId,
+        type: "photo",
+        filename: file.name,
+        mime: file.type || "image/jpeg",
+        blob,
+        caption: "Locality photo",
+        scalePresent: false,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Photo save failed", error);
+    } finally {
+      setPhotoSavingLocalityId(null);
+    }
+  }
 
   const nextMoves = useMemo(() => {
     if (!hasAnyData) return [];
@@ -452,16 +480,35 @@ export default function Home(props: {
                       </div>
                     </div>
 
-                    <div className="relative border-l border-slate-100 bg-slate-100 dark:border-slate-800 dark:bg-slate-950">
+                    <label
+                      className="relative cursor-pointer border-l border-slate-100 bg-slate-100 dark:border-slate-800 dark:bg-slate-950"
+                      aria-label={`Add photo for ${locality.name || "locality"}`}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={(event) => {
+                          void addLocalityPhoto(locality.id, event.currentTarget.files).finally(() => {
+                            event.currentTarget.value = "";
+                          });
+                        }}
+                      />
                       <LocalityThumbnail localityId={locality.id} className="h-full w-full" imgClassName="object-cover" />
                       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-slate-950/55 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+                      <span className="pointer-events-none absolute bottom-2 left-2 inline-flex items-center gap-1 rounded bg-white/90 px-1.5 py-1 text-[8px] font-black uppercase tracking-widest text-slate-700 shadow-sm backdrop-blur dark:bg-slate-950/85 dark:text-slate-200">
+                        <Camera className="h-2.5 w-2.5" />
+                        {photoSavingLocalityId === locality.id ? "Saving" : "Photo"}
+                      </span>
                       {(locality.sssi || locality.rigs) && (
                         <div className="absolute right-2 top-2 rounded bg-amber-500 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-widest text-white shadow-sm">
                           Protected
                         </div>
                       )}
                       {isActive && <div className="absolute left-2 top-2 rounded bg-emerald-600 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-widest text-white">Active</div>}
-                    </div>
+                    </label>
                   </article>
                 );
               })}
