@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { db, Specimen } from "../db";
+import { db, Locality, Specimen } from "../db";
 import { v4 as uuid } from "uuid";
 import { captureGPS } from "../services/gps";
 import { hasCoords } from "../services/coords";
-import { X, MapPin, Loader2, CheckCircle2, Zap, RefreshCw } from "lucide-react";
+import { X, MapPin, Loader2, CheckCircle2, Zap, RefreshCw, ChevronDown } from "lucide-react";
 
 const COMMON_TAXA = [
   "Ammonite", "Belemnite", "Bivalve", "Gastropod", "Brachiopod",
@@ -14,13 +14,24 @@ const COMMON_TAXA = [
 interface QuickFindSheetProps {
   projectId: string;
   localityId: string | null;
-  localityName?: string | null;
+  localities: Locality[];
+  activeSessionId?: string | null;
+  activeSessionLocalityId?: string | null;
   onClose: () => void;
   onSaved: (specimenId: string) => void;
 }
 
-export function QuickFindSheet({ projectId, localityId, localityName, onClose, onSaved }: QuickFindSheetProps) {
+export function QuickFindSheet({
+  projectId,
+  localityId,
+  localities,
+  activeSessionId,
+  activeSessionLocalityId,
+  onClose,
+  onSaved,
+}: QuickFindSheetProps) {
   const [taxon, setTaxon]       = useState("");
+  const [selectedLocalityId, setSelectedLocalityId] = useState(localityId ?? "");
   const [lat, setLat]           = useState<number | null>(null);
   const [lon, setLon]           = useState<number | null>(null);
   const [gpsLoading, setGpsLoading] = useState(false);
@@ -32,6 +43,10 @@ export function QuickFindSheet({ projectId, localityId, localityName, onClose, o
   useEffect(() => {
     setTimeout(() => inputRef.current?.focus(), 120);
   }, []);
+
+  useEffect(() => {
+    setSelectedLocalityId(localityId ?? "");
+  }, [localityId]);
 
   const tryGPS = useCallback(() => {
     setGpsLoading(true);
@@ -45,16 +60,17 @@ export function QuickFindSheet({ projectId, localityId, localityName, onClose, o
   useEffect(() => { tryGPS(); }, []);
 
   async function handleSave() {
-    if (!taxon.trim()) return;
+    if (!taxon.trim() || !selectedLocalityId) return;
     setSaving(true);
     try {
       const now = new Date().toISOString();
       const id  = uuid();
+      const selectedSessionId = selectedLocalityId === activeSessionLocalityId ? activeSessionId ?? null : null;
       const specimen: Specimen = {
         id,
         projectId,
-        localityId: localityId ?? "",
-        sessionId: null,
+        localityId: selectedLocalityId,
+        sessionId: selectedSessionId,
         specimenCode: `QF-${Date.now().toString(36).toUpperCase()}`,
         taxon: taxon.trim(),
         taxonConfidence: "med",
@@ -144,8 +160,37 @@ export function QuickFindSheet({ projectId, localityId, localityName, onClose, o
             <datalist id="qf-taxa">
               {COMMON_TAXA.map(t => <option key={t} value={t} />)}
             </datalist>
-            <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-bold text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
-              Adding to: <span className="font-black text-slate-900 dark:text-white">{localityName || (localityId ? "Selected locality" : "No locality selected")}</span>
+            <div className="mt-2">
+              <label htmlFor="qf-locality" className="mb-1 block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Add to location
+              </label>
+              <div className="relative">
+                <MapPin className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                <select
+                  id="qf-locality"
+                  value={selectedLocalityId}
+                  onChange={(e) => setSelectedLocalityId(e.target.value)}
+                  className="h-11 w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-9 text-sm font-black text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:ring-emerald-900/50"
+                >
+                  <option value="">Select location...</option>
+                  {localities.map((locality) => (
+                    <option key={locality.id} value={locality.id}>
+                      {locality.name || "Unnamed location"}{locality.type === "trip" ? " (trip)" : ""}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              </div>
+              {selectedLocalityId === activeSessionLocalityId && activeSessionId && (
+                <p className="mt-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+                  This will be linked to the active trip session.
+                </p>
+              )}
+              {!selectedLocalityId && (
+                <p className="mt-1 text-[10px] font-bold text-amber-700 dark:text-amber-300">
+                  Choose a location before logging the find.
+                </p>
+              )}
             </div>
           </div>
 
@@ -166,7 +211,7 @@ export function QuickFindSheet({ projectId, localityId, localityName, onClose, o
           {/* Save button */}
           <button
             onClick={handleSave}
-            disabled={!taxon.trim() || saving}
+            disabled={!taxon.trim() || !selectedLocalityId || saving}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3.5 text-sm font-black text-white shadow-md transition-colors hover:bg-emerald-700 disabled:opacity-50"
           >
             {saved ? (

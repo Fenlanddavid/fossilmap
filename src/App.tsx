@@ -395,7 +395,7 @@ function Shell() {
               <Route path="/locations" element={<AllLocations projectId={projectId} />} />
               <Route path="/location" element={<LocalityPage projectId={projectId} type="location" onSaved={(id) => nav(`/location/${id}`)} />} />
               <Route path="/location/:id" element={<LocalityPage projectId={projectId} onSaved={() => {}} />} />
-              <Route path="/field-trip" element={<LocalityPage projectId={projectId} type="trip" onSaved={(id) => nav(`/field-trip/${id}`)} />} />
+              <Route path="/field-trip" element={<LocalityPage projectId={projectId} type="trip" onSaved={(id, sessionId) => nav(sessionId ? `/session/${sessionId}` : `/field-trip/${id}`)} />} />
               <Route path="/field-trip/:id" element={<LocalityPage projectId={projectId} onSaved={() => {}} />} />
               <Route path="/session/new" element={<SessionPage projectId={projectId} />} />
               <Route path="/session/:id" element={<SessionPage projectId={projectId} />} />

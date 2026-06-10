@@ -15,9 +15,9 @@ export function GlobalQuickFind({ projectId }: { projectId: string }) {
     return sessions.sort((a, b) => (b.updatedAt || b.startTime).localeCompare(a.updatedAt || a.startTime))[0] ?? null;
   }, [projectId]);
 
-  const fallbackLocality = useLiveQuery(async () => {
+  const localities = useLiveQuery(async () => {
     const localities = await db.localities.where("projectId").equals(projectId).reverse().sortBy("createdAt");
-    return localities[0] ?? null;
+    return localities;
   }, [projectId]);
 
   const dataCount = useLiveQuery(async () => {
@@ -36,8 +36,8 @@ export function GlobalQuickFind({ projectId }: { projectId: string }) {
     if (activeSession?.localityId) {
       return await db.localities.get(activeSession.localityId) ?? null;
     }
-    return fallbackLocality ?? null;
-  }, [activeSession?.localityId, fallbackLocality?.id]);
+    return localities?.[0] ?? null;
+  }, [activeSession?.localityId, localities]);
 
   const shouldHide = useMemo(() => {
     const path = location.pathname;
@@ -52,7 +52,7 @@ export function GlobalQuickFind({ projectId }: { projectId: string }) {
 
   if (shouldHide) return null;
 
-  const targetLocalityId = targetLocality?.id ?? activeSession?.localityId ?? fallbackLocality?.id ?? null;
+  const targetLocalityId = targetLocality?.id ?? activeSession?.localityId ?? localities?.[0]?.id ?? null;
 
   return (
     <>
@@ -81,7 +81,9 @@ export function GlobalQuickFind({ projectId }: { projectId: string }) {
         <QuickFindSheet
           projectId={projectId}
           localityId={targetLocalityId}
-          localityName={targetLocality?.name ?? null}
+          localities={localities ?? []}
+          activeSessionId={activeSession?.id ?? null}
+          activeSessionLocalityId={activeSession?.localityId ?? null}
           onClose={() => setOpen(false)}
           onSaved={() => {}}
         />

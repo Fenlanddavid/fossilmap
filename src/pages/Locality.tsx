@@ -13,7 +13,7 @@ import { SessionFindsList } from "../components/SessionFindsList";
 import { TideBar } from "../components/TideBar";
 import { useConfirmDialog } from "../components/ConfirmModal";
 import { SpecimenLabelSheet } from "../components/SpecimenLabelSheet";
-import { AlertTriangle, ArrowRight, CheckCircle2, ClipboardCheck, FlaskConical, Printer, ShieldAlert, X } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, ClipboardCheck, FlaskConical, PlayCircle, Printer, ShieldAlert, X } from "lucide-react";
 
 const SpecimenModal = React.lazy(() =>
   import("../components/SpecimenModal").then((mod) => ({ default: mod.SpecimenModal }))
@@ -37,7 +37,7 @@ const lithologies: Locality["lithologyPrimary"][] = [
 export default function LocalityPage(props: {
   projectId: string;
   type?: "location" | "trip";
-  onSaved: (id: string) => void;
+  onSaved: (id: string, sessionId?: string) => void;
 }) {
   const { id } = useParams();
   const nav = useNavigate();
@@ -118,6 +118,12 @@ export default function LocalityPage(props: {
           const findCount = await db.specimens.where("sessionId").equals(s.id).count();
           return { ...s, findCount };
       }));
+  }, [id, localityType]);
+
+  const activeTripSession = useLiveQuery(async () => {
+    if (!id || localityType !== "trip") return null;
+    const rows = await db.sessions.where("localityId").equals(id).filter((s) => !s.isFinished).toArray();
+    return rows.sort((a, b) => (b.updatedAt || b.startTime).localeCompare(a.updatedAt || a.startTime))[0] ?? null;
   }, [id, localityType]);
 
   // Fetch all media for the report
@@ -392,11 +398,13 @@ export default function LocalityPage(props: {
         });
       } else {
         await db.localities.add(locality);
+        let createdSessionId: string | undefined;
         
         // If it's a field trip, create an automatic session for it
         if (localityType === "trip") {
+          createdSessionId = uuid();
           await db.sessions.add({
-            id: uuid(),
+            id: createdSessionId,
             projectId: props.projectId,
             localityId: finalId,
             startTime: now,
@@ -409,7 +417,7 @@ export default function LocalityPage(props: {
         }
         
         setIsEditing(false);
-        props.onSaved(finalId);
+        props.onSaved(finalId, createdSessionId);
       }
     } catch (e: any) {
       setError(e?.message ?? "Save failed");
@@ -910,6 +918,15 @@ export default function LocalityPage(props: {
                             </span>
                             <h3 className="text-2xl sm:text-3xl font-black text-gray-800 dark:text-gray-100 mt-2 break-words leading-tight">{name}</h3>
                         </div>
+                        {isTrip && activeTripSession && (
+                            <button
+                                onClick={() => nav(`/session/${activeTripSession.id}`)}
+                                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-emerald-700 hover:shadow-md"
+                            >
+                                <PlayCircle className="h-4 w-4" />
+                                Resume trip
+                            </button>
+                        )}
                     </div>
 
                     <TideBar lat={lat} lon={lon} />

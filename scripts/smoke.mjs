@@ -94,13 +94,28 @@ try {
   await page.getByPlaceholder(/Charmouth|Lyme Regis/i).fill("Smoke Test Field Trip");
   await page.getByPlaceholder(/Name or initials/i).fill("Smoke Tester");
   await page.getByRole("button", { name: /Start Field Trip/i }).click();
-  await page.getByRole("button", { name: /PDF Report/i }).waitFor({ timeout: 6000 });
+  await page.getByText(/Live field trip|New field trip session/i).waitFor({ timeout: 6000 });
+  assert(page.url().includes("/session/"), "Starting a field trip did not open the active session page");
+  const activeSessions = await getStoreRows(page, "sessions");
+  const activeSession = activeSessions.find((item) => !item.isFinished);
+  assert(activeSession?.localityId, "Started field trip did not create an active session");
+  await page.goto(`${baseUrl.replace(/\/$/, "")}/field-trip/${encodeURIComponent(activeSession.localityId)}`, { waitUntil: "domcontentloaded" });
+  await page.getByRole("button", { name: /Resume trip/i }).click();
+  await page.getByText(/Live field trip|New field trip session/i).waitFor({ timeout: 6000 });
+  assert(page.url().includes(`/session/${activeSession.id}`), "Resume trip did not reopen the active session");
 
   await page.goto(`${baseUrl.replace(/\/$/, "")}/map`, { waitUntil: "domcontentloaded" });
   await page.getByText(/Legend/i).waitFor({ timeout: 8000 });
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await page.getByText(/Recent finds/i).waitFor();
+  await page.getByLabel("Quick Find").click();
+  await page.getByLabel(/Add to location/i).waitFor({ timeout: 6000 });
+  await page.getByPlaceholder(/What did you find/i).fill("Quick Smoke Belemnite");
+  await page.getByRole("button", { name: /Log Find/i }).click();
+  await page.getByText(/Logged/i).waitFor({ timeout: 6000 });
+  const quickFindSpecimens = await getStoreRows(page, "specimens");
+  assert(quickFindSpecimens.some((item) => item.taxon === "Quick Smoke Belemnite" && item.localityId), "Quick find was not saved with a selected location");
 
   await page.goto(`${baseUrl.replace(/\/$/, "")}/settings`, { waitUntil: "domcontentloaded" });
   await page.getByText("Backup, profile and app settings.").waitFor();
