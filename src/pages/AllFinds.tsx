@@ -109,10 +109,6 @@ export default function AllFinds(props: { projectId: string }) {
           </button>
         </div>
 
-        <div className="flex justify-center">
-          <FossilMappedLatestFindsWidget />
-        </div>
-
         {view === "all" && (
           <div className="relative mx-auto w-full min-w-0 max-w-xl">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -177,6 +173,8 @@ export default function AllFinds(props: { projectId: string }) {
           ))}
         </div>
       )}
+
+      {view === "all" && <FossilMappedLatestFindsWidget />}
 
       {view === "all" && (specimens?.length ?? 0) > 0 && (
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
@@ -245,8 +243,6 @@ function FossilMappedLatestFindsWidget() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [isOpen, setIsOpen] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
-
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -269,14 +265,12 @@ function FossilMappedLatestFindsWidget() {
     };
   }, []);
 
-  if (dismissed) return null;
-
   return (
-    <div className="relative shrink-0">
+    <div className="flex flex-col gap-2">
       <button
         type="button"
         onClick={() => setIsOpen((value) => !value)}
-        className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-black transition-colors ${
+        className={`inline-flex min-h-10 shrink-0 items-center gap-2 self-start rounded-lg border px-4 py-2.5 text-sm font-black transition-colors ${
           isOpen
             ? "border-emerald-500 bg-emerald-600 text-white"
             : "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/25 dark:text-emerald-200 dark:hover:bg-emerald-950/45"
@@ -287,7 +281,7 @@ function FossilMappedLatestFindsWidget() {
         <ArrowRight className={`h-3.5 w-3.5 transition-transform ${isOpen ? "rotate-90" : ""}`} />
       </button>
 
-      {isOpen && <section className="absolute left-0 top-[calc(100%+0.5rem)] z-30 w-[min(34rem,calc(100vw-2rem))] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-950">
+      {isOpen && <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
         <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-900">
           <div className="min-w-0">
             <p className="text-[9px] font-black uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-300">FossilMapped</p>
@@ -312,15 +306,6 @@ function FossilMappedLatestFindsWidget() {
               title="Hide latest shared finds"
             >
               <X className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setDismissed(true)}
-              className="inline-flex h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-2 text-[10px] font-black uppercase tracking-wide text-slate-500 transition-colors hover:bg-red-50 hover:text-red-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-red-950/30 dark:hover:text-red-300"
-              aria-label="Dismiss latest shared finds"
-              title="Dismiss latest shared finds"
-            >
-              Dismiss
             </button>
           </div>
         </div>
