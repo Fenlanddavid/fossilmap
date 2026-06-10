@@ -65,7 +65,7 @@ function Dots({ active }: { active: number }) {
   );
 }
 
-export default function OnboardingFlow() {
+export default function OnboardingFlow({ suppress = false }: { suppress?: boolean }) {
   const [visible, setVisible] = useState(() => {
     try {
       return !localStorage.getItem(FLAG) || FORCED_THIS_LOAD;
@@ -115,7 +115,7 @@ export default function OnboardingFlow() {
     navigate(pendingDestination);
   }
 
-  if (!visible) return null;
+  if (suppress || !visible) return null;
 
   const skipButton = (
     <button

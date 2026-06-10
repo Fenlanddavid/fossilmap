@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowRight, Calendar, ClipboardList, MapPin, Microscope, Plus, Search, Zap } from "lucide-react";
+import { ArrowRight, Calendar, Camera, ClipboardList, ExternalLink, MapPin, Microscope, Plus, Search, X, Zap } from "lucide-react";
 import { db } from "../db";
 import { SpecimenThumbnail } from "../components/SpecimenThumbnail";
+import { getCommunityUrl } from "../services/community";
+import { CommunityFind, getRecentCommunityFinds } from "../services/communityFinds";
 
 const SpecimenModal = React.lazy(() =>
   import("../components/SpecimenModal").then((mod) => ({ default: mod.SpecimenModal }))
@@ -55,7 +57,7 @@ export default function AllFinds(props: { projectId: string }) {
   );
 
   return (
-    <div className="mx-auto grid max-w-5xl gap-5 pb-10">
+    <div className="mx-auto grid max-w-5xl gap-5 pb-28">
       <header className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -74,8 +76,8 @@ export default function AllFinds(props: { projectId: string }) {
         </div>
       </header>
 
-      <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:flex-row md:items-center md:justify-between">
-        <div className="flex gap-2 overflow-x-auto">
+      <div className="grid gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex justify-center gap-2 overflow-x-auto">
           <button
             onClick={() => setView("all")}
             className={`inline-flex shrink-0 items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-black transition-colors ${
@@ -107,8 +109,12 @@ export default function AllFinds(props: { projectId: string }) {
           </button>
         </div>
 
+        <div className="flex justify-center">
+          <FossilMappedLatestFindsWidget />
+        </div>
+
         {view === "all" && (
-          <div className="relative min-w-0 md:w-96">
+          <div className="relative mx-auto w-full min-w-0 max-w-xl">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               type="search"
@@ -230,6 +236,141 @@ export default function AllFinds(props: { projectId: string }) {
           <SpecimenModal specimenId={openSpecimenId} onClose={() => setOpenSpecimenId(null)} />
         </React.Suspense>
       )}
+    </div>
+  );
+}
+
+function FossilMappedLatestFindsWidget() {
+  const [finds, setFinds] = useState<CommunityFind[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    getRecentCommunityFinds(5)
+      .then((items) => {
+        if (!active) return;
+        setFinds(items);
+        setError("");
+      })
+      .catch((e) => {
+        if (!active) return;
+        setFinds([]);
+        setError(e instanceof Error ? e.message : "Could not load FossilMapped latest finds.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (dismissed) return null;
+
+  return (
+    <div className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => setIsOpen((value) => !value)}
+        className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-black transition-colors ${
+          isOpen
+            ? "border-emerald-500 bg-emerald-600 text-white"
+            : "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/25 dark:text-emerald-200 dark:hover:bg-emerald-950/45"
+        }`}
+        aria-expanded={isOpen}
+      >
+        FossilMapped latest
+        <ArrowRight className={`h-3.5 w-3.5 transition-transform ${isOpen ? "rotate-90" : ""}`} />
+      </button>
+
+      {isOpen && <section className="absolute left-0 top-[calc(100%+0.5rem)] z-30 w-[min(34rem,calc(100vw-2rem))] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-950">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-900">
+          <div className="min-w-0">
+            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-300">FossilMapped</p>
+            <h3 className="truncate text-sm font-black text-slate-950 dark:text-white">Latest shared finds</h3>
+          </div>
+          <div className="flex shrink-0 gap-1.5">
+            <a
+              href={getCommunityUrl()}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="grid h-8 w-8 place-items-center rounded-lg border border-emerald-200 bg-white text-emerald-800 transition-colors hover:bg-emerald-600 hover:text-white dark:border-emerald-800 dark:bg-slate-950 dark:text-emerald-200"
+              aria-label="Open FossilMapped"
+              title="Open FossilMapped"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+            <button
+              type="button"
+              onClick={() => setIsOpen(false)}
+              className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-800"
+              aria-label="Hide latest shared finds"
+              title="Hide latest shared finds"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setDismissed(true)}
+              className="inline-flex h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-2 text-[10px] font-black uppercase tracking-wide text-slate-500 transition-colors hover:bg-red-50 hover:text-red-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-red-950/30 dark:hover:text-red-300"
+              aria-label="Dismiss latest shared finds"
+              title="Dismiss latest shared finds"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+
+        <div className="max-h-96 overflow-y-auto p-2">
+        {loading ? (
+          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-xs font-bold text-slate-500 dark:border-slate-700 dark:bg-slate-950/45 dark:text-slate-400">
+            Loading latest public finds
+          </div>
+        ) : error ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-xs font-bold text-amber-900 dark:border-amber-900 dark:bg-amber-950/25 dark:text-amber-100">
+            {error}
+          </div>
+        ) : finds.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-xs font-bold text-slate-500 dark:border-slate-700 dark:bg-slate-950/45 dark:text-slate-400">
+            No public finds are available yet.
+          </div>
+        ) : (
+          <div className="grid gap-2">
+            {finds.map((find) => (
+              <a
+                key={find.id}
+                href={getCommunityUrl(find.id)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group grid min-w-0 grid-cols-[3.5rem_1fr_auto] gap-3 rounded-lg border border-slate-200 bg-slate-50 p-2 text-left no-underline transition-colors hover:border-emerald-300 hover:bg-white dark:border-slate-800 dark:bg-slate-900/60 dark:hover:border-emerald-800 dark:hover:bg-slate-900"
+              >
+                <div className="aspect-square overflow-hidden rounded-lg bg-slate-200 dark:bg-slate-800">
+                  {find.photos[0] ? (
+                    <img src={find.photos[0]} alt={find.taxon} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="grid h-full place-items-center text-slate-400">
+                      <Camera className="h-5 w-5" />
+                    </div>
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-black text-slate-900 group-hover:text-emerald-700 dark:text-white dark:group-hover:text-emerald-300">{find.taxon}</p>
+                  <p className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">{find.locationName}</p>
+                  <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                    {[find.formation, find.member].filter(Boolean).join(" / ") || "No formation recorded"}
+                  </p>
+                </div>
+                <ArrowRight className="mr-1 mt-5 h-3.5 w-3.5 text-slate-400 transition-transform group-hover:translate-x-0.5 group-hover:text-emerald-600" />
+              </a>
+            ))}
+          </div>
+        )}
+        </div>
+      </section>}
     </div>
   );
 }

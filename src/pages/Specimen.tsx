@@ -8,6 +8,7 @@ import { ScaledImage } from "../components/ScaledImage";
 import { PhotoAnnotator } from "../components/PhotoAnnotator";
 import { captureGPS } from "../services/gps";
 import { formatCoords } from "../services/coords";
+import { formatOsGridRef, OS_GRID_INVALID_MESSAGE, parseOsGridRef } from "../services/osGrid";
 import { calculateQualityScore } from "../services/research";
 import { useConfirmDialog } from "../components/ConfirmModal";
 import { CoachTip } from "../components/CoachTip";
@@ -1232,6 +1233,28 @@ function GpsBlock({ lat, lon, doGPS, setIsPickingLocation, setLat, setLon, setAc
   compact?: boolean;
 }) {
   const coordsLabel = formatCoords(lat, lon);
+  const osGridRef = formatOsGridRef(lat, lon, 8);
+  const [ngrInput, setNgrInput] = useState("");
+  const [ngrError, setNgrError] = useState("");
+
+  function applyNgrInput() {
+    const value = ngrInput.trim();
+    if (!value) {
+      setNgrError("");
+      return;
+    }
+    try {
+      const parsed = parseOsGridRef(value);
+      setLat(parsed.lat);
+      setLon(parsed.lon);
+      setAcc(null);
+      setNgrInput(formatOsGridRef(parsed.lat, parsed.lon, 8) ?? value.toUpperCase());
+      setNgrError("");
+    } catch {
+      setNgrError(OS_GRID_INVALID_MESSAGE);
+    }
+  }
+
   return (
     <div className="bg-blue-50/50 dark:bg-blue-900/20 p-5 rounded-2xl border-2 border-blue-100/50 dark:border-blue-800/30 flex flex-col gap-4">
       <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
@@ -1240,6 +1263,11 @@ function GpsBlock({ lat, lon, doGPS, setIsPickingLocation, setLat, setLon, setAc
           <div className="text-sm sm:text-lg font-mono font-bold text-gray-800 dark:text-gray-100 break-all">
             {coordsLabel ?? <span className="opacity-40 italic text-sm">Coordinates not set</span>}
           </div>
+          {osGridRef && (
+            <div className="text-xs font-bold text-blue-700 dark:text-blue-300">
+              OS grid ref {osGridRef}
+            </div>
+          )}
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
           {!compact && (
@@ -1282,6 +1310,29 @@ function GpsBlock({ lat, lon, doGPS, setIsPickingLocation, setLat, setLon, setAc
           </label>
         </div>
       )}
+      <label className="grid gap-1">
+        <span className="text-[10px] font-bold opacity-50 uppercase tracking-widest text-blue-600 dark:text-blue-400">OS grid ref</span>
+        <input
+          type="text"
+          inputMode="text"
+          autoCapitalize="characters"
+          placeholder="TF 3940 0490"
+          className={`w-full bg-white dark:bg-gray-900 border rounded-xl p-2.5 text-xs font-mono font-bold focus:ring-2 focus:ring-blue-500 outline-none ${ngrError ? "border-red-300 dark:border-red-700" : "border-blue-100 dark:border-blue-800"}`}
+          value={ngrInput}
+          onChange={(e) => {
+            setNgrInput(e.target.value.toUpperCase());
+            if (ngrError) setNgrError("");
+          }}
+          onBlur={applyNgrInput}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              applyNgrInput();
+            }
+          }}
+        />
+        {ngrError && <span className="text-[11px] font-bold text-red-600 dark:text-red-300">{ngrError}</span>}
+      </label>
     </div>
   );
 }

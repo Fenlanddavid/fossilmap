@@ -1,4 +1,6 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import maplibregl from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
 import { useLiveQuery } from "dexie-react-hooks";
 import { v4 as uuid } from "uuid";
 import {
@@ -20,12 +22,15 @@ import { db } from "../db";
 import { SpecimenThumbnail } from "../components/SpecimenThumbnail";
 import { LocalityThumbnail } from "../components/LocalityThumbnail";
 import { getCommunityUrl } from "../services/community";
+import { CommunityFind, getRecentCommunityFinds } from "../services/communityFinds";
 import { formatDisplayDate } from "../services/dates";
 import { fileToBlob } from "../services/photos";
 
 const SpecimenModal = React.lazy(() =>
   import("../components/SpecimenModal").then((mod) => ({ default: mod.SpecimenModal }))
 );
+
+const COMMUNITY_LANDING_DISMISSED_KEY = "fm_home_community_landing_dismissed";
 
 export default function Home(props: {
   projectId: string;
@@ -52,6 +57,13 @@ export default function Home(props: {
       return localStorage.getItem("fm_home_next_move_dismissed") ?? "";
     } catch {
       return "";
+    }
+  });
+  const [showCommunityLanding, setShowCommunityLanding] = useState(() => {
+    try {
+      return localStorage.getItem(COMMUNITY_LANDING_DISMISSED_KEY) !== "1";
+    } catch {
+      return true;
     }
   });
 
@@ -307,6 +319,24 @@ export default function Home(props: {
     try {
       localStorage.setItem("fm_home_next_move_dismissed", key);
     } catch {}
+  }
+
+  function dismissCommunityLanding() {
+    setShowCommunityLanding(false);
+    try {
+      localStorage.setItem(COMMUNITY_LANDING_DISMISSED_KEY, "1");
+    } catch {}
+  }
+
+  if (dashboard && !hasAnyData && showCommunityLanding) {
+    return (
+      <CommunityLanding
+        goFieldTrip={props.goFieldTrip}
+        goSpecimen={() => props.goSpecimen()}
+        goNewLocality={props.goNewLocality}
+        onClose={dismissCommunityLanding}
+      />
+    );
   }
 
   return (
@@ -580,6 +610,257 @@ export default function Home(props: {
   );
 }
 
+function CommunityLanding(props: {
+  goFieldTrip: () => void;
+  goSpecimen: () => void;
+  goNewLocality: () => void;
+  onClose: () => void;
+}) {
+  const [finds, setFinds] = useState<CommunityFind[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    getRecentCommunityFinds(10)
+      .then((items) => {
+        if (!active) return;
+        setFinds(items);
+        setMessage(items.length > 0 ? "" : "The public registry is reachable but has no shared records yet.");
+      })
+      .catch((error) => {
+        if (!active) return;
+        setFinds([]);
+        setMessage(error instanceof Error ? error.message : "Could not load the public registry.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  return (
+    <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-5 pb-28">
+      <section className="relative grid min-w-0 gap-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 lg:grid-cols-[minmax(0,1.35fr)_minmax(20rem,0.65fr)]">
+        <button
+          type="button"
+          onClick={props.onClose}
+          className="absolute right-3 top-3 z-20 grid h-9 w-9 place-items-center rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-800"
+          aria-label="Close public map"
+          title="Close public map"
+        >
+          <X className="h-4 w-4" />
+        </button>
+        <div className="min-w-0">
+          <div className="mb-3 flex flex-col gap-3 pr-11 sm:pr-12 lg:flex-row lg:items-end lg:justify-between">
+            <div className="min-w-0 max-w-2xl">
+              <p className="mb-1 text-[11px] font-black uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-300">FossilMapped community</p>
+              <h2 className="text-xl font-black leading-tight tracking-tight text-slate-950 dark:text-white sm:text-2xl">See recent shared fossils before you start recording.</h2>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <a
+                href={getCommunityUrl()}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={props.onClose}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-xs font-black uppercase tracking-wider text-emerald-800 no-underline hover:bg-emerald-600 hover:text-white dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200"
+              >
+                FossilMapped
+                <ArrowRight className="h-3.5 w-3.5" />
+              </a>
+            </div>
+          </div>
+          <PublicCommunityMap finds={finds} loading={loading} message={message} />
+        </div>
+
+        <aside className="grid min-w-0 content-start gap-3">
+          <CommunityRecentFinds finds={finds} loading={loading} message={message} />
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/45">
+            <h3 className="text-sm font-black text-slate-950 dark:text-white">Record your own find</h3>
+            <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+              FossilMap stores your field book locally. Share individual records only when you choose.
+            </p>
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3 lg:grid-cols-1">
+              <button onClick={props.goFieldTrip} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 text-sm font-black text-white shadow-sm hover:bg-emerald-700">
+                <Compass className="h-4 w-4" />
+                Field Trip
+              </button>
+              <button onClick={props.goSpecimen} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-black text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                <Microscope className="h-4 w-4" />
+                Specimen
+              </button>
+              <button onClick={props.goNewLocality} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-black text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                <MapPin className="h-4 w-4" />
+                Locality
+              </button>
+            </div>
+          </div>
+        </aside>
+      </section>
+    </div>
+  );
+}
+
+function PublicCommunityMap({ finds, loading, message }: { finds: CommunityFind[]; loading: boolean; message: string }) {
+  const mapDivRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<maplibregl.Map | null>(null);
+
+  const featureCollection = useMemo(() => ({
+    type: "FeatureCollection" as const,
+    features: finds
+      .filter((find) => typeof find.lat === "number" && typeof find.lon === "number")
+      .map((find) => ({
+        type: "Feature" as const,
+        geometry: { type: "Point" as const, coordinates: [find.lon as number, find.lat as number] as [number, number] },
+        properties: {
+          id: find.id,
+          taxon: find.taxon,
+          verificationStatus: find.verificationStatus ?? "community",
+        },
+      })),
+  }), [finds]);
+
+  useEffect(() => {
+    if (!mapDivRef.current || mapRef.current) return;
+    const map = new maplibregl.Map({
+      container: mapDivRef.current,
+      style: {
+        version: 8,
+        sources: {
+          "raster-tiles": {
+            type: "raster",
+            tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+            tileSize: 256,
+            attribution: "© OpenStreetMap contributors",
+            maxzoom: 19,
+          },
+        },
+        layers: [{ id: "simple-tiles", type: "raster", source: "raster-tiles", minzoom: 0, maxzoom: 24 }],
+      },
+      center: [-2.0, 54.5],
+      zoom: 5,
+      clickTolerance: 40,
+    });
+
+    map.on("load", () => {
+      map.addSource("community-finds", { type: "geojson", data: featureCollection as any });
+      map.addLayer({
+        id: "community-find-pins",
+        type: "circle",
+        source: "community-finds",
+        paint: {
+          "circle-color": ["match", ["get", "verificationStatus"], "research_grade", "#10b981", "verified", "#38bdf8", "#f59e0b"],
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 5, 7, 10, 11, 15, 16],
+          "circle-stroke-width": 2,
+          "circle-stroke-color": "#ffffff",
+          "circle-opacity": 0.88,
+        },
+      });
+      map.on("click", "community-find-pins", (event) => {
+        const id = event.features?.[0]?.properties?.id;
+        if (id) window.open(getCommunityUrl(String(id)), "_blank", "noopener,noreferrer");
+      });
+      map.on("mouseenter", "community-find-pins", () => (map.getCanvas().style.cursor = "pointer"));
+      map.on("mouseleave", "community-find-pins", () => (map.getCanvas().style.cursor = ""));
+      setTimeout(() => map.resize(), 0);
+    });
+
+    mapRef.current = map;
+    const ro = new ResizeObserver(() => map.resize());
+    ro.observe(mapDivRef.current);
+
+    return () => {
+      ro.disconnect();
+      map.remove();
+      mapRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const update = () => {
+      const source = map.getSource("community-finds") as maplibregl.GeoJSONSource | undefined;
+      if (source) source.setData(featureCollection as any);
+    };
+    if (map.isStyleLoaded() && map.getSource("community-finds")) update();
+    else map.once("load", update);
+    return () => {
+      map.off("load", update);
+    };
+  }, [featureCollection]);
+
+  return (
+    <div className="fossilmap-map-frame relative min-h-[18rem] overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-950 sm:min-h-[30rem]">
+      <div ref={mapDivRef} className="h-[18rem] w-full sm:h-[30rem]" />
+      <div className="absolute left-3 top-3 z-10 rounded-lg border border-white/70 bg-white/90 px-3 py-2 text-xs font-black text-slate-700 shadow-lg backdrop-blur dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-200">
+        {loading ? "Loading public map" : `${featureCollection.features.length} public records`}
+      </div>
+      {!loading && message && (
+        <div className="absolute inset-x-3 bottom-3 z-10 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-900 shadow-lg dark:border-amber-900 dark:bg-amber-950/85 dark:text-amber-100">
+          {message}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CommunityRecentFinds({ finds, loading, message }: { finds: CommunityFind[]; loading: boolean; message: string }) {
+  return (
+    <div className="min-w-0 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="mb-3 flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-black text-slate-950 dark:text-white">Recent finds</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{loading ? "Loading shared records" : `${finds.length} latest shared`}</p>
+        </div>
+      </div>
+      {loading ? (
+        <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-5 text-center text-xs font-bold text-slate-500 dark:border-slate-700 dark:bg-slate-950/45 dark:text-slate-400">
+          Loading community activity
+        </div>
+      ) : finds.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-5 text-center text-xs font-bold text-slate-500 dark:border-slate-700 dark:bg-slate-950/45 dark:text-slate-400">
+          {message || "No public finds yet."}
+        </div>
+      ) : (
+        <div className="grid max-h-[30rem] gap-2 overflow-y-auto pr-1">
+          {finds.map((find) => (
+            <a
+              key={find.id}
+              href={getCommunityUrl(find.id)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group grid min-w-0 grid-cols-[3.75rem_1fr_auto] gap-3 rounded-xl border border-slate-200 bg-slate-50 p-2 text-left no-underline transition-all hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-white hover:shadow-md dark:border-slate-800 dark:bg-slate-950/50 dark:hover:border-emerald-800 dark:hover:bg-slate-950"
+            >
+              <div className="aspect-square overflow-hidden rounded-lg bg-slate-200 dark:bg-slate-800">
+                {find.photos[0] ? (
+                  <img src={find.photos[0]} alt={find.taxon} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="grid h-full place-items-center text-slate-400">
+                    <Camera className="h-5 w-5" />
+                  </div>
+                )}
+              </div>
+              <div className="min-w-0 self-center">
+                <p className="truncate text-sm font-black text-slate-900 group-hover:text-emerald-700 dark:text-white dark:group-hover:text-emerald-300">{find.taxon}</p>
+                <p className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">{find.locationName}</p>
+                <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                  {[find.formation, find.member].filter(Boolean).join(" / ") || "No formation recorded"}
+                </p>
+                <p className="mt-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">{relativeDate(find.sharedAt)}</p>
+              </div>
+              <ArrowRight className="mr-1 mt-5 h-3.5 w-3.5 text-slate-400 transition-transform group-hover:translate-x-0.5 group-hover:text-emerald-600" />
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function NextMovePanel(props: {
   moves: Array<{
     key: string;
@@ -713,6 +994,21 @@ function isBackupStale(value: string | undefined) {
   const backupTime = new Date(value).getTime();
   if (!Number.isFinite(backupTime)) return true;
   return Date.now() - backupTime > 30 * 24 * 60 * 60 * 1000;
+}
+
+function relativeDate(value: string) {
+  const time = new Date(value).getTime();
+  if (!Number.isFinite(time)) return "Unknown";
+  const diffMs = Date.now() - time;
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+  if (diffMs < minute) return "Just now";
+  if (diffMs < hour) return `${Math.max(1, Math.round(diffMs / minute))}m ago`;
+  if (diffMs < day) return `${Math.max(1, Math.round(diffMs / hour))}h ago`;
+  const days = Math.max(1, Math.round(diffMs / day));
+  if (days < 30) return `${days}d ago`;
+  return formatDisplayDate(value);
 }
 
 function EmptyState({ icon: Icon, title, detail, actionLabel, onAction }: { icon: React.ComponentType<{ className?: string }>; title: string; detail: string; actionLabel: string; onAction: () => void }) {

@@ -1,5 +1,5 @@
 import React, { Suspense, useCallback, useEffect, useState } from "react";
-import { BrowserRouter, Link, NavLink, Route, Routes, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { BrowserRouter, Link, NavLink, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import {
@@ -77,6 +77,7 @@ function Shell() {
   const [showQuotaWarning, setShowQuotaWarning] = useState(false);
   const [updatingApp, setUpdatingApp] = useState(false);
   const nav = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     ensureDefaultProject().then(setProjectId);
@@ -160,6 +161,7 @@ function Shell() {
     (dataCount?.total ?? 0) > 0 &&
     !isBackupSnoozed &&
     backupIsStale;
+  const suppressOnboardingForPublicLanding = location.pathname === "/" && dataCount?.total === 0;
 
   const androidIntentUrl = `intent://${window.location.host}${window.location.pathname}#Intent;scheme=https;package=com.android.chrome;end`;
 
@@ -443,7 +445,7 @@ function Shell() {
       </nav>
 
       <GlobalQuickFind projectId={projectId} />
-      <OnboardingFlow />
+      <OnboardingFlow suppress={suppressOnboardingForPublicLanding} />
       {dialog}
     </div>
   );

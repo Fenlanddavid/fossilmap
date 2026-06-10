@@ -11,6 +11,7 @@ import { ScaledImage } from "./ScaledImage";
 import { PhotoAnnotator } from "./PhotoAnnotator";
 import { captureGPS } from "../services/gps";
 import { formatCoords, getFiniteCoords } from "../services/coords";
+import { formatOsGridRef, OS_GRID_INVALID_MESSAGE, parseOsGridRef } from "../services/osGrid";
 import { uploadSharedFind, deleteSharedFind, updateSharedFindPrecision } from "../services/supabase";
 import { calculateQualityScore, generateHRID, getQualityColor, getQualityLabel } from "../services/research";
 import { getCommunityUrl } from "../services/community";
@@ -70,6 +71,8 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
   const [includeShareEmail, setIncludeShareEmail] = useState(true);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const [showLabelSheet, setShowLabelSheet] = useState(false);
+  const [ngrInput, setNgrInput] = useState("");
+  const [ngrError, setNgrError] = useState("");
   
   const qualityScore = useMemo(() => {
     if (!draft) return 0;
@@ -589,6 +592,8 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
     try {
       const fix = await captureGPS();
       setDraft(prev => prev ? { ...prev, lat: fix.lat, lon: fix.lon, gpsAccuracyM: fix.accuracyM } : null);
+      setNgrInput("");
+      setNgrError("");
     } catch (e: any) {
       await notify({
         title: "GPS failed",
@@ -597,6 +602,22 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
       });
     } finally {
       setBusy(false);
+    }
+  }
+
+  function applyNgrInput() {
+    const value = ngrInput.trim();
+    if (!value) {
+      setNgrError("");
+      return;
+    }
+    try {
+      const parsed = parseOsGridRef(value);
+      setDraft(prev => prev ? { ...prev, lat: parsed.lat, lon: parsed.lon, gpsAccuracyM: null } : null);
+      setNgrInput(formatOsGridRef(parsed.lat, parsed.lon, 8) ?? value.toUpperCase());
+      setNgrError("");
+    } catch {
+      setNgrError(OS_GRID_INVALID_MESSAGE);
     }
   }
 
@@ -615,6 +636,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
   );
   const draftCoords = getFiniteCoords(draft.lat, draft.lon);
   const draftCoordsLabel = formatCoords(draft.lat, draft.lon);
+  const draftOsGridRef = formatOsGridRef(draft.lat, draft.lon, 8);
   const currentPrecision = isPrecisionLevel(draft.locationPrecision)
     ? draft.locationPrecision
     : draft.isShared
@@ -1010,6 +1032,11 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
                           <div className="font-mono mt-0.5 font-bold text-gray-800 dark:text-gray-100">
                               {draftCoordsLabel ?? "Not set"}
                           </div>
+                          {draftOsGridRef && (
+                            <div className="mt-1 text-[11px] font-bold text-blue-700 dark:text-blue-300">
+                              OS grid ref {draftOsGridRef}
+                            </div>
+                          )}
                       </div>
                       <div className="flex gap-2 w-full sm:w-auto">
                           <button 
@@ -1045,6 +1072,29 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
                           />
                       </label>
                   </div>
+                  <label className="grid gap-1">
+                      <span className="text-[10px] font-bold opacity-50 uppercase tracking-widest text-blue-600 dark:text-blue-400">OS grid ref</span>
+                      <input
+                          type="text"
+                          inputMode="text"
+                          autoCapitalize="characters"
+                          placeholder="TF 3940 0490"
+                          className={`w-full bg-white dark:bg-gray-900 border rounded-xl p-2.5 text-xs font-mono font-bold focus:ring-2 focus:ring-blue-500 outline-none transition-all ${ngrError ? "border-red-300 dark:border-red-700" : "border-blue-100 dark:border-blue-800"}`}
+                          value={ngrInput}
+                          onChange={(e) => {
+                            setNgrInput(e.target.value.toUpperCase());
+                            if (ngrError) setNgrError("");
+                          }}
+                          onBlur={applyNgrInput}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              applyNgrInput();
+                            }
+                          }}
+                      />
+                      {ngrError && <span className="text-[11px] font-bold text-red-600 dark:text-red-300">{ngrError}</span>}
+                  </label>
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/40">
@@ -1219,7 +1269,10 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
 
                   {draftCoords && (
                     <div className="mt-4 flex items-center justify-between bg-blue-50/50 dark:bg-blue-900/10 px-4 py-2 rounded-xl border border-blue-100 dark:border-blue-900/30">
-                        <div className="text-[10px] font-mono font-bold text-blue-600">📍 {draftCoordsLabel}</div>
+                        <div className="text-[10px] font-mono font-bold text-blue-600">
+                          <div>📍 {draftCoordsLabel}</div>
+                          {draftOsGridRef && <div className="mt-1">OS grid ref {draftOsGridRef}</div>}
+                        </div>
                         <button onClick={() => window.open(`https://www.google.com/maps?q=${draftCoords.lat},${draftCoords.lon}`, "_blank")} className="text-[9px] font-black text-blue-500 hover:underline uppercase">View Map ↗</button>
                     </div>
                   )}
