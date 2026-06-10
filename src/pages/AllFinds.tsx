@@ -178,54 +178,52 @@ export default function AllFinds(props: { projectId: string }) {
             <button
               key={s.id}
               onClick={() => setOpenSpecimenId(s.id)}
-              className="group relative flex min-h-44 overflow-hidden rounded-xl border border-slate-200 bg-white text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900 dark:hover:border-emerald-800"
+              className="group relative flex min-h-72 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900 dark:hover:border-emerald-800"
             >
               <div className={`absolute inset-x-0 top-0 h-1 ${
                 s.taxonConfidence === "high" ? "bg-emerald-400" :
                 s.taxonConfidence === "low" ? "bg-red-400" :
                 "bg-amber-400"
               }`} />
-              <div className="grid min-w-0 flex-1 grid-cols-[7rem_1fr]">
-                <div className="relative aspect-square border-r border-slate-100 bg-slate-100 dark:border-slate-800 dark:bg-slate-950">
-                  <SpecimenThumbnail specimenId={s.id} className="h-full w-full" imgClassName="object-cover" />
-                  <span className="absolute left-2 top-2 max-w-[6rem] truncate rounded bg-black/65 px-1.5 py-0.5 font-mono text-[9px] font-bold text-white shadow-sm backdrop-blur">
-                    {s.specimenCode}
+              <div className="relative aspect-[4/3] w-full border-b border-slate-100 bg-slate-100 dark:border-slate-800 dark:bg-slate-950">
+                <SpecimenThumbnail specimenId={s.id} className="h-full w-full" imgClassName="object-cover" />
+                <span className="absolute left-2 top-3 max-w-[calc(100%-1rem)] truncate rounded bg-black/65 px-1.5 py-0.5 font-mono text-[9px] font-bold text-white shadow-sm backdrop-blur">
+                  {s.specimenCode}
+                </span>
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-slate-950/55 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+              </div>
+
+              <div className="flex min-w-0 flex-1 flex-col p-4">
+                <h3 className="truncate text-base font-black text-slate-950 transition-colors group-hover:text-emerald-700 dark:text-white dark:group-hover:text-emerald-300">
+                  {s.taxon || "Unidentified"}
+                </h3>
+
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {s.period && <Pill>{s.period}</Pill>}
+                  {s.stage && <Pill>{s.stage}</Pill>}
+                  <span className={`rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide ${
+                    s.taxonConfidence === "high" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200" :
+                    s.taxonConfidence === "med" ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200" :
+                    "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200"
+                  }`}>
+                    {s.taxonConfidence} confidence
                   </span>
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-slate-950/55 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
                 </div>
 
-                <div className="flex min-w-0 flex-col p-4">
-                  <h3 className="truncate text-base font-black text-slate-950 transition-colors group-hover:text-emerald-700 dark:text-white dark:group-hover:text-emerald-300">
-                    {s.taxon || "Unidentified"}
-                  </h3>
-
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {s.period && <Pill>{s.period}</Pill>}
-                    {s.stage && <Pill>{s.stage}</Pill>}
-                    <span className={`rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide ${
-                      s.taxonConfidence === "high" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200" :
-                      s.taxonConfidence === "med" ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200" :
-                      "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200"
-                    }`}>
-                      {s.taxonConfidence} confidence
-                    </span>
+                <div className="mt-3 grid gap-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                  <div className="flex items-center gap-1.5">
+                    <Microscope className="h-3.5 w-3.5" />
+                    <span className="truncate">{s.element || "Unknown element"}</span>
                   </div>
-
-                  <div className="mt-3 grid gap-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                    <div className="flex items-center gap-1.5">
-                      <Microscope className="h-3.5 w-3.5" />
-                      <span className="truncate">{s.element || "Unknown element"}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <Calendar className="h-3.5 w-3.5" />
-                      <span>{new Date(s.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
-                    </div>
+                  <div className="flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5" />
+                    <span>{new Date(s.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
                   </div>
+                </div>
 
-                  <div className="mt-auto flex items-center justify-end gap-1 pt-4 text-[10px] font-black text-emerald-700 dark:text-emerald-400">
-                    Open
-                    <ArrowRight className="h-3.5 w-3.5 shrink-0 transition-transform group-hover:translate-x-0.5" />
-                  </div>
+                <div className="mt-auto flex items-center justify-end gap-1 pt-4 text-[10px] font-black text-emerald-700 dark:text-emerald-400">
+                  Open
+                  <ArrowRight className="h-3.5 w-3.5 shrink-0 transition-transform group-hover:translate-x-0.5" />
                 </div>
               </div>
             </button>
