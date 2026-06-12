@@ -162,6 +162,7 @@ function Shell() {
     !isBackupSnoozed &&
     backupIsStale;
   const suppressOnboardingForPublicLanding = location.pathname === "/" && dataCount?.total === 0;
+  const suppressOnboarding = suppressOnboardingForPublicLanding || location.pathname !== "/";
 
   const androidIntentUrl = `intent://${window.location.host}${window.location.pathname}#Intent;scheme=https;package=com.android.chrome;end`;
 
@@ -445,7 +446,7 @@ function Shell() {
       </nav>
 
       <GlobalQuickFind projectId={projectId} />
-      <OnboardingFlow suppress={suppressOnboardingForPublicLanding} />
+      <OnboardingFlow suppress={suppressOnboarding} />
       {dialog}
     </div>
   );

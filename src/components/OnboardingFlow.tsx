@@ -127,8 +127,8 @@ export default function OnboardingFlow({ suppress = false }: { suppress?: boolea
   );
 
   return (
-    <div className="fixed inset-0 z-[220] flex items-end justify-center bg-slate-950/85 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-      <div className="max-h-[92vh] w-full overflow-y-auto rounded-t-3xl border border-white/10 bg-slate-950 p-6 text-white shadow-2xl sm:max-w-lg sm:rounded-3xl sm:p-7">
+    <div className="fixed inset-0 z-[220] flex items-center justify-center bg-slate-950/85 p-3 backdrop-blur-sm sm:p-4">
+      <div className="max-h-[calc(100svh-1.5rem)] w-full overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-5 text-white shadow-2xl sm:max-w-lg sm:p-7">
         <div className="mb-2 flex justify-end">
           <button
             onClick={dismiss}
@@ -178,14 +178,16 @@ export default function OnboardingFlow({ suppress = false }: { suppress?: boolea
               </div>
             </div>
 
-            <button
-              onClick={() => setStep("choose")}
-              className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-5 py-3.5 text-sm font-black text-white shadow-lg shadow-emerald-950/40 transition-colors hover:bg-emerald-400"
-            >
-              Get started
-              <ChevronRight className="h-4 w-4" />
-            </button>
-            {skipButton}
+            <div className="sticky bottom-0 -mx-5 -mb-5 bg-slate-950/95 px-5 pb-5 pt-3 backdrop-blur sm:static sm:m-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-0">
+              <button
+                onClick={() => setStep("choose")}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-5 py-3.5 text-sm font-black text-white shadow-lg shadow-emerald-950/40 transition-colors hover:bg-emerald-400 sm:mt-6"
+              >
+                Get started
+                <ChevronRight className="h-4 w-4" />
+              </button>
+              {skipButton}
+            </div>
           </>
         )}
 

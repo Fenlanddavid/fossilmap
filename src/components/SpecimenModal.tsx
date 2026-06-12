@@ -12,7 +12,7 @@ import { PhotoAnnotator } from "./PhotoAnnotator";
 import { captureGPS } from "../services/gps";
 import { formatCoords, getFiniteCoords } from "../services/coords";
 import { formatOsGridRef, OS_GRID_INVALID_MESSAGE, parseOsGridRef } from "../services/osGrid";
-import { uploadSharedFind, deleteSharedFind, updateSharedFindPrecision } from "../services/supabase";
+import { canEditSharedFinds, uploadSharedFind, deleteSharedFind, updateSharedFindPrecision } from "../services/supabase";
 import { calculateQualityScore, generateHRID, getQualityColor, getQualityLabel } from "../services/research";
 import { getCommunityUrl } from "../services/community";
 import { useConfirmDialog } from "./ConfirmModal";
@@ -288,6 +288,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
         publicLongitude: publicCoords.lon,
         locationPrecision: chosenPrecision,
         precisionLocked: chosenPrecision !== "exact",
+        coordinatesReleased: chosenPrecision === "exact",
         dateCollected: draft.dateCollected ?? draft.createdAt,
         photos: photos,
         measurements: {
@@ -310,7 +311,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
           await uploadSharedFind(payload);
           break;
         } catch (error) {
-          if (draft.hrid || attempt === 4 || !isUniqueConflict(error)) throw error;
+          if (draft.hrid || attempt === 4 || !isHridUniqueConflict(error)) throw error;
           hrid = generateHRID();
         }
       }
@@ -453,7 +454,8 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
         nextPrecision,
         nextPrecisionLocked,
         nextPublicCoords.lat,
-        nextPublicCoords.lon
+        nextPublicCoords.lon,
+        shareExact
       );
 
       const patch = {
@@ -652,6 +654,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
     : precisionLabel(sharePrec);
   const communityUrl = getCommunityUrl(draft.hrid);
   const locationIsExact = draft.isShared ? sharedExactLocation : shareExactLocation;
+  const sharedFindEditsAvailable = canEditSharedFinds();
   const qualityLabel = getQualityLabel(qualityScore);
   const communitySharePanel = (
     <section className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3 shadow-sm dark:border-emerald-900/60 dark:bg-emerald-950/20 sm:p-4">
@@ -713,12 +716,17 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
                   ? "Best for site-level research where public coordinates are acceptable."
                   : "A rounded area marker is shown on the public map."}
               </p>
+              {draft.isShared && !sharedFindEditsAvailable && (
+                <p className="mt-2 text-[10px] font-semibold text-amber-600 dark:text-amber-300">
+                  Precision changes require a configured trusted server function.
+                </p>
+              )}
             </div>
 
             <div className="inline-flex h-9 rounded-lg border border-slate-200 bg-slate-100 p-1 dark:border-slate-700 dark:bg-slate-800">
               <button
                 type="button"
-                disabled={sharing || (!draft.isShared && !shareExactLocation) || (draft.isShared && !sharedExactLocation)}
+                disabled={sharing || (!draft.isShared && !shareExactLocation) || (draft.isShared && (!sharedExactLocation || !sharedFindEditsAvailable))}
                 onClick={() => {
                   if (draft.isShared) handleTogglePrecision();
                   else setSharePrec("1km");
@@ -733,7 +741,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
               </button>
               <button
                 type="button"
-                disabled={sharing || (!draft.isShared && shareExactLocation) || (draft.isShared && sharedExactLocation)}
+                disabled={sharing || (!draft.isShared && shareExactLocation) || (draft.isShared && (sharedExactLocation || !sharedFindEditsAvailable))}
                 onClick={() => {
                   if (draft.isShared) handleTogglePrecision();
                   else setSharePrec("exact");
@@ -789,7 +797,7 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
                 <button
                   type="button"
                   onClick={unshareFromCommunity}
-                  disabled={sharing}
+                  disabled={sharing || !sharedFindEditsAvailable}
                   className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-wider text-red-600 transition-colors hover:bg-red-600 hover:text-white disabled:cursor-wait disabled:opacity-60 dark:border-red-900/60 dark:bg-slate-900 dark:text-red-300 sm:flex-none"
                 >
                   {sharing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
@@ -1382,9 +1390,8 @@ export function SpecimenModal(props: { specimenId: string; onClose: () => void }
   );
 }
 
-function isUniqueConflict(error: unknown): boolean {
+function isHridUniqueConflict(error: unknown): boolean {
   const e = error as { code?: string; message?: string; details?: string; hint?: string };
-  if (e?.code === "23505") return true;
   const text = [e?.message, e?.details, e?.hint].filter(Boolean).join(" ");
-  return /duplicate key|unique constraint|shared_finds_hrid|hrid/i.test(text);
+  return e?.code === "23505" && /shared_finds_hrid|hrid/i.test(text);
 }

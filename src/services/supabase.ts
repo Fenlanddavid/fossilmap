@@ -2,8 +2,32 @@ import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://YOUR_PROJECT_ID.supabase.co'
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'YOUR_ANON_KEY'
+const sharedFindWriteFunctionName = (
+  (import.meta.env.VITE_SHARED_FINDS_WRITE_FUNCTION as string | undefined) ||
+  (import.meta.env.VITE_SHARED_FINDS_ADMIN_FUNCTION as string | undefined) ||
+  ''
+).trim()
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+
+export function canEditSharedFinds() {
+  return Boolean(sharedFindWriteFunctionName)
+}
+
+async function invokeSharedFindWrite(action: string, payload: Record<string, unknown>) {
+  if (!sharedFindWriteFunctionName) {
+    throw new Error('Shared find edits require a trusted Supabase Edge Function. Set VITE_SHARED_FINDS_WRITE_FUNCTION before enabling remove or precision changes.')
+  }
+
+  const { data, error } = await supabase.functions.invoke(sharedFindWriteFunctionName, {
+    body: { action, ...payload },
+  })
+
+  if (error) throw error
+  if (data && typeof data === 'object' && 'error' in data) {
+    throw new Error(String((data as { error: unknown }).error))
+  }
+}
 
 /** Mirrors the shared_finds table column names exactly. Keep in sync with FossilMapped's SharedFind type. */
 export interface SharedFindPayload {
@@ -26,6 +50,7 @@ export interface SharedFindPayload {
   publicLongitude: number;
   locationPrecision: 'exact' | '100m' | '1km' | 'locality';
   precisionLocked: boolean;
+  coordinatesReleased: boolean;
   dateCollected: string;
   photos: string[];
   measurements: { length?: number | null; width?: number | null; thickness?: number | null; weight?: number | null };
@@ -41,11 +66,11 @@ export async function uploadSharedFind(payload: SharedFindPayload): Promise<void
     throw new Error("Supabase configuration is missing. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.");
   }
 
-  // upsert without .select() — avoids a TypeError if RLS blocks the read-back.
-  // The write itself is what matters; callers don't use the returned row.
+  // Insert without .select() — avoids a read-back requirement and keeps the
+  // public anon client aligned with insert-only RLS.
   const { error } = await supabase
     .from('shared_finds')
-    .upsert([{
+    .insert([{
         fossilmap_id: payload.id,
         is_deleted: false,
         hrid: payload.hrid,
@@ -65,6 +90,7 @@ export async function uploadSharedFind(payload: SharedFindPayload): Promise<void
         public_longitude: payload.publicLongitude,
         location_precision: payload.locationPrecision,
         precision_locked: payload.precisionLocked,
+        coordinates_released: payload.coordinatesReleased,
         date_collected: payload.dateCollected,
         photos: payload.photos,
         measurements: payload.measurements,
@@ -74,19 +100,15 @@ export async function uploadSharedFind(payload: SharedFindPayload): Promise<void
         verification_status: payload.verification_status || 'community',
         notes: payload.notes,
         shared_at: payload.sharedAt
-    }], { onConflict: 'fossilmap_id' })
+    }])
 
   if (error) throw error
 }
 
 export async function deleteSharedFind(fossilmapId: string) {
-  // Soft delete — preserves the record for research provenance
-  const { error } = await supabase
-    .from('shared_finds')
-    .update({ is_deleted: true, deleted_at: new Date().toISOString() })
-    .eq('fossilmap_id', fossilmapId)
-
-  if (error) throw error
+  const cleanId = fossilmapId.trim()
+  if (!cleanId) throw new Error('Delete failed: missing FossilMap record ID.')
+  await invokeSharedFindWrite('deleteSharedFind', { fossilmapId: cleanId })
 }
 
 export async function updateSharedFindPrecision(
@@ -94,21 +116,21 @@ export async function updateSharedFindPrecision(
   locationPrecision: SharedFindPayload['locationPrecision'],
   precisionLocked: boolean,
   publicLatitude: number,
-  publicLongitude: number
+  publicLongitude: number,
+  coordinatesReleased: boolean
 ) {
   if (supabaseUrl.includes('YOUR_PROJECT_ID')) {
     throw new Error("Supabase configuration is missing. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.");
   }
 
-  const { error } = await supabase
-    .from('shared_finds')
-    .update({
-      location_precision: locationPrecision,
-      precision_locked: precisionLocked,
-      public_latitude: publicLatitude,
-      public_longitude: publicLongitude,
-    })
-    .eq('fossilmap_id', fossilmapId)
-
-  if (error) throw error
+  const cleanId = fossilmapId.trim()
+  if (!cleanId) throw new Error('Precision update failed: missing FossilMap record ID.')
+  await invokeSharedFindWrite('updateSharedFindPrecision', {
+    fossilmapId: cleanId,
+    locationPrecision,
+    precisionLocked,
+    publicLatitude,
+    publicLongitude,
+    coordinatesReleased,
+  })
 }
