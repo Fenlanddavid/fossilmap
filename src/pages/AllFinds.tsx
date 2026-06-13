@@ -1,11 +1,23 @@
 import React, { useEffect, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowRight, Calendar, Camera, ClipboardList, ExternalLink, MapPin, Microscope, Plus, Search, X, Zap } from "lucide-react";
-import { db } from "../db";
+import { ArrowRight, Calendar, Camera, CheckCircle2, ClipboardList, ExternalLink, Layers, Loader2, MapPin, Microscope, Plus, Search, X, Zap } from "lucide-react";
+import { db, type Locality } from "../db";
 import { SpecimenThumbnail } from "../components/SpecimenThumbnail";
+import { Modal } from "../components/Modal";
 import { getCommunityUrl } from "../services/community";
 import { CommunityFind, getRecentCommunityFinds } from "../services/communityFinds";
+import {
+  analyseFindForLocalitySetup,
+  applyClusterProposal,
+  attachFindToLocality,
+  clusterPendingFinds,
+  createLocalityFromFind,
+  formatDistance,
+  updateLocalityFromSuggestion,
+  type ClusterProposal,
+  type LocalitySetupAnalysis,
+} from "../services/localitySetup";
 
 const SpecimenModal = React.lazy(() =>
   import("../components/SpecimenModal").then((mod) => ({ default: mod.SpecimenModal }))
@@ -19,6 +31,8 @@ export default function AllFinds(props: { projectId: string }) {
   const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
   const [view, setView] = useState<View>("all");
   const [openSpecimenId, setOpenSpecimenId] = useState<string | null>(null);
+  const [setupFindId, setSetupFindId] = useState<string | null>(null);
+  const [batchOpen, setBatchOpen] = useState(false);
 
   useEffect(() => {
     const q = searchParams.get("q");
@@ -145,17 +159,33 @@ export default function AllFinds(props: { projectId: string }) {
       )}
 
       {view === "pending" && (specimens?.length ?? 0) > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-950/20">
+          <div>
+            <p className="text-sm font-black text-amber-950 dark:text-amber-100">Pending organiser</p>
+            <p className="mt-0.5 text-xs font-medium text-amber-800/75 dark:text-amber-200/70">Create localities from GPS finds or merge them into nearby saved places.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setBatchOpen(true)}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-black text-white shadow-sm transition-colors hover:bg-amber-700"
+          >
+            <Layers className="h-4 w-4" />
+            Organise Finds
+          </button>
+        </div>
+      )}
+
+      {view === "pending" && (specimens?.length ?? 0) > 0 && (
         <div className="grid gap-3 sm:grid-cols-2">
           {specimens!.map((find) => (
-            <button
+            <div
               key={find.id}
-              onClick={() => setOpenSpecimenId(find.id)}
               className="group flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50/75 p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-amber-400 hover:bg-amber-50 hover:shadow-md dark:border-amber-800 dark:bg-amber-950/20 dark:hover:border-amber-600 dark:hover:bg-amber-950/40"
             >
               <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-amber-100 dark:bg-amber-900/40">
                 <Zap className="h-5 w-5 text-amber-600 dark:text-amber-400" />
               </div>
-              <div className="min-w-0 flex-1">
+              <button type="button" onClick={() => setOpenSpecimenId(find.id)} className="min-w-0 flex-1 text-left">
                 <p className="truncate text-sm font-black text-slate-900 dark:text-white">{find.taxon || "Unidentified"}</p>
                 <p className="mt-0.5 font-mono text-[10px] text-slate-500 dark:text-slate-400">{find.specimenCode}</p>
                 {find.lat && find.lon && (
@@ -164,12 +194,22 @@ export default function AllFinds(props: { projectId: string }) {
                     {find.lat.toFixed(4)}, {find.lon.toFixed(4)}
                   </p>
                 )}
+              </button>
+              <div className="flex shrink-0 flex-col items-end gap-2">
+                <span className="rounded-lg border border-amber-300 bg-amber-100 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-amber-700 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                  Draft
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSetupFindId(find.id)}
+                  className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wide text-white transition-colors hover:bg-emerald-700"
+                >
+                  <MapPin className="h-3 w-3" />
+                  Locality
+                </button>
               </div>
-              <span className="shrink-0 rounded-lg border border-amber-300 bg-amber-100 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-amber-700 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
-                Draft
-              </span>
               <ArrowRight className="h-3.5 w-3.5 shrink-0 text-amber-500 transition-transform group-hover:translate-x-0.5" />
-            </button>
+            </div>
           ))}
         </div>
       )}
@@ -234,7 +274,387 @@ export default function AllFinds(props: { projectId: string }) {
           <SpecimenModal specimenId={openSpecimenId} onClose={() => setOpenSpecimenId(null)} />
         </React.Suspense>
       )}
+
+      {setupFindId && <LocalitySetupModal specimenId={setupFindId} onClose={() => setSetupFindId(null)} />}
+      {batchOpen && <BatchLocalityOrganiser projectId={props.projectId} onClose={() => setBatchOpen(false)} />}
     </div>
+  );
+}
+
+function LocalitySetupModal({ specimenId, onClose }: { specimenId: string; onClose: () => void }) {
+  const [analysis, setAnalysis] = useState<LocalitySetupAnalysis | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError("");
+    db.specimens.get(specimenId)
+      .then(async (find) => {
+        if (!find) throw new Error("Find not found.");
+        return analyseFindForLocalitySetup(find);
+      })
+      .then((result) => {
+        if (!active) return;
+        setAnalysis(result);
+      })
+      .catch((e) => {
+        if (!active) return;
+        setError(e instanceof Error ? e.message : "Could not prepare locality setup.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [specimenId]);
+
+  async function attach(locality: Locality) {
+    if (!analysis) return;
+    setSaving(true);
+    setError("");
+    try {
+      await attachFindToLocality(analysis.find, locality, { markComplete: true });
+      setMessage(`Attached to ${locality.name || "saved locality"}.`);
+      window.setTimeout(onClose, 700);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Attach failed.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function createNew() {
+    if (!analysis?.suggestion) return;
+    setSaving(true);
+    setError("");
+    try {
+      const locality = await createLocalityFromFind(analysis.find, analysis.suggestion);
+      setMessage(`Created ${locality.name || "new locality"}.`);
+      window.setTimeout(onClose, 700);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Locality creation failed.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function updateLinkedLocality() {
+    if (!analysis?.linkedLocality || !analysis.suggestion) return;
+    setSaving(true);
+    setError("");
+    try {
+      await updateLocalityFromSuggestion(analysis.linkedLocality, analysis.suggestion);
+      await attachFindToLocality(analysis.find, analysis.linkedLocality, { markComplete: true });
+      setMessage(`Updated ${analysis.linkedLocality.name || "linked locality"}.`);
+      window.setTimeout(onClose, 700);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Locality update failed.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal title="Smart locality setup" onClose={onClose}>
+      {loading && (
+        <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Checking GPS, nearby localities and BGS geology...
+        </div>
+      )}
+
+      {!loading && error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+          {error}
+        </div>
+      )}
+
+      {!loading && analysis && (
+        <div className="grid gap-4">
+          {message && (
+            <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-black text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200">
+              <CheckCircle2 className="h-4 w-4" />
+              {message}
+            </div>
+          )}
+
+          {analysis.error && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+              {analysis.error}
+            </div>
+          )}
+
+          <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Pending find</p>
+            <h3 className="mt-1 text-lg font-black text-slate-950 dark:text-white">{analysis.find.taxon || "Unidentified"}</h3>
+            <p className="mt-1 font-mono text-xs text-slate-500">{analysis.find.specimenCode}</p>
+          </section>
+
+          {analysis.linkedLocality && (
+            <section className="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950/30">
+              <p className="text-[10px] font-black uppercase tracking-widest text-blue-700 dark:text-blue-300">Already linked</p>
+              <h3 className="mt-1 text-base font-black text-blue-950 dark:text-blue-100">{analysis.linkedLocality.name || "Saved locality"}</h3>
+              <p className="mt-1 text-xs font-medium text-blue-800/75 dark:text-blue-200/70">
+                FossilMap will not create a duplicate unless you explicitly choose to create a new locality.
+              </p>
+              {analysis.suggestion && (
+                <button
+                  type="button"
+                  onClick={updateLinkedLocality}
+                  disabled={saving}
+                  className="mt-3 inline-flex items-center gap-2 rounded-lg bg-blue-700 px-3 py-2 text-xs font-black text-white hover:bg-blue-800 disabled:opacity-50"
+                >
+                  {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                  Update locality geology
+                </button>
+              )}
+            </section>
+          )}
+
+          {analysis.nearby.length > 0 && (
+            <section className="grid gap-2">
+              <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-300">Nearby localities within 500m</p>
+              {analysis.nearby.slice(0, 4).map((match) => (
+                <LocalityMatchRow key={match.locality.id} match={match} disabled={saving} onAttach={() => attach(match.locality)} />
+              ))}
+            </section>
+          )}
+
+          {analysis.possible.length > 0 && (
+            <section className="grid gap-2">
+              <p className="text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300">Possible matches within 1 mile</p>
+              {analysis.possible.slice(0, 4).map((match) => (
+                <LocalityMatchRow key={match.locality.id} match={match} disabled={saving} onAttach={() => attach(match.locality)} />
+              ))}
+            </section>
+          )}
+
+          {analysis.suggestion && (
+            <section className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950/50">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Suggested new locality</p>
+                  <h3 className="mt-1 text-lg font-black text-slate-950 dark:text-white">{analysis.suggestion.name}</h3>
+                  <p className="mt-1 text-xs font-medium text-slate-500">
+                    {[analysis.suggestion.period, analysis.suggestion.stage, analysis.suggestion.formation].filter(Boolean).join(" / ") || "No BGS stratigraphy found"}
+                  </p>
+                  {analysis.suggestion.gridRef && <p className="mt-1 font-mono text-xs text-slate-500">{analysis.suggestion.gridRef}</p>}
+                </div>
+                <span className={`self-start rounded-lg px-2 py-1 text-[10px] font-black uppercase ${
+                  analysis.suggestion.confidence === "high"
+                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200"
+                    : analysis.suggestion.confidence === "review"
+                      ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+                      : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                }`}>
+                  {analysis.suggestion.confidence}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={createNew}
+                disabled={saving || !!analysis.linkedLocality}
+                className="mt-4 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-black text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                Create new locality
+              </button>
+              {analysis.linkedLocality && (
+                <p className="mt-2 text-[11px] font-bold text-slate-500">This find is already linked, so creating a duplicate is disabled here. Use the full locality form if you need a separate place.</p>
+              )}
+            </section>
+          )}
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+function LocalityMatchRow({ match, disabled, onAttach }: { match: { locality: Locality; distanceM: number; formationMatches: boolean | null }; disabled: boolean; onAttach: () => void }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+      <div className="min-w-0">
+        <p className="truncate text-sm font-black text-slate-950 dark:text-white">{match.locality.name || "Unnamed locality"}</p>
+        <p className="mt-0.5 text-xs font-medium text-slate-500">
+          {formatDistance(match.distanceM)}
+          {match.locality.formation ? ` · ${match.locality.formation}` : ""}
+          {match.formationMatches === false ? " · geology differs" : ""}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onAttach}
+        disabled={disabled}
+        className="shrink-0 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
+      >
+        Attach Here
+      </button>
+    </div>
+  );
+}
+
+function BatchLocalityOrganiser({ projectId, onClose }: { projectId: string; onClose: () => void }) {
+  const [radiusM, setRadiusM] = useState(500);
+  const [proposals, setProposals] = useState<ClusterProposal[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError("");
+    setMessage("");
+    clusterPendingFinds(projectId, radiusM)
+      .then((items) => {
+        if (!active) return;
+        setProposals(items);
+      })
+      .catch((e) => {
+        if (!active) return;
+        setError(e instanceof Error ? e.message : "Could not analyse pending finds.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [projectId, radiusM]);
+
+  function updateProposal(id: string, patch: Partial<ClusterProposal>) {
+    setProposals((current) => current.map((proposal) => proposal.id === id ? { ...proposal, ...patch } : proposal));
+  }
+
+  async function createAll() {
+    setSaving(true);
+    setError("");
+    try {
+      for (const proposal of proposals) {
+        await applyClusterProposal(proposal);
+      }
+      setMessage("Pending finds organised.");
+      window.setTimeout(onClose, 900);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Batch organiser failed.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const actionable = proposals.filter((proposal) => proposal.action !== "skip").length;
+
+  return (
+    <Modal title="Organise pending finds" onClose={onClose}>
+      <div className="grid gap-4">
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950/50">
+          <p className="text-sm font-black text-slate-950 dark:text-white">Cluster by collection area</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {[
+              [50, "50m precise"],
+              [100, "100m general"],
+              [250, "250m exposure"],
+              [500, "500m coastal"],
+              [1609, "1 mile wide"],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setRadiusM(Number(value))}
+                className={`rounded-lg border px-3 py-2 text-xs font-black transition-colors ${
+                  radiusM === value
+                    ? "border-amber-600 bg-amber-600 text-white"
+                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {loading && (
+          <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-4 text-sm font-bold text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Analysing GPS clusters and BGS geology...
+          </div>
+        )}
+
+        {error && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">{error}</div>}
+        {message && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-black text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200">{message}</div>}
+
+        {!loading && proposals.length === 0 && (
+          <div className="rounded-xl border border-slate-200 bg-white p-5 text-center text-sm font-bold text-slate-500 dark:border-slate-700 dark:bg-slate-900">
+            No pending finds with GPS are ready to organise.
+          </div>
+        )}
+
+        {!loading && proposals.length > 0 && (
+          <div className="grid gap-3">
+            {proposals.map((proposal) => {
+              const matches = [...proposal.nearby, ...proposal.possible];
+              return (
+                <section key={proposal.id} className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{proposal.finds.length} find{proposal.finds.length === 1 ? "" : "s"}</p>
+                      <h3 className="mt-1 text-base font-black text-slate-950 dark:text-white">{proposal.suggestion?.name || "GPS cluster"}</h3>
+                      <p className="mt-1 text-xs font-medium text-slate-500">
+                        {[proposal.suggestion?.period, proposal.suggestion?.stage, proposal.suggestion?.formation].filter(Boolean).join(" / ") || "No BGS stratigraphy found"}
+                      </p>
+                    </div>
+                    <select
+                      value={proposal.action}
+                      onChange={(e) => updateProposal(proposal.id, { action: e.target.value as ClusterProposal["action"] })}
+                      className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black dark:border-slate-700 dark:bg-slate-950"
+                    >
+                      <option value="create">Create new</option>
+                      <option value="merge" disabled={matches.length === 0}>Merge existing</option>
+                      <option value="skip">Skip</option>
+                    </select>
+                  </div>
+
+                  {proposal.action === "merge" && matches.length > 0 && (
+                    <select
+                      value={proposal.mergeLocalityId || matches[0].locality.id}
+                      onChange={(e) => updateProposal(proposal.id, { mergeLocalityId: e.target.value })}
+                      className="mt-3 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold dark:border-slate-700 dark:bg-slate-950"
+                    >
+                      {matches.map((match) => (
+                        <option key={match.locality.id} value={match.locality.id}>
+                          {match.locality.name || "Unnamed locality"} · {formatDistance(match.distanceM)}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </section>
+              );
+            })}
+          </div>
+        )}
+
+        {!loading && proposals.length > 0 && (
+          <div className="sticky bottom-0 -mx-1 flex items-center justify-between gap-3 border-t border-slate-200 bg-white/95 px-1 py-3 backdrop-blur dark:border-slate-700 dark:bg-gray-800/95">
+            <p className="text-xs font-bold text-slate-500">{actionable} proposal{actionable === 1 ? "" : "s"} ready</p>
+            <button
+              type="button"
+              onClick={createAll}
+              disabled={saving || actionable === 0}
+              className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-black text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+              Create All
+            </button>
+          </div>
+        )}
+      </div>
+    </Modal>
   );
 }
 

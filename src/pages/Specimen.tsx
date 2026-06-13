@@ -10,10 +10,18 @@ import { captureGPS } from "../services/gps";
 import { formatCoords } from "../services/coords";
 import { formatOsGridRef, OS_GRID_INVALID_MESSAGE, parseOsGridRef } from "../services/osGrid";
 import { calculateQualityScore } from "../services/research";
+import {
+  buildLocalitySuggestion,
+  findNearbyLocalities,
+  formatDistance,
+  updateLocalityFromSuggestion,
+  type LocalitySuggestion,
+  type NearbyLocalityMatch,
+} from "../services/localitySetup";
 import { useConfirmDialog } from "../components/ConfirmModal";
 import { CoachTip } from "../components/CoachTip";
 import {
-  ArrowDown, ArrowUp, Camera, CheckCircle2, ClipboardList,
+  ArrowDown, ArrowUp, Camera, CheckCircle2, ClipboardList, Loader2,
   MapPin, Microscope, RefreshCw, Ruler, Trash2, Warehouse,
 } from "lucide-react";
 
@@ -101,6 +109,12 @@ export default function SpecimenPage(props: {
   const [storageLocation, setStorageLocation] = useState("");
   const [notes, setNotes] = useState("");
   const [dateCollected, setDateCollected] = useState(() => new Date().toISOString().slice(0, 10));
+  const [smartSuggestion, setSmartSuggestion] = useState<LocalitySuggestion | null>(null);
+  const [smartNearby, setSmartNearby] = useState<NearbyLocalityMatch[]>([]);
+  const [smartPossible, setSmartPossible] = useState<NearbyLocalityMatch[]>([]);
+  const [smartLoading, setSmartLoading] = useState(false);
+  const [smartError, setSmartError] = useState("");
+  const [smartDismissed, setSmartDismissed] = useState(false);
 
   // ── UI state ─────────────────────────────────────────────────────────────
   const [error, setError] = useState<string | null>(null);
@@ -213,7 +227,91 @@ export default function SpecimenPage(props: {
     () => [...(localities ?? [])].sort((a, b) => (a.name || "").localeCompare(b.name || "")),
     [localities]
   );
+  const selectedLocality = useMemo(
+    () => sortedLocalities.find((locality) => locality.id === selectedLocalityId) ?? null,
+    [selectedLocalityId, sortedLocalities]
+  );
   const formLocked = !!savedId && !isEditingExisting && !isMobileWizard;
+
+  function buildDraftForSmartLocality(): Specimen {
+    const now = new Date().toISOString();
+    return {
+      id: savedId || "draft",
+      projectId: props.projectId,
+      localityId: selectedLocalityId,
+      sessionId: props.sessionId || null,
+      specimenCode: specimenCode.trim() || makeSpecimenCode(),
+      taxon: taxon.trim(),
+      taxonConfidence: confidence,
+      period: period.trim(),
+      stage: stage.trim(),
+      formation: formation.trim(),
+      lat,
+      lon,
+      gpsAccuracyM: acc,
+      element,
+      preservation,
+      taphonomy: taphonomy.trim(),
+      findContext: findContext.trim(),
+      weightG: numberFromInput(weightG),
+      lengthMm: numberFromInput(lengthMm),
+      widthMm: numberFromInput(widthMm),
+      thicknessMm: numberFromInput(thicknessMm),
+      bagBoxId: bagBoxId.trim(),
+      storageLocation: storageLocation.trim(),
+      notes: notes.trim(),
+      dateCollected: dateCollected || undefined,
+      isPending: !savedId,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  useEffect(() => {
+    const coordsReady = lat != null && lon != null && Number.isFinite(lat) && Number.isFinite(lon);
+    if (!coordsReady) {
+      setSmartSuggestion(null);
+      setSmartNearby([]);
+      setSmartPossible([]);
+      setSmartError("");
+      setSmartLoading(false);
+      return;
+    }
+
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      setSmartLoading(true);
+      setSmartError("");
+      try {
+        const draft = buildDraftForSmartLocality();
+        const suggestion = await buildLocalitySuggestion(draft);
+        const matches = suggestion
+          ? await findNearbyLocalities(props.projectId, lat, lon, { formation: suggestion.formation || formation })
+          : [];
+        if (!active) return;
+        setSmartSuggestion(suggestion);
+        setSmartNearby(matches.filter((match) => match.kind === "nearby" && match.locality.id !== selectedLocalityId));
+        setSmartPossible(matches.filter((match) => match.kind === "possible" && match.locality.id !== selectedLocalityId));
+      } catch (e: any) {
+        if (!active) return;
+        setSmartSuggestion(null);
+        setSmartNearby([]);
+        setSmartPossible([]);
+        setSmartError(e?.message ?? "Smart locality lookup failed.");
+      } finally {
+        if (active) setSmartLoading(false);
+      }
+    }, 450);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [acc, dateCollected, element, findContext, formation, lat, lengthMm, lon, notes, period, preservation, props.projectId, props.sessionId, savedId, selectedLocalityId, specimenCode, stage, storageLocation, taphonomy, taxon, thicknessMm, weightG, widthMm]);
+
+  useEffect(() => {
+    setSmartDismissed(false);
+  }, [lat, lon, selectedLocalityId]);
 
   // ── Quality bar ───────────────────────────────────────────────────────────
   const qualitySpecimen = useMemo<Partial<Specimen>>(() => ({
@@ -261,6 +359,33 @@ export default function SpecimenPage(props: {
     }
   }
 
+  function useSuggestedLocality() {
+    if (!smartSuggestion) return;
+    setSelectedLocalityId("");
+    setLocationName(smartSuggestion.name);
+    if (smartSuggestion.period) setPeriod(smartSuggestion.period);
+    if (smartSuggestion.stage) setStage(smartSuggestion.stage);
+    if (smartSuggestion.formation) setFormation(smartSuggestion.formation);
+    setSmartDismissed(false);
+  }
+
+  async function attachToSmartLocality(localityId: string) {
+    await chooseLocality(localityId);
+    setSmartDismissed(false);
+  }
+
+  async function updateSelectedLocalityGeology() {
+    if (!selectedLocality || !smartSuggestion) return;
+    try {
+      await updateLocalityFromSuggestion(selectedLocality, smartSuggestion);
+      await chooseLocality(selectedLocality.id);
+      setSaveMessage(`Updated ${selectedLocality.name || "selected locality"} geology.`);
+      setSmartDismissed(false);
+    } catch (e: any) {
+      setError(e?.message ?? "Could not update locality geology.");
+    }
+  }
+
   // ── Save helpers ──────────────────────────────────────────────────────────
   async function resolveLocalityId(): Promise<string> {
     if (selectedLocalityId) {
@@ -282,20 +407,23 @@ export default function SpecimenPage(props: {
     const newId = uuid();
     const now = new Date().toISOString();
     const defaultCollector = await db.settings.get("defaultCollector").then((s) => s?.value || "");
+    const observedAt = dateCollected
+      ? new Date(`${dateCollected}T12:00:00`).toISOString()
+      : now;
     await db.localities.add({
       id: newId,
       projectId: props.projectId,
       type: "location",
       name: trimmedName,
-      lat: null, lon: null, gpsAccuracyM: null,
-      observedAt: now,
+      lat, lon, gpsAccuracyM: acc,
+      observedAt,
       collector: defaultCollector,
       exposureType: "other",
       sssi: false, rigs: false, permissionGranted: false,
       period: period.trim(), stage: stage.trim(),
       formation: formation.trim(), member: "", bed: "",
-      lithologyPrimary: "other",
-      notes: "Structured Location",
+      lithologyPrimary: smartSuggestion?.lithologyPrimary ?? "other",
+      notes: smartSuggestion?.notes || "Structured Location",
       designationNotes: "",
       createdAt: now, updatedAt: now,
     });
@@ -549,6 +677,22 @@ export default function SpecimenPage(props: {
     });
   }
 
+  const smartLocalityPanel = (
+    <SmartLocalityPanel
+      selectedLocality={selectedLocality}
+      suggestion={smartSuggestion}
+      nearby={smartNearby}
+      possible={smartPossible}
+      loading={smartLoading}
+      error={smartError}
+      dismissed={smartDismissed}
+      onDismiss={() => setSmartDismissed(true)}
+      onUseSuggestion={useSuggestedLocality}
+      onAttach={attachToSmartLocality}
+      onUpdateSelected={updateSelectedLocalityGeology}
+    />
+  );
+
   // ─────────────────────────────────────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────────────────────────────────────
@@ -652,6 +796,7 @@ export default function SpecimenPage(props: {
           isPickingLocation={isPickingLocation}
           setIsPickingLocation={setIsPickingLocation}
           setLat={setLat} setLon={setLon} setAcc={setAcc}
+          smartLocalityPanel={smartLocalityPanel}
           preservation={preservation} setPreservation={setPreservation}
           taphonomy={taphonomy} setTaphonomy={setTaphonomy}
           findContext={findContext} setFindContext={setFindContext}
@@ -735,6 +880,7 @@ export default function SpecimenPage(props: {
 
             <SectionTitle icon={MapPin} title="3. Find spot" detail="Capture GPS now if possible. You can correct it on the map later." />
             <GpsBlock lat={lat} lon={lon} doGPS={doGPS} setIsPickingLocation={setIsPickingLocation} setLat={setLat} setLon={setLon} setAcc={setAcc} />
+            {smartLocalityPanel}
 
             <label className="block">
               <div className="mb-2 text-sm font-bold text-gray-700 dark:text-gray-300">Date collected</div>
@@ -829,6 +975,7 @@ type WizardProps = {
   doGPS: () => void;
   isPickingLocation: boolean; setIsPickingLocation: (v: boolean) => void;
   setLat: (v: number | null) => void; setLon: (v: number | null) => void; setAcc: (v: number | null) => void;
+  smartLocalityPanel?: React.ReactNode;
   preservation: Specimen["preservation"]; setPreservation: (v: Specimen["preservation"]) => void;
   taphonomy: string; setTaphonomy: (v: string) => void;
   findContext: string; setFindContext: (v: string) => void;
@@ -964,6 +1111,7 @@ function MobileWizard(p: WizardProps) {
 
             <SectionTitle icon={MapPin} title="GPS" detail="Tap while standing on the find. You can update this later." />
             <GpsBlock lat={p.lat} lon={p.lon} doGPS={p.doGPS} setIsPickingLocation={p.setIsPickingLocation} setLat={p.setLat} setLon={p.setLon} setAcc={p.setAcc} compact />
+            {p.smartLocalityPanel}
 
             <label className="block">
               <div className="mb-2 text-sm font-bold text-gray-700 dark:text-gray-300">Date collected</div>
@@ -1333,6 +1481,167 @@ function GpsBlock({ lat, lon, doGPS, setIsPickingLocation, setLat, setLon, setAc
         />
         {ngrError && <span className="text-[11px] font-bold text-red-600 dark:text-red-300">{ngrError}</span>}
       </label>
+    </div>
+  );
+}
+
+function SmartLocalityPanel({
+  selectedLocality,
+  suggestion,
+  nearby,
+  possible,
+  loading,
+  error,
+  dismissed,
+  onDismiss,
+  onUseSuggestion,
+  onAttach,
+  onUpdateSelected,
+}: {
+  selectedLocality: Locality | null;
+  suggestion: LocalitySuggestion | null;
+  nearby: NearbyLocalityMatch[];
+  possible: NearbyLocalityMatch[];
+  loading: boolean;
+  error: string;
+  dismissed: boolean;
+  onDismiss: () => void;
+  onUseSuggestion: () => void;
+  onAttach: (localityId: string) => void;
+  onUpdateSelected: () => void;
+}) {
+  const hasContent = loading || error || suggestion || selectedLocality || nearby.length > 0 || possible.length > 0;
+  if (!hasContent || dismissed) return null;
+
+  const needsSelectedUpdate = Boolean(
+    selectedLocality &&
+    suggestion &&
+    ((!selectedLocality.formation && suggestion.formation) ||
+      (!selectedLocality.period && suggestion.period) ||
+      (!selectedLocality.stage && suggestion.stage))
+  );
+
+  return (
+    <section className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 dark:border-emerald-900 dark:bg-emerald-950/20">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-300">Smart locality setup</p>
+          <h3 className="mt-1 text-base font-black text-slate-950 dark:text-white">
+            {selectedLocality ? "Saved locality selected" : "Use GPS to organise this find"}
+          </h3>
+        </div>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="shrink-0 rounded-lg border border-emerald-200 bg-white px-2 py-1 text-[10px] font-black text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-slate-900 dark:text-emerald-200"
+        >
+          Later
+        </button>
+      </div>
+
+      {loading && (
+        <div className="mt-3 flex items-center gap-2 rounded-xl border border-emerald-200 bg-white p-3 text-xs font-bold text-emerald-800 dark:border-emerald-900 dark:bg-slate-900 dark:text-emerald-200">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          Checking BGS geology and nearby saved localities...
+        </div>
+      )}
+
+      {!loading && error && (
+        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+          {error}
+        </div>
+      )}
+
+      {!loading && selectedLocality && (
+        <div className="mt-3 rounded-xl border border-blue-200 bg-white p-3 dark:border-blue-900 dark:bg-slate-900">
+          <p className="text-sm font-black text-slate-950 dark:text-white">{selectedLocality.name || "Selected locality"}</p>
+          <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+            FossilMap will not create another locality for this find. Use this panel only to fill missing geology on the selected place.
+          </p>
+          {needsSelectedUpdate && (
+            <button
+              type="button"
+              onClick={onUpdateSelected}
+              className="mt-3 inline-flex items-center gap-2 rounded-lg bg-blue-700 px-3 py-2 text-xs font-black text-white transition-colors hover:bg-blue-800"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Update locality geology
+            </button>
+          )}
+        </div>
+      )}
+
+      {!loading && !selectedLocality && nearby.length > 0 && (
+        <div className="mt-3 grid gap-2">
+          <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-300">Nearby localities within 500m</p>
+          {nearby.slice(0, 3).map((match) => (
+            <SmartMatchRow key={match.locality.id} match={match} onAttach={onAttach} label="Attach Here" />
+          ))}
+        </div>
+      )}
+
+      {!loading && !selectedLocality && possible.length > 0 && (
+        <div className="mt-3 grid gap-2">
+          <p className="text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300">Possible matches within 1 mile</p>
+          {possible.slice(0, 3).map((match) => (
+            <SmartMatchRow key={match.locality.id} match={match} onAttach={onAttach} label="Attach" />
+          ))}
+        </div>
+      )}
+
+      {!loading && !selectedLocality && suggestion && (
+        <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Suggested new locality</p>
+              <p className="mt-1 text-sm font-black text-slate-950 dark:text-white">{suggestion.name}</p>
+              <p className="mt-1 text-xs font-medium text-slate-500">
+                {[suggestion.period, suggestion.stage, suggestion.formation].filter(Boolean).join(" / ") || "No BGS stratigraphy found"}
+              </p>
+              {suggestion.gridRef && <p className="mt-1 font-mono text-xs text-slate-500">{suggestion.gridRef}</p>}
+            </div>
+            <span className={`self-start rounded-lg px-2 py-1 text-[10px] font-black uppercase ${
+              suggestion.confidence === "high"
+                ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200"
+                : suggestion.confidence === "review"
+                  ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+                  : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+            }`}>
+              {suggestion.confidence}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={onUseSuggestion}
+            className="mt-3 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black text-white transition-colors hover:bg-emerald-700"
+          >
+            <MapPin className="h-3.5 w-3.5" />
+            Use suggested locality
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function SmartMatchRow({ match, onAttach, label }: { match: NearbyLocalityMatch; onAttach: (localityId: string) => void; label: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+      <div className="min-w-0">
+        <p className="truncate text-sm font-black text-slate-950 dark:text-white">{match.locality.name || "Unnamed locality"}</p>
+        <p className="mt-0.5 text-xs font-medium text-slate-500">
+          {formatDistance(match.distanceM)}
+          {match.locality.formation ? ` · ${match.locality.formation}` : ""}
+          {match.formationMatches === false ? " · geology differs" : ""}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={() => onAttach(match.locality.id)}
+        className="shrink-0 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black text-white transition-colors hover:bg-emerald-700"
+      >
+        {label}
+      </button>
     </div>
   );
 }

@@ -60,12 +60,12 @@ export function QuickFindSheet({
   useEffect(() => { tryGPS(); }, []);
 
   async function handleSave() {
-    if (!taxon.trim() || !selectedLocalityId) return;
+    if (!taxon.trim()) return;
     setSaving(true);
     try {
       const now = new Date().toISOString();
       const id  = uuid();
-      const selectedSessionId = selectedLocalityId === activeSessionLocalityId ? activeSessionId ?? null : null;
+      const selectedSessionId = selectedLocalityId && selectedLocalityId === activeSessionLocalityId ? activeSessionId ?? null : null;
       const specimen: Specimen = {
         id,
         projectId,
@@ -172,7 +172,7 @@ export function QuickFindSheet({
                   onChange={(e) => setSelectedLocalityId(e.target.value)}
                   className="h-11 w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-9 text-sm font-black text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:ring-emerald-900/50"
                 >
-                  <option value="">Select location...</option>
+                  <option value="">No location yet - organise later</option>
                   {localities.map((locality) => (
                     <option key={locality.id} value={locality.id}>
                       {locality.name || "Unnamed location"}{locality.type === "trip" ? " (trip)" : ""}
@@ -188,7 +188,7 @@ export function QuickFindSheet({
               )}
               {!selectedLocalityId && (
                 <p className="mt-1 text-[10px] font-bold text-amber-700 dark:text-amber-300">
-                  Choose a location before logging the find.
+                  This will stay in Pending Finds until you attach or create a locality.
                 </p>
               )}
             </div>
@@ -211,7 +211,7 @@ export function QuickFindSheet({
           {/* Save button */}
           <button
             onClick={handleSave}
-            disabled={!taxon.trim() || !selectedLocalityId || saving}
+            disabled={!taxon.trim() || saving}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3.5 text-sm font-black text-white shadow-md transition-colors hover:bg-emerald-700 disabled:opacity-50"
           >
             {saved ? (
